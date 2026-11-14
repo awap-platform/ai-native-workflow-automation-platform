@@ -8,12 +8,14 @@ let hookState: {
   mutate: jest.Mock;
   isPending: boolean;
   isError: boolean;
+  isSuccess: boolean;
   error: Error | null;
   data: CopilotResponseDto | undefined;
 } = {
   mutate,
   isPending: false,
   isError: false,
+  isSuccess: false,
   error: null,
   data: undefined,
 };
@@ -36,6 +38,18 @@ const response: CopilotResponseDto = {
   idempotency_key: null,
 };
 
+function submit(message: string, confirmed = false): void {
+  fireEvent.change(screen.getByLabelText("Your request"), { target: { value: message } });
+  if (confirmed) {
+    fireEvent.click(
+      screen.getByLabelText(
+        "I confirm this high-risk action (start workflow, task decision or approval).",
+      ),
+    );
+  }
+  fireEvent.click(screen.getByRole("button", { name: "Send to Copilot" }));
+}
+
 describe("CopilotPage", () => {
   beforeEach(() => {
     mutate.mockReset();
@@ -43,6 +57,7 @@ describe("CopilotPage", () => {
       mutate,
       isPending: false,
       isError: false,
+      isSuccess: false,
       error: null,
       data: undefined,
     };
@@ -52,15 +67,36 @@ describe("CopilotPage", () => {
     render(<CopilotPage />);
 
     expect(screen.getByRole("heading", { name: "AI Copilot" })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Your request"), {
-      target: { value: "İzin talebi başlat" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Send to Copilot" }));
+    submit("İzin talebi başlat");
 
     expect(mutate).toHaveBeenCalledWith({
       message: "İzin talebi başlat",
       confirm_high_risk: false,
+      idempotency_key: expect.any(String),
     });
+  });
+
+  it("reuses the key for a retry of the same intent", () => {
+    render(<CopilotPage />);
+
+    submit("start leave request");
+    submit("start leave request");
+
+    const first = mutate.mock.calls[0][0].idempotency_key;
+    const retry = mutate.mock.calls[1][0].idempotency_key;
+    expect(first).toBeTruthy();
+    expect(retry).toBe(first);
+  });
+
+  it("rotates the key when the intent text changes", () => {
+    render(<CopilotPage />);
+
+    submit("start leave request");
+    submit("start expense request");
+
+    const first = mutate.mock.calls[0][0].idempotency_key;
+    const next = mutate.mock.calls[1][0].idempotency_key;
+    expect(next).not.toBe(first);
   });
 
   it("renders the HITL warning, model metadata and tool calls", () => {
@@ -76,19 +112,12 @@ describe("CopilotPage", () => {
   it("marks the request as confirmed when the high-risk checkbox is selected", () => {
     render(<CopilotPage />);
 
-    fireEvent.change(screen.getByLabelText("Your request"), {
-      target: { value: "Approve task" },
-    });
-    fireEvent.click(
-      screen.getByLabelText(
-        "I confirm this high-risk action (start workflow, task decision or approval).",
-      ),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Send to Copilot" }));
+    submit("Approve task", true);
 
     expect(mutate).toHaveBeenCalledWith({
       message: "Approve task",
       confirm_high_risk: true,
+      idempotency_key: expect.any(String),
     });
   });
 });

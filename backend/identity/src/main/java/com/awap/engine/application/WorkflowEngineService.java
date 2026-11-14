@@ -221,7 +221,7 @@ public class WorkflowEngineService implements WorkflowEnginePort {
       var existing =
           instanceRepository.findByTenantIdAndIdempotencyKey(tenantId, request.idempotencyKey());
       if (existing.isPresent()) {
-        return engineMapper.toResponse(existing.get());
+        return replayExisting(existing.get(), request);
       }
     }
 
@@ -257,6 +257,30 @@ public class WorkflowEngineService implements WorkflowEnginePort {
 
     nodeExecutor.executeStartNode(instance);
     return engineMapper.toResponse(instance);
+  }
+
+  /**
+   * Replays an idempotent start only when the payload is identical. Reusing a key for a different
+   * workflow or context is a deterministic conflict, so a double click can never silently return
+   * the wrong process (issue #283).
+   */
+  private WorkflowInstanceResponse replayExisting(
+      WorkflowInstance instance, StartWorkflowRequest request) {
+    boolean sameDefinition =
+        instance.getWorkflowDefinitionId().equals(request.workflowDefinitionId());
+    boolean sameContext =
+        normalizeContext(instance.getContextJson()).equals(normalizeContext(request.contextJson()));
+    if (!sameDefinition || !sameContext) {
+      throw new AwapException(
+          ErrorCode.RESOURCE_CONFLICT,
+          HttpStatus.CONFLICT,
+          "Idempotency-Key was reused with a different workflow start payload.");
+    }
+    return engineMapper.toResponse(instance);
+  }
+
+  private static String normalizeContext(String context) {
+    return context == null || context.isBlank() ? "{}" : context.trim();
   }
 
   @Override

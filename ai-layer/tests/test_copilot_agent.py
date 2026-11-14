@@ -12,9 +12,11 @@ from app.copilot.tools import ToolRegistry
 class FakeClient:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict[str, object]]] = []
+        self.keys: list[tuple[str, str | None]] = []
 
     async def call(self, name, payload, security, idempotency_key=None):  # type: ignore[no-untyped-def]
         self.calls.append((name, payload))
+        self.keys.append((name, idempotency_key))
         if name == "find_workflow":
             return [{"id": "wf-1", "name": "Leave Request"}]
         if name == "create_workflow_instance":
@@ -81,6 +83,40 @@ def test_task_query_returns_the_users_tasks() -> None:
     response = run(CopilotRequest(message="görevlerim"))
     assert response.action == CopilotAction.QUERY_TASKS
     assert "Approve leave" in response.answer
+
+
+def test_confirmed_task_decision_forwards_the_idempotency_key() -> None:
+    client = FakeClient()
+    run(
+        CopilotRequest(
+            message="approve the task",
+            action=CopilotAction.COMPLETE_TASK,
+            context={"taskId": "task-1", "decision": "approve"},
+            confirm_high_risk=True,
+            idempotency_key="task-key-1",
+        ),
+        client=client,
+    )
+    payload = next(payload for name, payload in client.calls if name == "complete_task")
+    assert payload["idempotencyKey"] == "task-key-1"
+    assert ("complete_task", "task-key-1") in client.keys
+
+
+def test_confirmed_approval_forwards_the_idempotency_key() -> None:
+    client = FakeClient()
+    run(
+        CopilotRequest(
+            message="create an approval",
+            action=CopilotAction.APPROVAL_ASSISTANCE,
+            context={"workflowInstanceId": "instance-1", "title": "Approve leave"},
+            confirm_high_risk=True,
+            idempotency_key="approval-key-1",
+        ),
+        client=client,
+    )
+    payload = next(payload for name, payload in client.calls if name == "create_approval")
+    assert payload["idempotencyKey"] == "approval-key-1"
+    assert ("create_approval", "approval-key-1") in client.keys
 
 
 def test_knowledge_search_returns_tenant_documents() -> None:

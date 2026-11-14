@@ -64,6 +64,10 @@ public class AiCopilotClient {
   }
 
   public JsonNode forward(String path, JsonNode body) {
+    return forward(path, body, null);
+  }
+
+  public JsonNode forward(String path, JsonNode body, String idempotencyKey) {
     TenantContext.Context context =
         TenantContext.current()
             .orElseThrow(
@@ -87,6 +91,9 @@ public class AiCopilotClient {
               .header("X-User-Permissions", permissions)
               .header("X-Ai-Service-Token", serviceToken)
               .header(CorrelationId.HEADER, CorrelationId.currentOrDefault());
+      if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+        builder.header("Idempotency-Key", idempotencyKey);
+      }
       if (body == null) {
         builder.method("GET", HttpRequest.BodyPublishers.noBody());
       } else {

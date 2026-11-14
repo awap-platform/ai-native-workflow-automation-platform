@@ -1,21 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ErrorState, LoadingState } from "../../../components/ui/QueryState";
+import { resolveIntentKey, type CopilotIntent } from "../../../lib/copilotIdempotency";
 import { useCopilotChat } from "../../../lib/hooks/useCopilot";
 
 export default function CopilotPage() {
   const [message, setMessage] = useState("");
   const [confirmed, setConfirmed] = useState(false);
+  const intentRef = useRef<CopilotIntent | null>(null);
   const copilot = useCopilotChat();
+
+  // A completed turn is a new intent: the next submit must get a fresh key. A failed turn keeps
+  // the key so an explicit retry is replayed instead of creating a second process.
+  useEffect(() => {
+    if (copilot.isSuccess) {
+      intentRef.current = null;
+    }
+  }, [copilot.isSuccess]);
 
   const submit = () => {
     const trimmed = message.trim();
     if (!trimmed || copilot.isPending) {
       return;
     }
-    copilot.mutate({ message: trimmed, confirm_high_risk: confirmed });
+    const intent = resolveIntentKey(intentRef.current, trimmed);
+    intentRef.current = intent;
+    copilot.mutate({
+      message: trimmed,
+      confirm_high_risk: confirmed,
+      idempotency_key: intent.key,
+    });
   };
 
   const result = copilot.data;

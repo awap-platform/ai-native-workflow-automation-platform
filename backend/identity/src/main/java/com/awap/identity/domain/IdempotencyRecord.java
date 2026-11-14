@@ -29,6 +29,9 @@ public class IdempotencyRecord {
   @Column(name = "idempotency_key", nullable = false)
   private String idempotencyKey;
 
+  @Column(name = "request_hash", length = 64)
+  private String requestHash;
+
   @Column(name = "response_status", nullable = false)
   private int responseStatus;
 
@@ -48,9 +51,14 @@ public class IdempotencyRecord {
   protected IdempotencyRecord() {}
 
   public IdempotencyRecord(UUID tenantId, String idempotencyKey) {
+    this(tenantId, idempotencyKey, null);
+  }
+
+  public IdempotencyRecord(UUID tenantId, String idempotencyKey, String requestHash) {
     this.id = UUID.randomUUID();
     this.tenantId = tenantId;
     this.idempotencyKey = idempotencyKey;
+    this.requestHash = requestHash;
     this.responseStatus = 0;
     this.createdAt = Instant.now();
   }
@@ -71,6 +79,10 @@ public class IdempotencyRecord {
 
   public String getIdempotencyKey() {
     return idempotencyKey;
+  }
+
+  public String getRequestHash() {
+    return requestHash;
   }
 
   public Instant getCreatedAt() {

@@ -90,6 +90,26 @@ class AiCopilotClientTest {
   }
 
   @Test
+  void forwardsTheIdempotencyKeyHeader() throws Exception {
+    TenantContext.set(tenantId, userId, "TENANT_ADMIN");
+    respond(200, "{}");
+
+    client().forward("/api/v1/copilot/chat", objectMapper.createObjectNode(), "idem-42");
+
+    assertThat(header(capturedRequest(), "Idempotency-Key")).isEqualTo("idem-42");
+  }
+
+  @Test
+  void omitsTheIdempotencyHeaderWhenTheKeyIsBlank() throws Exception {
+    TenantContext.set(tenantId, userId, "TENANT_ADMIN");
+    respond(200, "{}");
+
+    client().forward("/api/v1/copilot/chat", objectMapper.createObjectNode(), "  ");
+
+    assertThat(header(capturedRequest(), "Idempotency-Key")).isNull();
+  }
+
+  @Test
   void usesGetWhenNoBodyIsProvided() throws Exception {
     TenantContext.set(tenantId, userId, "EMPLOYEE");
     respond(200, "{\"prompts\":[]}");
