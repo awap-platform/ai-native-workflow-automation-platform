@@ -26,7 +26,8 @@ class FakeClient:
                 {
                     "fileId": "file-1",
                     "title": "Leave policy.pdf",
-                    "snippet": "Employees may request annual leave.",
+                    "snippet": "İzin politikası: Çalışanlar yıllık izin talebinde bulunabilir.",
+                    "score": 0.9,
                 }
             ]
         return {"recorded": True}

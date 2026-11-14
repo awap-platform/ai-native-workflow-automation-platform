@@ -431,6 +431,14 @@ jobs:
           --baseline eval/baseline.v1.json
           --output-dir eval/results
         working-directory: ai-layer
+      - name: Knowledge retrieval evaluation
+        # Issue #281: relevant, irrelevant and ambiguous questions must keep answer and document
+        # Precision/Recall above the gate of the no-answer guard.
+        run: >-
+          uv run python -m eval.retrieval
+          --fixture eval/knowledge_retrieval.v1.json
+          --gate
+        working-directory: ai-layer
       - name: Upload golden-set result
         # Issue #279: every run artifact must be inspectable, including a failed gate.
         if: always()

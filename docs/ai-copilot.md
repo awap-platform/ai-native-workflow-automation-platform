@@ -95,6 +95,8 @@ The same paths under the AI layer's `/api/v1` prefix, plus `workflows/discover` 
 | `AI_COPILOT_TIMEOUT_MS` | `10000` | Copilot request timeout |
 | `AI_RATE_LIMIT_PER_MINUTE` | `60` | Per-tenant AI call limit |
 | `AI_CONFIDENCE_THRESHOLD` | `0.7` | Below this confidence the response is downgraded to HITL |
+| `AI_KNOWLEDGE_MIN_SCORE` | `0.35` | Minimum top hit score for a knowledge answer |
+| `AI_KNOWLEDGE_MIN_HITS` | `1` | Minimum hit count before knowledge confidence is discounted |
 | `AI_MODEL_CHEAP` | `local-heuristic` | Cheap/simple tier model |
 | `AI_MODEL_STANDARD` | `gpt-4o-mini` | Standard tier model |
 | `AI_MODEL_COMPLEX` | `gpt-4o` | Complex/multi-step tier model |
@@ -104,6 +106,22 @@ The same paths under the AI layer's `/api/v1` prefix, plus `workflows/discover` 
 | `AI_LAYER_SERVICE_TOKEN` | empty | AI layer's expected service token |
 
 Production must supply `AI_INTERNAL_TOKEN` from Vault/External Secrets, never from a committed file.
+
+## Knowledge no-answer guard (issue #281)
+
+`app/copilot/knowledge.py` computes a server-side confidence from the hit count, the top score and
+snippet relevance. The result is one of four audited outcomes:
+
+| Outcome | When | Response |
+|---|---|---|
+| `SUCCESS` | Relevant hits and confidence ≥ threshold | Normal document summary |
+| `LOW_CONFIDENCE` | Relevant hits but confidence < threshold | Explicit low-confidence answer, `requires_human_approval=true` |
+| `NO_ANSWER` | No hits, or no snippet matches the query | Explicit "I don't know", `requires_human_approval=true` |
+| `SEARCH_UNAVAILABLE` | Backend/OpenSearch failure or malformed payload | Explicit outage message; never claims no documents exist |
+
+The guard is enforced after retrieval, so a model cannot ignore it. Every outcome increments
+`copilot.knowledge.<outcome>` and is written to the audit row. The retrieval fixture at
+`ai-layer/eval/knowledge_retrieval.v1.json` gates answer and document Precision/Recall at 0.85 in CI.
 
 ## Golden-set evaluation (issue #279)
 
@@ -128,8 +146,10 @@ run with `eval/baseline.v1.json`.
 - Role lacks the required permission: `403`, no domain service is invoked.
 - Prompt injection or output leakage: blocked and audited.
 - Low confidence: `requires_human_approval=true`; state-changing tools are not called.
-- OpenSearch unavailable: knowledge search returns no hits and increments a failure counter; it
-  never returns another tenant's data and never fails the caller.
+- Knowledge search: empty or irrelevant results return an explicit `NO_ANSWER`; a low score returns
+  `LOW_CONFIDENCE`; both set `requires_human_approval=true`.
+- OpenSearch unavailable: knowledge search returns `SEARCH_UNAVAILABLE` and increments the outcome
+  counter; it never returns another tenant's data and never claims no documents exist.
 - Model provider 429/5xx/transport failure: backend AI node falls back to the local heuristic
   provider; the Copilot surface reports the failure instead of inventing an answer.
 - Metering or budget exhaustion: `429` before the model is called.
@@ -138,8 +158,9 @@ run with `eval/baseline.v1.json`.
 
 - AI layer: `ai-layer/tests/test_copilot_*.py` (guardrails, routing, permissions, agent flows, API
   contract), `ai-layer/tests/test_copilot_eval.py` (golden-set metrics, slices, baseline diff,
-  exit codes and artifact contents) and `ai-layer/tests/test_copilot_split_brain.py` (C5
-  fault-injection, concurrent idempotency and restart recovery).
+  exit codes and artifact contents), `ai-layer/tests/test_copilot_split_brain.py` (C5
+  fault-injection, concurrent idempotency and restart recovery) and
+  `ai-layer/tests/test_copilot_knowledge.py` (no-answer/low-confidence guard and retrieval gate).
 - Backend: `AiModelRouterTest`, `AiRateLimiterTest`, `AiGuardrailsOutputTest`,
   `KnowledgeChunkingServiceTest`, `KnowledgeSearchServiceTest`, `InternalAiToolAuthTest`.
 - Existing AI node, SCRIPT sandbox, notification and engine suites remain unchanged.
