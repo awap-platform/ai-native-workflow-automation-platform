@@ -140,6 +140,20 @@ run with `eval/baseline.v1.json`.
 - The full protocol, including how to add entries and approve a new baseline, is in
   `ai-layer/eval/README.md`.
 
+## Rate-limit and burst behaviour (issue #282)
+
+`AiRateLimiter` is a per-tenant 60-second sliding window that admits at most
+`AI_RATE_LIMIT_PER_MINUTE` AI calls (default 60). The check runs before model routing, the token
+budget and metering, so a rejected call never reaches the provider and never consumes budget. A
+rejection is a `429 QUOTA_EXCEEDED` Problem Details response with the correlation ID echoed back to
+the client.
+
+The limiter is in-memory and therefore per replica; a multi-replica deployment needs the
+distributed-limiter follow-up. Concurrent bursts, per-tenant isolation, window recovery, a clock
+that moves backward and interrupt preservation are proven by `AiRateLimiterConcurrencyTest`.
+`AiRateLimitHttpMappingTest` proves the 429 HTTP contract, and `AiNodeServiceTest` proves the
+provider and budget counters are untouched on a rejected call.
+
 ## Failure behaviour
 
 - Missing service token: `401`, no tool runs.
@@ -153,6 +167,8 @@ run with `eval/baseline.v1.json`.
 - Model provider 429/5xx/transport failure: backend AI node falls back to the local heuristic
   provider; the Copilot surface reports the failure instead of inventing an answer.
 - Metering or budget exhaustion: `429` before the model is called.
+- Per-tenant AI rate limit: `429` before routing, budget or the provider is touched; admitted and
+  rejected counts are exposed as `awap.ai.requests{outcome=success|rate_limited}`.
 
 ## Tests
 
@@ -161,6 +177,7 @@ run with `eval/baseline.v1.json`.
   exit codes and artifact contents), `ai-layer/tests/test_copilot_split_brain.py` (C5
   fault-injection, concurrent idempotency and restart recovery) and
   `ai-layer/tests/test_copilot_knowledge.py` (no-answer/low-confidence guard and retrieval gate).
-- Backend: `AiModelRouterTest`, `AiRateLimiterTest`, `AiGuardrailsOutputTest`,
-  `KnowledgeChunkingServiceTest`, `KnowledgeSearchServiceTest`, `InternalAiToolAuthTest`.
+- Backend: `AiModelRouterTest`, `AiRateLimiterTest`, `AiRateLimiterConcurrencyTest`,
+  `AiRateLimitHttpMappingTest`, `AiGuardrailsOutputTest`, `KnowledgeChunkingServiceTest`,
+  `KnowledgeSearchServiceTest`, `InternalAiToolAuthTest`.
 - Existing AI node, SCRIPT sandbox, notification and engine suites remain unchanged.
