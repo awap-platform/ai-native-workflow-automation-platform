@@ -14,6 +14,18 @@ tenant-scoped knowledge search.
   backend re-verifies the caller's role and permission on every tool call.
 - Tool calls always run inside the tenant context, so PostgreSQL RLS and the JPA tenant filter apply.
 
+### Enforced state-ownership invariant (issue #280)
+
+The split-brain boundary is proven by an automated test, not only documented.
+`ai-layer/tests/test_copilot_split_brain.py` injects a LangGraph node that throws, times out,
+corrupts its own state or returns an invalid shape, and runs it against
+`ai-layer/tests/support/split_brain.py`, a recording backend that implements the real tool contract.
+The test asserts that workflow instance, node execution, outbox event and task rows are unchanged
+after every agent failure, that duplicate concurrent requests with one idempotency key create exactly
+one instance, and that a freshly restarted agent recovers business state only from the Workflow
+Engine — never from LangGraph state. Any regression that reads business state out of the agent graph
+fails this suite.
+
 ## Implemented capabilities
 
 | Capability | Implementation |
@@ -125,8 +137,9 @@ run with `eval/baseline.v1.json`.
 ## Tests
 
 - AI layer: `ai-layer/tests/test_copilot_*.py` (guardrails, routing, permissions, agent flows, API
-  contract) and `ai-layer/tests/test_copilot_eval.py` (golden-set metrics, slices, baseline diff,
-  exit codes and artifact contents).
+  contract), `ai-layer/tests/test_copilot_eval.py` (golden-set metrics, slices, baseline diff,
+  exit codes and artifact contents) and `ai-layer/tests/test_copilot_split_brain.py` (C5
+  fault-injection, concurrent idempotency and restart recovery).
 - Backend: `AiModelRouterTest`, `AiRateLimiterTest`, `AiGuardrailsOutputTest`,
   `KnowledgeChunkingServiceTest`, `KnowledgeSearchServiceTest`, `InternalAiToolAuthTest`.
 - Existing AI node, SCRIPT sandbox, notification and engine suites remain unchanged.
