@@ -15,7 +15,7 @@ The design rationale (and why `Thread.stop` is forbidden) is in
 
 | Node types | Enforcement | What actually happens on breach |
 |---|---|---|
-| `WEBHOOK`, `AI`, `SCRIPT` (reserved) | **ENFORCED** — hard guarantee | The outbound call runs on a bounded worker and is cancelled with `Future.cancel(true)`. The node is marked `TIMED_OUT` as soon as the budget expires (typically within a few ms of the budget). |
+| `WEBHOOK`, `AI`, `AI_TASK`, `SCRIPT` | **ENFORCED** — hard guarantee | The outbound call runs on a bounded worker and is cancelled with `Future.cancel(true)`. The node is marked `TIMED_OUT` as soon as the budget expires (typically within a few ms of the budget). |
 | `FORM`, `APPROVAL`, `TASK`, `DELAY`, `SUB_PROCESS`, `DECISION`, `CONDITION` | **BEST_EFFORT** — measured only | The work owns the JPA transaction and is never interrupted. Elapsed time is measured with `System.nanoTime()`; the breach is reported **after the work returns**, so the node's writes and the `TIMED_OUT` marker commit atomically. |
 | `START`, `END`, `PARALLEL`, `PARALLEL_GATEWAY`, `MERGE`, `MERGE_GATEWAY` | **UNSUPPORTED** | There is no interruptible work. A configured `timeoutSeconds` is ignored and a warning is logged. |
 | Any type not in the table | **UNSUPPORTED** | Fail-safe: the engine never claims a guarantee it cannot provide. |

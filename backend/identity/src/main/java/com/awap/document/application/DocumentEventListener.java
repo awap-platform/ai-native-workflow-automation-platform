@@ -1,10 +1,14 @@
 package com.awap.document.application;
 
 import com.awap.identity.infrastructure.security.KafkaTenantContext;
+import com.awap.knowledge.application.KnowledgeSearchService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -25,20 +29,35 @@ public class DocumentEventListener {
   public static final String TOPIC = "document.events";
   public static final String FAILURES_METRIC = "awap.document.event.failures";
 
+  private static final Logger log = LoggerFactory.getLogger(DocumentEventListener.class);
+
   private final ObjectMapper objectMapper;
   private final DocumentService documentService;
   private final KafkaTenantContext tenantContext;
   private final MeterRegistry meterRegistry;
+  private final KnowledgeSearchService knowledgeSearchService;
 
+  /** Test/backward-compatible constructor without knowledge indexing. */
   public DocumentEventListener(
       ObjectMapper objectMapper,
       DocumentService documentService,
       KafkaTenantContext tenantContext,
       MeterRegistry meterRegistry) {
+    this(objectMapper, documentService, tenantContext, meterRegistry, null);
+  }
+
+  @Autowired
+  public DocumentEventListener(
+      ObjectMapper objectMapper,
+      DocumentService documentService,
+      KafkaTenantContext tenantContext,
+      MeterRegistry meterRegistry,
+      KnowledgeSearchService knowledgeSearchService) {
     this.objectMapper = objectMapper;
     this.documentService = documentService;
     this.tenantContext = tenantContext;
     this.meterRegistry = meterRegistry;
+    this.knowledgeSearchService = knowledgeSearchService;
   }
 
   @KafkaListener(topics = TOPIC)
@@ -50,7 +69,12 @@ public class DocumentEventListener {
             "Invalid DocumentEvent payload: tenantId and fileId are required.");
       }
       requireEventType(event.eventType());
-      tenantContext.run(event.tenantId(), () -> documentService.applyEvent(event));
+      tenantContext.run(
+          event.tenantId(),
+          () -> {
+            documentService.applyEvent(event);
+            indexKnowledge(event);
+          });
     } catch (JsonProcessingException ex) {
       counter().increment();
       throw new IllegalArgumentException("Invalid DocumentEvent payload", ex);
@@ -63,6 +87,29 @@ public class DocumentEventListener {
   private static void requireEventType(String eventType) {
     if (eventType == null || eventType.isBlank()) {
       throw new IllegalArgumentException("Invalid DocumentEvent payload: eventType is required.");
+    }
+  }
+
+  /**
+   * Best-effort knowledge indexing. The document row is already durable, so an OpenSearch outage
+   * must never fail the consumer or trigger a document-event retry storm.
+   */
+  private void indexKnowledge(DocumentLifecycleEvent event) {
+    if (knowledgeSearchService == null
+        || !("DOCUMENT_REGISTERED".equals(event.eventType())
+            || "DOCUMENT_VERSION_CREATED".equals(event.eventType()))) {
+      return;
+    }
+    try {
+      knowledgeSearchService.indexDocument(
+          event.tenantId(),
+          event.fileId(),
+          event.objectKey(),
+          event.objectKey(),
+          event.format(),
+          event.version());
+    } catch (RuntimeException ex) {
+      log.warn("Knowledge indexing failed for file {}: {}", event.fileId(), ex.toString());
     }
   }
 

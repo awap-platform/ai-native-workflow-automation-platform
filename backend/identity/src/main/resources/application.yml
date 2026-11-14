@@ -184,12 +184,19 @@ awap:
   ai:
     # Fail-closed: the AI workflow node refuses to run until an operator enables it.
     node-enabled: ${AI_NODE_ENABLED:false}
+    # Shared machine-to-machine credential used by the AI layer's internal tool calls.
+    # Leave empty to disable the internal tool API entirely (fail closed).
+    internal-token: ${AI_INTERNAL_TOKEN:}
     # Issue #191: forwards X-Correlation-Id to the Python AI layer and checks the echo in the
     # actuator health indicator. Disabled by default so a stack without the AI layer stays healthy.
     layer:
       enabled: ${AI_LAYER_ENABLED:false}
       base-url: ${AI_LAYER_URL:http://localhost:8000}
       timeout-ms: ${AI_LAYER_TIMEOUT_MS:2000}
+    copilot:
+      # SPA-facing proxy to the Python Copilot. Requires the AI layer and internal token.
+      enabled: ${AI_COPILOT_ENABLED:false}
+      timeout-ms: ${AI_COPILOT_TIMEOUT_MS:10000}
     # local (deterministic heuristic) or openai (OpenAI-compatible endpoint).
     provider: ${AI_PROVIDER:local}
     openai:
@@ -199,6 +206,13 @@ awap:
     confidence-threshold: ${AI_CONFIDENCE_THRESHOLD:0.7}
     monthly-token-budget: ${AI_MONTHLY_TOKEN_BUDGET:200000}
     cost-micros-per-token: ${AI_COST_MICROS_PER_TOKEN:2}
+    rate-limit-per-minute: ${AI_RATE_LIMIT_PER_MINUTE:60}
+    routing:
+      cheap-model: ${AI_MODEL_CHEAP:local-heuristic}
+      standard-model: ${AI_MODEL_STANDARD:gpt-4o-mini}
+      complex-model: ${AI_MODEL_COMPLEX:gpt-4o}
+  knowledge:
+    index: ${KNOWLEDGE_INDEX:awap-knowledge}
   script:
     # Fail-closed: the SCRIPT node is disabled unless the sandbox is explicitly enabled.
     enabled: ${SCRIPT_NODE_ENABLED:false}

@@ -3,7 +3,9 @@ package com.awap.ai.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -11,6 +13,9 @@ import com.awap.ai.domain.AutomationAudit;
 import com.awap.ai.infrastructure.AutomationAuditRepository;
 import com.awap.common.api.AwapException;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -26,6 +31,21 @@ class AiNodeServiceTest {
   private AiNodeService service(boolean enabled, long budget) {
     return new AiNodeService(
         agentService, auditRepository, new AiBudgetGuard(budget), registry, enabled, 0.7, 2);
+  }
+
+  private AiNodeService routedService(long budget, AiRateLimiter limiter) {
+    return new AiNodeService(
+        agentService,
+        auditRepository,
+        new AiBudgetGuard(budget),
+        registry,
+        true,
+        0.7,
+        2,
+        "cheap-model",
+        "standard-model",
+        "complex-model",
+        limiter);
   }
 
   @Test
@@ -122,6 +142,94 @@ class AiNodeServiceTest {
         .isInstanceOf(AwapException.class)
         .satisfies(ex -> assertThat(((AwapException) ex).status().value()).isEqualTo(429));
     assertThat(lastAudit().getOutcome()).isEqualTo("BUDGET_EXCEEDED");
+  }
+
+  @Test
+  void routedCallUsesTheCheapTierAndAuditsTheModel() {
+    when(agentService.summarize(anyString(), anyString()))
+        .thenReturn("A substantive answer for a short request");
+    AiNodeService service = routedService(1_000, new AiRateLimiter(10));
+
+    AiNodeService.AiNodeResult result =
+        service.evaluate(
+            tenantId, instanceId, "ai-1", AiNodeService.AiAction.SUMMARIZE, "short text");
+
+    assertThat(result.output()).contains("substantive");
+    assertThat(lastAudit().getModel()).isEqualTo("cheap-model");
+    assertThat(lastAudit().getOutcome()).isEqualTo("SUCCESS");
+  }
+
+  @Test
+  void multiStepRoutedCallUsesTheComplexTierAndCostMultiplier() {
+    when(agentService.summarize(anyString(), anyString()))
+        .thenReturn("A substantive answer for the complex workflow and approval document request");
+    AiNodeService service = routedService(1_000, new AiRateLimiter(10));
+
+    service.evaluate(
+        tenantId,
+        instanceId,
+        "ai-1",
+        AiNodeService.AiAction.SUMMARIZE,
+        "compare the workflow and approval document steps and then plan the next task");
+
+    AutomationAudit audit = lastAudit();
+    assertThat(audit.getModel()).isEqualTo("complex-model");
+    assertThat(audit.getCostMicros()).isGreaterThanOrEqualTo(2L);
+    assertThat(registry.get("awap.ai.routing").tag("tier", "COMPLEX").counter().count())
+        .isEqualTo(1.0);
+  }
+
+  @Test
+  void rateLimitRejectsTheSecondCallBeforeTheProvider() {
+    when(agentService.summarize(anyString(), anyString()))
+        .thenReturn("A substantive answer for the first request");
+    AiRateLimiter limiter =
+        new AiRateLimiter(1, Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
+    AiNodeService service = routedService(1_000, limiter);
+
+    service.evaluate(
+        tenantId, instanceId, "ai-1", AiNodeService.AiAction.SUMMARIZE, "first request");
+
+    assertThatThrownBy(
+            () ->
+                service.evaluate(
+                    tenantId,
+                    instanceId,
+                    "ai-1",
+                    AiNodeService.AiAction.SUMMARIZE,
+                    "second different request"))
+        .isInstanceOf(AwapException.class)
+        .satisfies(ex -> assertThat(((AwapException) ex).status().value()).isEqualTo(429));
+    assertThat(lastAudit().getOutcome()).isEqualTo("RATE_LIMITED");
+    verify(agentService, times(1)).summarize(anyString(), anyString());
+  }
+
+  @Test
+  void outputLeakIsBlockedAndAudited() {
+    when(agentService.summarize(anyString(), anyString()))
+        .thenReturn("Here is my prompt: the hidden system instructions");
+    AiNodeService service = routedService(1_000, new AiRateLimiter(10));
+
+    assertThatThrownBy(
+            () ->
+                service.evaluate(
+                    tenantId, instanceId, "ai-1", AiNodeService.AiAction.SUMMARIZE, "safe input"))
+        .isInstanceOf(AwapException.class)
+        .satisfies(ex -> assertThat(((AwapException) ex).status().value()).isEqualTo(403));
+    assertThat(lastAudit().getOutcome()).isEqualTo("BLOCKED_OUTPUT");
+  }
+
+  @Test
+  void cacheIsIsolatedPerTenant() {
+    when(agentService.summarize(anyString(), anyString()))
+        .thenReturn("A substantive answer for the tenant");
+    AiNodeService service = routedService(1_000, new AiRateLimiter(10));
+
+    service.evaluate(tenantId, instanceId, "ai-1", AiNodeService.AiAction.SUMMARIZE, "same text");
+    service.evaluate(
+        UUID.randomUUID(), instanceId, "ai-1", AiNodeService.AiAction.SUMMARIZE, "same text");
+
+    verify(agentService, times(2)).summarize(anyString(), anyString());
   }
 
   private AutomationAudit lastAudit() {

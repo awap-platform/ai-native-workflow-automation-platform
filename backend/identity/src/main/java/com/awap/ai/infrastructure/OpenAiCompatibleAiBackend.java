@@ -86,18 +86,25 @@ public class OpenAiCompatibleAiBackend implements AiBackendClient {
 
   @Override
   public String complete(String prompt, int maxTokens) {
+    return complete(prompt, maxTokens, null);
+  }
+
+  @Override
+  public String complete(String prompt, int maxTokens, String selectedModel) {
     if (apiKey == null || apiKey.isBlank()) {
       throw new AwapException(
           ErrorCode.GENERIC_INTERNAL_ERROR,
           HttpStatus.BAD_GATEWAY,
           "AI provider API key is not configured.");
     }
+    String effectiveModel =
+        selectedModel == null || selectedModel.isBlank() ? model : selectedModel;
     try {
       String payload =
           objectMapper.writeValueAsString(
               Map.of(
                   "model",
-                  model,
+                  effectiveModel,
                   "max_tokens",
                   maxTokens,
                   "messages",

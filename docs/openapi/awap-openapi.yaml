@@ -45,6 +45,10 @@ tags:
     description: Process, task and approval analytics aggregates.
   - name: Webhooks
     description: Durable webhook delivery queue and dead-letter inspection.
+  - name: Copilot
+    description: Authenticated SPA proxy to the AI Copilot.
+  - name: AI Tools
+    description: Machine-to-machine tools used by the AI layer with a re-verified user context.
 
 paths:
   /actuator/health:
@@ -2327,6 +2331,355 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
 
+  /api/v1/copilot/chat:
+    post:
+      operationId: copilotChat
+      summary: Send a natural-language request to the Copilot
+      tags: [Copilot]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                  maxLength: 8000
+                action:
+                  type: string
+                context:
+                  type: object
+                idempotency_key:
+                  type: string
+                confirm_high_risk:
+                  type: boolean
+      responses:
+        "200":
+          description: Copilot response envelope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/copilot/tasks:
+    get:
+      operationId: copilotTasks
+      summary: Ask the Copilot for the caller's tasks
+      tags: [Copilot]
+      responses:
+        "200":
+          description: Copilot response envelope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotResponse"
+
+  /api/v1/copilot/tasks/{taskId}/complete:
+    post:
+      operationId: copilotCompleteTask
+      summary: Request a task decision through the Copilot
+      tags: [Copilot]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                decision:
+                  type: string
+                  enum: [approve, reject, complete]
+                comment:
+                  type: string
+                confirm_high_risk:
+                  type: boolean
+      responses:
+        "200":
+          description: Copilot response envelope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotResponse"
+
+  /api/v1/copilot/approvals:
+    post:
+      operationId: copilotApprovalAssistance
+      summary: Prepare an approval task through the Copilot
+      tags: [Copilot]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workflow_instance_id, title]
+              properties:
+                workflow_instance_id:
+                  type: string
+                  format: uuid
+                title:
+                  type: string
+                description:
+                  type: string
+                assignee_id:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Copilot response envelope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotResponse"
+
+  /api/v1/copilot/knowledge/search:
+    post:
+      operationId: copilotKnowledgeSearch
+      summary: Search tenant documents through the Copilot
+      tags: [Copilot]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 50
+      responses:
+        "200":
+          description: Copilot response envelope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotResponse"
+
+  /api/v1/copilot/prompts:
+    get:
+      operationId: copilotPrompts
+      summary: List versioned Copilot prompts
+      tags: [Copilot]
+      responses:
+        "200":
+          description: Prompt descriptors.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /api/v1/copilot/metrics:
+    get:
+      operationId: copilotMetrics
+      summary: Read Copilot counters
+      tags: [Copilot]
+      responses:
+        "200":
+          description: Copilot counters and the active prompt version.
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /internal/tools/find_workflow:
+    post:
+      operationId: aiToolFindWorkflow
+      summary: Discover published workflows for the AI layer
+      tags: [AI Tools]
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/AiToolContext"
+      responses:
+        "200":
+          description: Matching published workflows.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /internal/tools/create_workflow_instance:
+    post:
+      operationId: aiToolCreateWorkflowInstance
+      summary: Start a workflow instance for the AI layer
+      tags: [AI Tools]
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/AiToolContext"
+      responses:
+        "200":
+          description: Created instance.
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /internal/tools/query_tasks:
+    post:
+      operationId: aiToolQueryTasks
+      summary: Query the caller's tasks for the AI layer
+      tags: [AI Tools]
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/AiToolContext"
+      responses:
+        "200":
+          description: Tenant-scoped tasks.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /internal/tools/complete_task:
+    post:
+      operationId: aiToolCompleteTask
+      summary: Apply a task decision for the AI layer
+      tags: [AI Tools]
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/AiToolContext"
+      responses:
+        "200":
+          description: Updated task.
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /internal/tools/assign_task:
+    post:
+      operationId: aiToolAssignTask
+      summary: Assign a task for the AI layer
+      tags: [AI Tools]
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/AiToolContext"
+      responses:
+        "200":
+          description: Updated task.
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /internal/tools/create_approval:
+    post:
+      operationId: aiToolCreateApproval
+      summary: Create an approval task for the AI layer
+      tags: [AI Tools]
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/AiToolContext"
+      responses:
+        "200":
+          description: Created task.
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /internal/tools/send_notification:
+    post:
+      operationId: aiToolSendNotification
+      summary: Queue a notification for the AI layer
+      tags: [AI Tools]
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/AiToolContext"
+      responses:
+        "200":
+          description: Queued notification.
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /internal/tools/search_documents:
+    post:
+      operationId: aiToolSearchDocuments
+      summary: Search tenant knowledge for the AI layer
+      tags: [AI Tools]
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/AiToolContext"
+      responses:
+        "200":
+          description: Tenant-scoped knowledge hits.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /internal/tools/index_document:
+    post:
+      operationId: aiToolIndexDocument
+      summary: Chunk and index a tenant document
+      tags: [AI Tools]
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/AiToolContext"
+      responses:
+        "200":
+          description: Indexed chunk count.
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /internal/tools/get_user:
+    post:
+      operationId: aiToolGetUser
+      summary: Resolve the authenticated user for the AI layer
+      tags: [AI Tools]
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/AiToolContext"
+      responses:
+        "200":
+          description: User profile.
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /internal/tools/audit_decision:
+    post:
+      operationId: aiToolAuditDecision
+      summary: Write an immutable AI decision audit row
+      tags: [AI Tools]
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/AiToolContext"
+      responses:
+        "200":
+          description: Audit recorded.
+          content:
+            application/json:
+              schema:
+                type: object
+
 components:
   securitySchemes:
     bearerAuth:
@@ -2339,6 +2692,14 @@ components:
         (X-XSRF-TOKEN header).
 
   parameters:
+    AiToolContext:
+      name: X-Ai-Service-Token
+      in: header
+      required: true
+      description: Shared service credential; the user identity travels in X-Tenant-Id,
+        X-User-Id and X-User-Role and the role is re-verified on every call.
+      schema:
+        type: string
     TenantId:
       name: id
       in: path
@@ -2470,6 +2831,66 @@ components:
             $ref: "#/components/schemas/ProblemDetails"
 
   schemas:
+    CopilotResponse:
+      type: object
+      description: Stable response envelope returned by every Copilot endpoint.
+      required:
+        - answer
+        - action
+        - confidence
+        - requires_human_approval
+        - tool_calls
+        - prompt_version
+        - correlation_id
+      properties:
+        answer:
+          type: string
+        action:
+          type: string
+          enum:
+            - chat
+            - discover_workflow
+            - start_workflow
+            - query_tasks
+            - complete_task
+            - approval_assistance
+            - knowledge_search
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        requires_human_approval:
+          type: boolean
+        tool_calls:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              arguments:
+                type: object
+              result: {}
+              ok:
+                type: boolean
+              error:
+                type: string
+                nullable: true
+        data: {}
+        model:
+          type: string
+          nullable: true
+        model_tier:
+          type: string
+          nullable: true
+        prompt_version:
+          type: string
+          example: v1
+        correlation_id:
+          type: string
+        idempotency_key:
+          type: string
+          nullable: true
     ReplayReport:
       type: object
       description: Projection report of a deterministic log replay.

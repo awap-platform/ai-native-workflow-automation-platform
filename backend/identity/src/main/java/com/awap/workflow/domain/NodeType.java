@@ -23,6 +23,7 @@ public enum NodeType {
   WEBHOOK,
   SUB_PROCESS,
   AI,
+  AI_TASK,
   SCRIPT;
 
   public boolean isParallelGateway() {

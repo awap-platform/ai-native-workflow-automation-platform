@@ -3,6 +3,7 @@ package com.awap.document.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -11,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.awap.identity.infrastructure.security.KafkaTenantContext;
+import com.awap.knowledge.application.KnowledgeSearchService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.Optional;
@@ -26,6 +28,7 @@ class DocumentEventListenerTest {
   private final ObjectMapper objectMapper = new ObjectMapper();
   private final DocumentService service = mock(DocumentService.class);
   private final KafkaTenantContext tenantContext = mock(KafkaTenantContext.class);
+  private final KnowledgeSearchService knowledgeSearchService = mock(KnowledgeSearchService.class);
   private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
 
   private final UUID tenantId = UUID.randomUUID();
@@ -42,7 +45,9 @@ class DocumentEventListenerTest {
             })
         .when(tenantContext)
         .run(any(), any());
-    listener = new DocumentEventListener(objectMapper, service, tenantContext, registry);
+    listener =
+        new DocumentEventListener(
+            objectMapper, service, tenantContext, registry, knowledgeSearchService);
     when(service.applyEvent(any())).thenReturn(Optional.empty());
   }
 
@@ -69,7 +74,30 @@ class DocumentEventListenerTest {
         .applyEvent(
             new DocumentLifecycleEvent(
                 tenantId, fileId, "DOCUMENT_VERSION_CREATED", 2, 42L, "pdf", fileId + "/v2"));
+    verify(knowledgeSearchService)
+        .indexDocument(tenantId, fileId, fileId + "/v2", fileId + "/v2", "pdf", 2);
     assertThat(failures()).isZero();
+  }
+
+  @Test
+  void anOpenSearchIndexingFailureDoesNotFailTheConsumer() {
+    doThrow(new IllegalStateException("opensearch down"))
+        .when(knowledgeSearchService)
+        .indexDocument(any(), any(), any(), any(), any(), anyInt());
+    String payload =
+        "{\"tenantId\":\""
+            + tenantId
+            + "\",\"fileId\":\""
+            + fileId
+            + "\",\"eventType\":\"DOCUMENT_REGISTERED\",\"version\":1,"
+            + "\"format\":\"pdf\",\"objectKey\":\""
+            + fileId
+            + "/v1\"}";
+
+    listener.onMessage(payload);
+
+    assertThat(failures()).isZero();
+    verify(service).applyEvent(any());
   }
 
   @Test

@@ -64,6 +64,23 @@ public class TaskService {
     return taskMapper.toResponse(task);
   }
 
+  /**
+   * Creates the human-approval task for an AI HITL decision, reusing the existing task when the
+   * same node execution is evaluated again (retry/recovery) instead of creating duplicates.
+   */
+  @Transactional
+  public TaskResponse createIfAbsentForNode(UUID tenantId, TaskRequest request) {
+    if (request.nodeExecutionId() != null) {
+      var existing =
+          taskRepository.findFirstByTenantIdAndNodeExecutionIdAndDeletedFalse(
+              tenantId, request.nodeExecutionId());
+      if (existing.isPresent()) {
+        return taskMapper.toResponse(existing.get());
+      }
+    }
+    return create(tenantId, request);
+  }
+
   public List<TaskResponse> list(UUID tenantId) {
     return taskRepository.findByTenantIdAndDeletedFalse(tenantId).stream()
         .map(taskMapper::toResponse)

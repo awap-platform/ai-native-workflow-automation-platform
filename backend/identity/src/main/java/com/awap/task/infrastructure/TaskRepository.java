@@ -19,6 +19,9 @@ public interface TaskRepository extends JpaRepository<Task, UUID> {
 
   Optional<Task> findByIdAndTenantIdAndDeletedFalse(UUID id, UUID tenantId);
 
+  Optional<Task> findFirstByTenantIdAndNodeExecutionIdAndDeletedFalse(
+      UUID tenantId, UUID nodeExecutionId);
+
   @Query(
       """
       SELECT t FROM Task t

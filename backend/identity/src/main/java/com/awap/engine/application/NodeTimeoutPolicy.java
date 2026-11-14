@@ -24,6 +24,7 @@ public final class NodeTimeoutPolicy {
       Map.ofEntries(
           Map.entry("WEBHOOK", NodeTimeoutEnforcement.ENFORCED),
           Map.entry("AI", NodeTimeoutEnforcement.ENFORCED),
+          Map.entry("AI_TASK", NodeTimeoutEnforcement.ENFORCED),
           Map.entry(SCRIPT_NODE_TYPE, NodeTimeoutEnforcement.ENFORCED),
           Map.entry("FORM", NodeTimeoutEnforcement.BEST_EFFORT),
           Map.entry("APPROVAL", NodeTimeoutEnforcement.BEST_EFFORT),

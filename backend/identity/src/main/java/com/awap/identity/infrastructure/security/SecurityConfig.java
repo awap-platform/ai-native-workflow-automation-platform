@@ -79,7 +79,8 @@ public class SecurityConfig {
                         "/api/v1/auth/login",
                         "/api/v1/auth/refresh",
                         "/api/v1/tenants",
-                        "/api/v1/tenant-invitations/*/accept"))
+                        "/api/v1/tenant-invitations/*/accept",
+                        "/internal/tools/**"))
         .cors(Customizer.withDefaults())
         .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .exceptionHandling(
@@ -93,6 +94,10 @@ public class SecurityConfig {
                   .requestMatchers(HttpMethod.POST, "/api/v1/tenants")
                   .permitAll()
                   .requestMatchers(HttpMethod.POST, "/api/v1/tenant-invitations/*/accept")
+                  .permitAll()
+                  // Internal AI tools authenticate with the service token in the controller,
+                  // not with a browser JWT. CSRF is also disabled for this machine-to-machine path.
+                  .requestMatchers("/internal/tools/**")
                   .permitAll();
               // Prometheus cannot present a user token. The endpoint is public only when the
               // operator enables awap.metrics.public (local full stack / in-cluster scrape).

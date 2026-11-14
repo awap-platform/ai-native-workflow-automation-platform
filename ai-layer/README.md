@@ -11,13 +11,16 @@ FastAPI service for the AI layer. This README describes what the service does
 | `GET /api/v1/health/live` | Implemented | Kubernetes liveness probe |
 | `GET /api/v1/health/ready` | Implemented | Dependency-aware readiness (503 when down) |
 | Versioned OpenAPI contract | Implemented | [contract](../docs/openapi/ai-layer-openapi.yaml) |
-| LangChain / LangGraph dependencies | Pinned, not exposed | `langchain==1.4.5`, `langgraph==1.2.15` |
-| Workflow AI step execution | Not implemented | No execution endpoint exists yet |
-| Agent runtime / tools | Not implemented | No agent endpoint or graph runtime |
-| RAG / vector store | Not implemented | No store dependency is configured |
+| LangChain / LangGraph | Implemented | LangGraph agent graph, fallback-safe import |
+| Copilot chat/tasks/approvals | Implemented | `app/api/copilot.py` and `app/copilot/agent.py` |
+| Permission-checked tools | Implemented | `create_workflow_instance`, `assign_task`, `find_workflow`, `get_user`, `send_notification`, `search_documents`, `create_approval`, `query_tasks`, `complete_task`, `audit_decision` |
+| Versioned prompts | Implemented | `app/prompts/*-v1.md`, reported as `prompt_version` |
+| Knowledge search | Implemented | Calls the backend tenant-scoped knowledge endpoint |
+| RAG / vector store | Not implemented | No embedding/vector store dependency is configured |
 
-The backend does not call the AI layer yet. Any documentation that described
-"agentic AI steps" was aspirational and is corrected in the root README.
+The backend now calls the AI layer through the authenticated `/api/v1/copilot/*` proxy when
+`AI_COPILOT_ENABLED=true`. The AI layer calls back into the backend's `/internal/tools/*` API with
+the shared `AI_INTERNAL_TOKEN`; every tool re-verifies the user's role and tenant.
 
 ## Endpoints
 

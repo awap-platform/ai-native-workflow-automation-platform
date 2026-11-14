@@ -51,4 +51,10 @@ export const queryKeys = {
   tenantMemberships: {
     all: ["tenant-memberships"] as const,
   },
+  copilot: {
+    all: ["copilot"] as const,
+    chat: () => ["copilot", "chat"] as const,
+    decision: () => ["copilot", "decision"] as const,
+    knowledge: () => ["copilot", "knowledge"] as const,
+  },
 } as const;

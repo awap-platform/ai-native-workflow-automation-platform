@@ -184,12 +184,15 @@ capability truth; the versioned contract is
 | `GET /api/v1/health` (liveness + version/build metadata) | Implemented |
 | `GET /api/v1/health/live` | Implemented |
 | `GET /api/v1/health/ready` (503 when a configured dependency is down) | Implemented |
-| LangChain 1.4.5 / LangGraph 1.2.15 on Python 3.15 | Pinned, compatibility-tested, not exposed |
-| Workflow AI execution endpoint | Not implemented |
-| Agent/tool runtime | Not implemented |
+| LangChain 1.4.5 / LangGraph 1.2.15 on Python 3.15 | Implemented; LangGraph agent graph |
+| Copilot chat, workflow discovery/initiation, task query/completion, approval assistance | Implemented |
+| Permission-checked backend tools + HITL + audit | Implemented |
+| Versioned prompts and dynamic model routing | Implemented |
+| Tenant-scoped knowledge search with chunking | Implemented (OpenSearch with metadata fallback) |
 | RAG / vector store | Not implemented |
 
-The backend does not call the AI layer yet. See
+The backend calls the AI layer through the authenticated `/api/v1/copilot/*` proxy when
+`AI_COPILOT_ENABLED=true`. See [`docs/ai-copilot.md`](docs/ai-copilot.md),
 [`ai-layer/README.md`](ai-layer/README.md) and
 [`ai-layer/COMPATIBILITY.md`](ai-layer/COMPATIBILITY.md).
 
@@ -207,6 +210,7 @@ tests, coverage gates and SBOM generation.
 
 - [`docs/intent.md`](docs/intent.md) — product intent and goals
 - [`docs/spec.md`](docs/spec.md) — technical specification
+- [`docs/ai-copilot.md`](docs/ai-copilot.md) — Phase 2 Copilot, tools, HITL and routing
 - [`docs/adr/`](docs/adr/) — Architecture Decision Records
 - [`docs/openapi/ai-layer-openapi.yaml`](docs/openapi/ai-layer-openapi.yaml) — versioned AI layer contract
 - [`docs/correlation-ids.md`](docs/correlation-ids.md) — correlation-ID contract and PII masking

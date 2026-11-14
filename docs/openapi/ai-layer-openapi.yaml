@@ -3,12 +3,12 @@ info:
   title: AWAP AI Layer
   version: 0.1.0
   description: |
-    Versioned contract for the current AI layer capability.
+    Versioned contract for the AI layer.
 
-    Implemented today: liveness and readiness endpoints. Not implemented yet:
-    agent execution, workflow AI steps, RAG/vector stores and any LangChain or
-    LangGraph runtime endpoint. The dependencies are pinned and compatibility
-    tested, but they are not exposed through this API.
+    Implemented: liveness/readiness, the Phase 2 Copilot API, permission-checked
+    backend tool execution, HITL confirmation, dynamic model routing, versioned
+    prompts and tenant-scoped knowledge search. LangGraph owns only agent-internal
+    state; business workflow state remains in the Java Workflow Engine.
 servers:
   - url: http://localhost:8000
     description: Local AI layer
@@ -77,8 +77,173 @@ paths:
                 build: local
                 python: 3.15.0
                 dependency: ConnectError
+  /api/v1/copilot/chat:
+    post:
+      operationId: copilotChat
+      summary: Run one Copilot turn
+      description: >-
+        Accepts a natural-language request with the backend-forwarded security context. High-risk
+        actions return `requires_human_approval=true` until the caller re-sends with
+        `confirm_high_risk=true`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CopilotRequest"
+      responses:
+        "200":
+          description: Copilot response envelope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotResponse"
+        "401":
+          description: Missing or invalid service/user security context.
+  /api/v1/copilot/tasks:
+    get:
+      operationId: copilotTasks
+      summary: Query the caller's tasks
+      responses:
+        "200":
+          description: Copilot response envelope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotResponse"
+  /api/v1/copilot/tasks/{task_id}/complete:
+    post:
+      operationId: copilotCompleteTask
+      summary: Submit a task decision through the Copilot
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                decision:
+                  type: string
+                  enum: [approve, reject, complete]
+                comment:
+                  type: string
+                confirm_high_risk:
+                  type: boolean
+      responses:
+        "200":
+          description: Copilot response envelope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotResponse"
+  /api/v1/copilot/knowledge/search:
+    post:
+      operationId: copilotKnowledgeSearch
+      summary: Search tenant documents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                limit:
+                  type: integer
+      responses:
+        "200":
+          description: Copilot response envelope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotResponse"
+  /api/v1/copilot/prompts:
+    get:
+      operationId: copilotPrompts
+      summary: List versioned prompts
+      responses:
+        "200":
+          description: Prompt descriptors.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+  /api/v1/copilot/metrics:
+    get:
+      operationId: copilotMetrics
+      summary: Read Copilot counters
+      responses:
+        "200":
+          description: Copilot counters.
+          content:
+            application/json:
+              schema:
+                type: object
 components:
   schemas:
+    CopilotRequest:
+      type: object
+      additionalProperties: false
+      required: [message]
+      properties:
+        message:
+          type: string
+          maxLength: 8000
+        action:
+          type: string
+        context:
+          type: object
+        idempotency_key:
+          type: string
+        confirm_high_risk:
+          type: boolean
+    CopilotResponse:
+      type: object
+      required:
+        - answer
+        - action
+        - confidence
+        - requires_human_approval
+        - tool_calls
+        - prompt_version
+        - correlation_id
+      properties:
+        answer:
+          type: string
+        action:
+          type: string
+        confidence:
+          type: number
+        requires_human_approval:
+          type: boolean
+        tool_calls:
+          type: array
+          items:
+            type: object
+        data: {}
+        model:
+          type: string
+          nullable: true
+        model_tier:
+          type: string
+          nullable: true
+        prompt_version:
+          type: string
+        correlation_id:
+          type: string
+        idempotency_key:
+          type: string
+          nullable: true
     HealthResponse:
       type: object
       additionalProperties: false
@@ -105,16 +270,31 @@ components:
           type: string
           example: 3.15.0
     ReadinessResponse:
-      allOf:
-        - $ref: "#/components/schemas/HealthResponse"
-        - type: object
-          additionalProperties: false
-          required:
-            - dependency
-          properties:
-            status:
-              type: string
-              enum: [UP, DOWN]
-            dependency:
-              type: string
-              description: "`none`, `HTTP <status>`, or the dependency exception name."
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - service
+        - version
+        - build
+        - python
+        - dependency
+      properties:
+        status:
+          type: string
+          enum: [UP, DOWN]
+        service:
+          type: string
+          const: ai-layer
+        version:
+          type: string
+          example: 0.1.0
+        build:
+          type: string
+          description: Build SHA from `AI_LAYER_BUILD_SHA`, or `local`.
+        python:
+          type: string
+          example: 3.15.0
+        dependency:
+          type: string
+          description: "`none`, `HTTP <status>`, or the dependency exception name."

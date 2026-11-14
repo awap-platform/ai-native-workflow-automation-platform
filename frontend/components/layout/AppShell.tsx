@@ -7,6 +7,7 @@ import { getActiveTenant, logout } from "../../lib/auth";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/copilot", label: "AI Copilot" },
   { href: "/workflows", label: "Workflows" },
   { href: "/workflows/designer", label: "Designer" },
   { href: "/tasks", label: "Tasks" },
