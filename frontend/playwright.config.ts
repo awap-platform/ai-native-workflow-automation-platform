@@ -4,18 +4,25 @@ const externalStack = process.env.E2E_EXTERNAL_STACK === "1";
 // The live product journey (issue #158) needs the Compose backend, seeded tenant and Kafka.
 // Keep it out of the dependency-free PR run unless the stack explicitly enabled it.
 const liveStack = process.env.E2E_LIVE_STACK === "1";
+// Issue #284: the nightly live-provider variant is opt-in; PR CI runs the deterministic journey.
+const liveProvider = process.env.E2E_AI_LIVE_PROVIDER === "1";
+
+const testIgnore = [
+  ...(liveStack
+    ? []
+    : [
+        "**/live-journey.spec.ts",
+        "**/document-scan-real.spec.ts",
+        "**/combined-automation-live.spec.ts",
+        "**/copilot-journey.spec.ts",
+        "**/copilot-live-provider.spec.ts",
+      ]),
+  ...(liveProvider ? [] : ["**/copilot-live-provider.spec.ts"]),
+];
 
 export default defineConfig({
   testDir: "./e2e",
-  ...(liveStack
-    ? {}
-    : {
-        testIgnore: [
-          "**/live-journey.spec.ts",
-          "**/document-scan-real.spec.ts",
-          "**/combined-automation-live.spec.ts",
-        ],
-      }),
+  ...(testIgnore.length > 0 ? { testIgnore } : {}),
   fullyParallel: false,
   // One worker keeps the seeded fixtures deterministic; shard only once the suite is stable.
   workers: 1,

@@ -298,7 +298,9 @@ jobs:
           # re-create them; the single-IP suite also needs the auth rate limit lifted.
           KAFKA_ENABLED: "true"
           CLAMAV_ENABLED: "true"
-          AI_NODE_ENABLED: "false"
+          # Issue #284: the Copilot journey starts a seeded AI_TASK workflow and asserts the real
+          # low-confidence HITL handover, so the AI node must be enabled in the E2E stack.
+          AI_NODE_ENABLED: "true"
           # Issue #213: the full profile runs the AI layer, so the backend must health-check it.
           AI_LAYER_ENABLED: "true"
           HEALTH_SHOW_DETAILS: "always"

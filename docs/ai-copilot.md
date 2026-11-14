@@ -195,4 +195,9 @@ provider and budget counters are untouched on a rejected call.
 - Backend: `AiModelRouterTest`, `AiRateLimiterTest`, `AiRateLimiterConcurrencyTest`,
   `AiRateLimitHttpMappingTest`, `AiGuardrailsOutputTest`, `KnowledgeChunkingServiceTest`,
   `KnowledgeSearchServiceTest`, `InternalAiToolAuthTest`.
+- E2E: `frontend/e2e/copilot-journey.spec.ts` runs the full Phase 2 journey against the real stack
+  (natural language, confirmation, one instance, AI_TASK low-confidence HITL, human approval,
+  completion, correlation IDs, metrics and no duplicate instance/task). The nightly
+  `frontend/e2e/copilot-live-provider.spec.ts` variant is gated by `E2E_AI_LIVE_PROVIDER=1` and a
+  configured OpenAI-compatible provider; PR CI always uses the deterministic local heuristic.
 - Existing AI node, SCRIPT sandbox, notification and engine suites remain unchanged.
