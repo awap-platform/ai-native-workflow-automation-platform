@@ -19,6 +19,16 @@ from app.copilot.guardrails import (
     sanitize_input,
     sanitize_output,
 )
+from app.copilot.knowledge import (
+    DEFAULT_MIN_HITS,
+    DEFAULT_MIN_SCORE,
+    LOW_CONFIDENCE,
+    NO_ANSWER,
+    SEARCH_UNAVAILABLE,
+    SUCCESS,
+    assess_hits,
+    unavailable,
+)
 from app.copilot.metrics import CopilotMetrics
 from app.copilot.models import (
     CopilotAction,
@@ -62,6 +72,7 @@ class AgentState(TypedDict, total=False):
     answer: str
     confidence: float
     requires_human_approval: bool
+    outcome: str
 
 
 class LlmClient:
@@ -119,6 +130,8 @@ class CopilotAgent:
         llm: LlmClient | None = None,
         metrics: CopilotMetrics | None = None,
         confidence_threshold: float | None = None,
+        knowledge_min_score: float | None = None,
+        knowledge_min_hits: int | None = None,
     ) -> None:
         self.tools = tools or ToolRegistry()
         self.router = router or ModelRouter()
@@ -128,6 +141,16 @@ class CopilotAgent:
             confidence_threshold
             if confidence_threshold is not None
             else float(os.getenv("AI_CONFIDENCE_THRESHOLD", "0.7"))
+        )
+        self.knowledge_min_score = (
+            knowledge_min_score
+            if knowledge_min_score is not None
+            else float(os.getenv("AI_KNOWLEDGE_MIN_SCORE", str(DEFAULT_MIN_SCORE)))
+        )
+        self.knowledge_min_hits = (
+            knowledge_min_hits
+            if knowledge_min_hits is not None
+            else int(os.getenv("AI_KNOWLEDGE_MIN_HITS", str(DEFAULT_MIN_HITS)))
         )
         self.graph = self._build_graph()
 
@@ -277,6 +300,9 @@ class CopilotAgent:
             self.metrics.increment("copilot.hitl.low_confidence")
 
         security = state["security"]
+        outcome = state.get("outcome") or (
+            "HITL" if state.get("requires_human_approval") else "SUCCESS"
+        )
         audit_payload = {
             "action": action.value,
             "confidence": round(state["confidence"], 4),
@@ -285,7 +311,7 @@ class CopilotAgent:
             "modelTier": state.get("route", {}).get("tier"),
             "promptVersion": PROMPT_VERSION,
             "tools": [call["name"] for call in state.get("tool_calls", [])],
-            "outcome": "HITL" if state.get("requires_human_approval") else "SUCCESS",
+            "outcome": outcome,
         }
         audit = await self.tools.invoke("audit_decision", audit_payload, security)
         state.setdefault("tool_calls", []).append(audit.model_dump())
@@ -436,16 +462,67 @@ class CopilotAgent:
             {"query": state["message"], "limit": 10},
             state["security"],
         )
-        if not call.ok:
-            return self._record(state, call, f"Knowledge search failed: {call.error}")
-        hits = call.result if isinstance(call.result, list) else []
-        if not hits:
+        # A failed call or a malformed payload is an outage, not evidence that nothing exists.
+        if not call.ok or not isinstance(call.result, list):
+            assessment = unavailable()
+            self.metrics.increment(f"copilot.knowledge.{assessment.outcome.lower()}")
             return self._record(
                 state,
                 call,
-                "I could not find a relevant tenant document.",
-                data=hits,
+                "Knowledge search is currently unavailable, so I cannot confirm whether a "
+                "tenant document exists. Please retry, or ask a human to check the source.",
+                data=None,
+                confidence=0.0,
+                outcome=SEARCH_UNAVAILABLE,
+                requires_human_approval=True,
             )
+
+        hits = call.result
+        assessment = assess_hits(
+            hits,
+            state["message"],
+            min_score=self.knowledge_min_score,
+            min_hits=self.knowledge_min_hits,
+            threshold=self.confidence_threshold,
+        )
+        self.metrics.increment(f"copilot.knowledge.{assessment.outcome.lower()}")
+
+        if assessment.outcome == NO_ANSWER:
+            answer = (
+                "I don't know. I could not find a tenant document that answers this question, "
+                "so I will not guess."
+            )
+            return self._record(
+                state,
+                call,
+                answer,
+                data=hits,
+                confidence=assessment.confidence,
+                outcome=NO_ANSWER,
+                requires_human_approval=True,
+            )
+        if assessment.outcome == LOW_CONFIDENCE:
+            titles = ", ".join(
+                str(hit.get("title") or hit.get("fileId", "document"))
+                for hit in hits[:3]
+                if isinstance(hit, dict)
+            )
+            answer = (
+                "I found possibly related tenant documents"
+                + (f" ({titles})" if titles else "")
+                + ", but their relevance score is below the confidence threshold. I cannot "
+                "confirm this answer as a fact; please review the source or ask a human."
+            )
+            return self._record(
+                state,
+                call,
+                answer,
+                data=hits,
+                confidence=assessment.confidence,
+                outcome=LOW_CONFIDENCE,
+                requires_human_approval=True,
+            )
+
         lines = []
         for hit in hits[:5]:
             if isinstance(hit, dict):
@@ -457,6 +534,9 @@ class CopilotAgent:
             call,
             "Relevant tenant documents:\n" + "\n".join(lines),
             data=hits,
+            confidence=assessment.confidence,
+            outcome=SUCCESS,
+            requires_human_approval=False,
         )
 
     async def _chat(self, state: AgentState) -> AgentState:
@@ -491,13 +571,22 @@ class CopilotAgent:
         call: ToolCall,
         answer: str,
         data: Any = None,
+        confidence: float | None = None,
+        outcome: str | None = None,
+        requires_human_approval: bool | None = None,
     ) -> AgentState:
         state.setdefault("tool_calls", []).append(call.model_dump())
         state["answer"] = answer
         state["data"] = data if data is not None else call.result
-        state["confidence"] = estimate_confidence(
-            answer, state.get("action", CopilotAction.CHAT).value
+        state["confidence"] = (
+            confidence
+            if confidence is not None
+            else estimate_confidence(answer, state.get("action", CopilotAction.CHAT).value)
         )
+        if outcome is not None:
+            state["outcome"] = outcome
+        if requires_human_approval is not None:
+            state["requires_human_approval"] = requires_human_approval
         return state
 
     def _workflow_answer(self, call: ToolCall) -> str:

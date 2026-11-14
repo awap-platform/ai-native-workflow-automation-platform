@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "description": "Retrieval evaluation fixture for the knowledge no-answer guard (issue #281). Relevant questions must answer; irrelevant and ambiguous questions must return NO_ANSWER or LOW_CONFIDENCE. Hits are synthetic and tenant-scoped.",
+  "queries": [
+    {
+      "id": "en-leave-policy",
+      "locale": "en",
+      "query": "leave policy",
+      "expect_answer": true,
+      "expected_file_ids": ["file-leave"],
+      "returned": [
+        {
+          "fileId": "file-leave",
+          "title": "Leave policy",
+          "snippet": "Employees may request annual leave through the portal.",
+          "score": 0.9
+        }
+      ]
+    },
+    {
+      "id": "tr-izin-politikasi",
+      "locale": "tr",
+      "query": "izin politikası",
+      "expect_answer": true,
+      "expected_file_ids": ["file-izin"],
+      "returned": [
+        {
+          "fileId": "file-izin",
+          "title": "İzin Politikası",
+          "snippet": "Çalışanlar yıllık izin talebinde bulunabilir.",
+          "score": 0.85
+        }
+      ]
+    },
+    {
+      "id": "en-expense-report",
+      "locale": "en",
+      "query": "expense report",
+      "expect_answer": true,
+      "expected_file_ids": ["file-expense"],
+      "returned": [
+        {
+          "fileId": "file-expense",
+          "title": "Expense report",
+          "snippet": "Submit expense reports within thirty days.",
+          "score": 0.75
+        }
+      ]
+    },
+    {
+      "id": "en-empty-index",
+      "locale": "en",
+      "query": "quantum physics",
+      "expect_answer": false,
+      "expected_file_ids": [],
+      "returned": []
+    },
+    {
+      "id": "en-irrelevant-low-score",
+      "locale": "en",
+      "query": "quantum physics",
+      "expect_answer": false,
+      "expected_file_ids": [],
+      "returned": [
+        {
+          "fileId": "file-leave",
+          "title": "Leave policy",
+          "snippet": "Employees may request annual leave through the portal.",
+          "score": 0.05
+        }
+      ]
+    },
+    {
+      "id": "tr-ambiguous",
+      "locale": "tr",
+      "query": "belge işlemleri",
+      "expect_answer": false,
+      "expected_file_ids": [],
+      "returned": [
+        {
+          "fileId": "file-izin",
+          "title": "İzin Politikası",
+          "snippet": "Çalışanlar yıllık izin talebinde bulunabilir.",
+          "score": 0.1
+        }
+      ]
+    }
+  ]
+}
