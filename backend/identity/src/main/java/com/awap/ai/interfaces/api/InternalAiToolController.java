@@ -346,7 +346,7 @@ public class InternalAiToolController {
                   action == null ? "COPILOT" : action,
                   "ai-layer",
                   textOrNull(payload, "model"),
-                  hash(payload.toString()),
+                  hash("SHA-256", payload.toString()),
                   confidence,
                   0,
                   0,
@@ -470,12 +470,16 @@ public class InternalAiToolController {
     }
   }
 
-  private static String hash(String value) {
+  /**
+   * Digest of the raw tool request. The algorithm is a parameter so the defensive branch (a JVM
+   * without the requested digest) is exercised by a test instead of staying unreachable.
+   */
+  static String hash(String algorithm, String value) {
     try {
-      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+      MessageDigest digest = MessageDigest.getInstance(algorithm);
       return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
     } catch (NoSuchAlgorithmException ex) {
-      throw new IllegalStateException("SHA-256 is not available", ex);
+      throw new IllegalStateException(algorithm + " is not available", ex);
     }
   }
 }

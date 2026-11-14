@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
+/** Tenant-scoped knowledge search and indexing. */
 class KnowledgeSearchServiceTest {
 
   private final UUID tenantId = UUID.randomUUID();
@@ -47,6 +48,25 @@ class KnowledgeSearchServiceTest {
   }
 
   @Test
+  void aHitWithoutTheQueryStillReturnsAForcedSnippet() throws Exception {
+    String body =
+        """
+        {"hits":{"hits":[
+          {"_score":1.0,"_source":{"tenantId":"%s","fileId":"file-2","title":"Policy",
+           "format":"txt","version":1,"chunkIndex":0,"content":"%s"}}
+        ]}}
+        """
+            .formatted(tenantId, "x".repeat(400));
+    when(client.post(anyString(), anyString()))
+        .thenReturn(new KnowledgeOpenSearchClient.Response(200, body));
+
+    List<KnowledgeSearchService.KnowledgeHit> hits = service.search(tenantId, "absent", 10);
+
+    assertThat(hits).hasSize(1);
+    assertThat(hits.get(0).snippet()).hasSize(300);
+  }
+
+  @Test
   void openSearchOutageReturnsNoHitsInsteadOfFailingTheCaller() throws Exception {
     when(client.post(anyString(), anyString())).thenThrow(new IOException("down"));
 
@@ -54,8 +74,17 @@ class KnowledgeSearchServiceTest {
   }
 
   @Test
+  void aNonSuccessStatusAlsoFallsBackToNoHits() throws Exception {
+    when(client.post(anyString(), anyString()))
+        .thenReturn(new KnowledgeOpenSearchClient.Response(503, "unavailable"));
+
+    assertThat(service.search(tenantId, "leave", 10)).isEmpty();
+  }
+
+  @Test
   void blankQuerySkipsOpenSearch() {
     assertThat(service.search(tenantId, " ", 10)).isEmpty();
+    assertThat(service.search(tenantId, null, 10)).isEmpty();
   }
 
   @Test
@@ -68,5 +97,42 @@ class KnowledgeSearchServiceTest {
             tenantId, UUID.randomUUID(), "policy.txt", "Annual leave policy.", "txt", 1);
 
     assertThat(chunks).isEqualTo(1);
+  }
+
+  @Test
+  void indexingFallsBackToTheTitleWhenContentIsBlank() throws Exception {
+    when(client.post(anyString(), anyString()))
+        .thenReturn(new KnowledgeOpenSearchClient.Response(200, "{}"));
+
+    int chunks = service.indexDocument(tenantId, UUID.randomUUID(), "Policy title", "", "txt", 1);
+
+    assertThat(chunks).isEqualTo(1);
+  }
+
+  @Test
+  void indexingAnEmptyDocumentWritesAnEmptyBulkRequest() throws Exception {
+    when(client.post(anyString(), anyString()))
+        .thenReturn(new KnowledgeOpenSearchClient.Response(200, "{}"));
+
+    int chunks = service.indexDocument(tenantId, UUID.randomUUID(), null, null, null, 1);
+
+    assertThat(chunks).isZero();
+  }
+
+  @Test
+  void aRejectedBulkRequestReportsZeroIndexedChunks() throws Exception {
+    when(client.post(anyString(), anyString()))
+        .thenReturn(new KnowledgeOpenSearchClient.Response(500, "boom"));
+
+    assertThat(service.indexDocument(tenantId, UUID.randomUUID(), "t", "content", "txt", 1))
+        .isZero();
+  }
+
+  @Test
+  void indexingFailuresAreSwallowedAndCounted() throws Exception {
+    when(client.post(anyString(), anyString())).thenThrow(new IOException("down"));
+
+    assertThat(service.indexDocument(tenantId, UUID.randomUUID(), "t", "content", "txt", 1))
+        .isZero();
   }
 }

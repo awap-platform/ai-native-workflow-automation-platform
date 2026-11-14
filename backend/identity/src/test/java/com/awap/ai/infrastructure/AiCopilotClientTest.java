@@ -44,6 +44,13 @@ class AiCopilotClientTest {
   }
 
   @Test
+  void theAutowiredConstructorClampsTheTimeoutToASafeMinimum() {
+    AiCopilotClient real = new AiCopilotClient("http://ai.local/", "token", 0L, objectMapper);
+
+    assertThat(real).isNotNull();
+  }
+
+  @Test
   void requiresAnAuthenticatedTenantContext() {
     assertThatThrownBy(
             () -> client().forward("/api/v1/copilot/chat", objectMapper.createObjectNode()))

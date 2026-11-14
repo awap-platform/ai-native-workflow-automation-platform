@@ -320,6 +320,45 @@ class InternalAiToolControllerTest {
     assertThat(captor.getValue().getConfidence()).isEqualByComparingTo("0.82");
   }
 
+  @Test
+  void sendNotificationFallsBackToTheDefaultTemplateAndLocale() throws Exception {
+    controller.sendNotification(json("{\"recipient\":\"a@b.c\"}"), request);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+    verify(outbox)
+        .publish(
+            eq(tenantId),
+            eq("NOTIFICATION"),
+            any(UUID.class),
+            eq("NOTIFICATION_REQUESTED"),
+            payload.capture());
+    assertThat((Map<String, Object>) payload.getValue())
+        .containsEntry("templateKey", "notification")
+        .containsEntry("locale", "en")
+        .containsEntry("channel", "EMAIL");
+  }
+
+  @Test
+  void createApprovalRejectsANonUuidAssignee() throws Exception {
+    JsonNode body =
+        json(
+            "{\"workflowInstanceId\":\""
+                + UUID.randomUUID()
+                + "\",\"assigneeId\":\"not-a-uuid\"}");
+
+    assertThatThrownBy(() -> controller.createApproval(body, request))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("assigneeId must be a UUID");
+  }
+
+  @Test
+  void theDigestHelperReportsAnUnavailableAlgorithm() {
+    assertThatThrownBy(() -> InternalAiToolController.hash("NOT-A-DIGEST", "payload"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("NOT-A-DIGEST is not available");
+  }
+
   private JsonNode json(String value) throws Exception {
     return objectMapper.readTree(value);
   }
