@@ -232,6 +232,49 @@ class AiNodeServiceTest {
     verify(agentService, times(2)).summarize(anyString(), anyString());
   }
 
+  @Test
+  void rateLimitRejectionDoesNotCallTheProviderOrConsumeBudget() {
+    when(agentService.summarize(anyString(), anyString()))
+        .thenReturn("A substantive answer for the first request");
+    AiBudgetGuard budget = new AiBudgetGuard(1_000);
+    AiRateLimiter limiter =
+        new AiRateLimiter(1, Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
+    AiNodeService service =
+        new AiNodeService(
+            agentService,
+            auditRepository,
+            budget,
+            registry,
+            true,
+            0.7,
+            2,
+            "cheap-model",
+            "standard-model",
+            "complex-model",
+            limiter);
+
+    service.evaluate(
+        tenantId, instanceId, "ai-1", AiNodeService.AiAction.SUMMARIZE, "first request");
+    long usedAfterFirst = budget.used(tenantId);
+
+    assertThatThrownBy(
+            () ->
+                service.evaluate(
+                    tenantId,
+                    instanceId,
+                    "ai-1",
+                    AiNodeService.AiAction.SUMMARIZE,
+                    "second different request"))
+        .isInstanceOf(AwapException.class)
+        .satisfies(ex -> assertThat(((AwapException) ex).status().value()).isEqualTo(429));
+
+    assertThat(budget.used(tenantId)).isEqualTo(usedAfterFirst);
+    verify(agentService, times(1)).summarize(anyString(), anyString());
+    assertThat(registry.get("awap.ai.requests").tag("outcome", "rate_limited").counter().count())
+        .isEqualTo(1.0);
+    assertThat(lastAudit().getOutcome()).isEqualTo("RATE_LIMITED");
+  }
+
   private AutomationAudit lastAudit() {
     ArgumentCaptor<AutomationAudit> captor = ArgumentCaptor.forClass(AutomationAudit.class);
     verify(auditRepository, org.mockito.Mockito.atLeastOnce()).save(captor.capture());
