@@ -271,6 +271,7 @@ async function apiRequest<T>(
   path: string,
   body?: unknown,
   retried = false,
+  extraHeaders?: Record<string, string>,
 ): Promise<T> {
   const headers: Record<string, string> = {};
   if (body !== undefined) {
@@ -288,6 +289,9 @@ async function apiRequest<T>(
   if (tenant) {
     headers["X-Tenant-Id"] = tenant;
   }
+  if (extraHeaders) {
+    Object.assign(headers, extraHeaders);
+  }
   const started = performance.now();
   const response = await fetch(`${apiBase()}${path}`, {
     method,
@@ -298,7 +302,7 @@ async function apiRequest<T>(
   logApi(method, path, response.status, started);
 
   if (response.status === 401 && !retried && (await refreshSession())) {
-    return apiRequest<T>(method, path, body, true);
+    return apiRequest<T>(method, path, body, true, extraHeaders);
   }
   if (response.status === 401) {
     redirectToLogin();
@@ -319,6 +323,11 @@ const authFetch = <T>(path: string): Promise<T> => apiRequest<T>("GET", path);
 const authPatch = <T>(path: string): Promise<T> => apiRequest<T>("PATCH", path);
 const authPut = <T>(path: string, body: unknown): Promise<T> => apiRequest<T>("PUT", path, body);
 const authPost = <T>(path: string, body: unknown): Promise<T> => apiRequest<T>("POST", path, body);
+const authPostWithHeaders = <T>(
+  path: string,
+  body: unknown,
+  headers?: Record<string, string>,
+): Promise<T> => apiRequest<T>("POST", path, body, false, headers);
 
 export function listTasks(): Promise<TaskDto[]> {
   return authFetch<TaskDto[]>("/api/v1/tasks");
@@ -676,7 +685,15 @@ export interface CopilotChatPayload {
 }
 
 export function copilotChat(payload: CopilotChatPayload): Promise<CopilotResponseDto> {
-  return authPost<CopilotResponseDto>("/api/v1/copilot/chat", payload);
+  return authPostWithHeaders<CopilotResponseDto>(
+    "/api/v1/copilot/chat",
+    payload,
+    idempotencyHeader(payload.idempotency_key),
+  );
+}
+
+function idempotencyHeader(key?: string): Record<string, string> | undefined {
+  return key ? { "Idempotency-Key": key } : undefined;
 }
 
 export function copilotTasks(): Promise<CopilotResponseDto> {
@@ -688,10 +705,12 @@ export function copilotTaskDecision(
   decision: "approve" | "reject" | "complete",
   comment?: string,
   confirmHighRisk = false,
+  idempotencyKey?: string,
 ): Promise<CopilotResponseDto> {
-  return authPost<CopilotResponseDto>(
+  return authPostWithHeaders<CopilotResponseDto>(
     `/api/v1/copilot/tasks/${encodeURIComponent(taskId)}/complete`,
     { decision, comment, confirm_high_risk: confirmHighRisk },
+    idempotencyHeader(idempotencyKey),
   );
 }
 

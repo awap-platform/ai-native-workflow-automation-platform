@@ -539,4 +539,40 @@ class WorkflowEngineServiceTest {
     assertThat(response.state()).isEqualTo("RUNNING");
     verify(instanceRepository).findByTenantIdAndIdempotencyKey(tenantId, "key-1");
   }
+
+  @Test
+  void startRejectsTheSameKeyWithADifferentWorkflow() {
+    WorkflowInstance existing =
+        new WorkflowInstance(tenantId, UUID.randomUUID(), 1, WorkflowState.RUNNING, "key-1", "{}");
+    when(instanceRepository.findByTenantIdAndIdempotencyKey(tenantId, "key-1"))
+        .thenReturn(Optional.of(existing));
+
+    assertThatThrownBy(
+            () ->
+                service.start(
+                    tenantId, new StartWorkflowRequest(workflowDefinitionId, "key-1", "{}")))
+        .isInstanceOf(AwapException.class)
+        .satisfies(
+            ex -> {
+              AwapException awap = (AwapException) ex;
+              assertThat(awap.errorCode()).isEqualTo(ErrorCode.RESOURCE_CONFLICT);
+              assertThat(awap.status()).isEqualTo(HttpStatus.CONFLICT);
+            });
+  }
+
+  @Test
+  void startRejectsTheSameKeyWithADifferentContext() {
+    WorkflowInstance existing =
+        new WorkflowInstance(
+            tenantId, workflowDefinitionId, 1, WorkflowState.RUNNING, "key-1", "{\"a\":1}");
+    when(instanceRepository.findByTenantIdAndIdempotencyKey(tenantId, "key-1"))
+        .thenReturn(Optional.of(existing));
+
+    assertThatThrownBy(
+            () ->
+                service.start(
+                    tenantId, new StartWorkflowRequest(workflowDefinitionId, "key-1", "{\"b\":2}")))
+        .isInstanceOf(AwapException.class)
+        .satisfies(ex -> assertThat(((AwapException) ex).status()).isEqualTo(HttpStatus.CONFLICT));
+  }
 }

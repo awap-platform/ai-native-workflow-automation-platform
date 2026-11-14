@@ -140,6 +140,21 @@ run with `eval/baseline.v1.json`.
 - The full protocol, including how to add entries and approve a new baseline, is in
   `ai-layer/eval/README.md`.
 
+## End-to-end idempotency (issue #283)
+
+- The Copilot UI generates one key per submitted intent, reuses it for retries of the same text,
+  and rotates it after a successful turn or when the request text changes.
+- The key travels as the `Idempotency-Key` header and the `idempotency_key` body field. The backend
+  proxy forwards both unchanged to the AI layer, and the AI layer passes it to
+  `create_workflow_instance`, `complete_task` and `create_approval`.
+- `IdempotencyFilter` stores `(tenant_id, idempotency_key)` plus a SHA-256 hash of the method, path,
+  query and body. An identical repeat replays the stored response; the same key with a different
+  payload returns `409`; concurrent duplicates execute the downstream handler exactly once.
+- `workflow_instances` has a unique `(tenant_id, idempotency_key)` constraint. The engine replays an
+  existing instance only when the workflow and context match, otherwise it returns
+  `409 RESOURCE_CONFLICT`.
+- Keys are retained by `IdempotencyPurgeScheduler`; an expired key is treated as new.
+
 ## Rate-limit and burst behaviour (issue #282)
 
 `AiRateLimiter` is a per-tenant 60-second sliding window that admits at most

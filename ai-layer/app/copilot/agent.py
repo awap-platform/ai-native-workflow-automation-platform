@@ -412,8 +412,10 @@ class CopilotAgent:
                 "taskId": task_id,
                 "decision": decision,
                 "comment": state.get("context", {}).get("comment"),
+                "idempotencyKey": state.get("idempotency_key"),
             },
             state["security"],
+            state.get("idempotency_key"),
         )
         answer = (
             f"Task decision submitted: {decision}."
@@ -446,8 +448,10 @@ class CopilotAgent:
                 "title": context.get("title", "Copilot approval request"),
                 "description": context.get("description", state["message"]),
                 "assigneeId": context.get("assigneeId"),
+                "idempotencyKey": state.get("idempotency_key"),
             },
             state["security"],
+            state.get("idempotency_key"),
         )
         answer = (
             "The approval task was created."
