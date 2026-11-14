@@ -93,6 +93,23 @@ The same paths under the AI layer's `/api/v1` prefix, plus `workflows/discover` 
 
 Production must supply `AI_INTERNAL_TOKEN` from Vault/External Secrets, never from a committed file.
 
+## Golden-set evaluation (issue #279)
+
+Workflow-matching accuracy is measured on the versioned dataset at
+`ai-layer/eval/golden_set.v1.jsonl`. `ai-layer/eval/evaluate.py` runs the real classification and
+workflow-discovery path, computes a confusion matrix plus Precision/Recall/F1, per-locale,
+per-tenant, per-action and per-risk slices and a confidence calibration report, then compares the
+run with `eval/baseline.v1.json`.
+
+- PR CI runs deterministic recorded fixtures (`ai-layer/eval/fixtures/backend_tools.v1.json`);
+  nightly runs use the live backend.
+- Gates: Precision ≥ 0.90, Recall ≥ 0.90, and every slice with at least two samples ≥ 0.85.
+- Every run is written to `ai-layer/eval/results/<date>-<git-sha>.json`.
+- An empty or malformed dataset exits non-zero; a provider timeout marks the run incomplete
+  instead of scoring it as zero.
+- The full protocol, including how to add entries and approve a new baseline, is in
+  `ai-layer/eval/README.md`.
+
 ## Failure behaviour
 
 - Missing service token: `401`, no tool runs.
@@ -108,7 +125,8 @@ Production must supply `AI_INTERNAL_TOKEN` from Vault/External Secrets, never fr
 ## Tests
 
 - AI layer: `ai-layer/tests/test_copilot_*.py` (guardrails, routing, permissions, agent flows, API
-  contract).
+  contract) and `ai-layer/tests/test_copilot_eval.py` (golden-set metrics, slices, baseline diff,
+  exit codes and artifact contents).
 - Backend: `AiModelRouterTest`, `AiRateLimiterTest`, `AiGuardrailsOutputTest`,
   `KnowledgeChunkingServiceTest`, `KnowledgeSearchServiceTest`, `InternalAiToolAuthTest`.
 - Existing AI node, SCRIPT sandbox, notification and engine suites remain unchanged.

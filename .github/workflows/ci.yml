@@ -421,6 +421,24 @@ jobs:
         # Issue #185: documented paths, status/body and version must match the app.
         run: uv run pytest
         working-directory: ai-layer
+      - name: Golden-set Precision/Recall gate
+        # Issue #279: run the real classification and workflow-discovery path against the
+        # versioned golden set with recorded fixtures, then fail below the agreed gates.
+        run: >-
+          uv run python -m eval.evaluate
+          --mode deterministic
+          --gate
+          --baseline eval/baseline.v1.json
+          --output-dir eval/results
+        working-directory: ai-layer
+      - name: Upload golden-set result
+        # Issue #279: every run artifact must be inspectable, including a failed gate.
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: copilot-golden-set
+          path: ai-layer/eval/results
+          if-no-files-found: warn
 
   trivy:
     name: Vulnerability Scan
