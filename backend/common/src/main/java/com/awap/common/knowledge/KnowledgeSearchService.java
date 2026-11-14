@@ -1,53 +1,42 @@
-package com.awap.knowledge.application;
+package com.awap.common.knowledge;
 
-import com.awap.analytics.infrastructure.opensearch.OpenSearchResponse;
-import com.awap.analytics.infrastructure.opensearch.OpenSearchTransport;
-import com.awap.document.application.DocumentService;
-import com.awap.document.domain.DocumentVersion;
-import com.awap.knowledge.domain.KnowledgeChunk;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.micrometer.core.instrument.MeterRegistry;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
- * Tenant-scoped knowledge search over OpenSearch with a deterministic metadata fallback.
+ * Tenant-scoped knowledge search over OpenSearch.
  *
- * <p>The tenant filter is part of every query. If OpenSearch is disabled or unavailable, the
- * service falls back to the tenant's document metadata so the copilot still returns only own-tenant
- * data.
+ * <p>The tenant filter is part of every query. An OpenSearch outage degrades to an empty result
+ * (counted and logged) instead of returning another tenant's data or failing the caller.
  */
 @Service
 public class KnowledgeSearchService {
 
   private static final Logger log = LoggerFactory.getLogger(KnowledgeSearchService.class);
 
-  private final ObjectProvider<OpenSearchTransport> transportProvider;
-  private final DocumentService documentService;
+  private final KnowledgeOpenSearchClient client;
   private final KnowledgeChunkingService chunkingService;
   private final ObjectMapper objectMapper;
   private final MeterRegistry meterRegistry;
   private final String index;
 
   public KnowledgeSearchService(
-      ObjectProvider<OpenSearchTransport> transportProvider,
-      DocumentService documentService,
+      KnowledgeOpenSearchClient client,
       KnowledgeChunkingService chunkingService,
       ObjectMapper objectMapper,
       MeterRegistry meterRegistry,
       @Value("${awap.knowledge.index:awap-knowledge}") String index) {
-    this.transportProvider = transportProvider;
-    this.documentService = documentService;
+    this.client = client;
     this.chunkingService = chunkingService;
     this.objectMapper = objectMapper;
     this.meterRegistry = meterRegistry;
@@ -59,18 +48,15 @@ public class KnowledgeSearchService {
     if (effectiveQuery.isEmpty()) {
       return List.of();
     }
-    OpenSearchTransport transport = transportProvider.getIfAvailable();
-    if (transport != null) {
-      try {
-        return searchOpenSearch(transport, tenantId, effectiveQuery, Math.max(1, limit));
-      } catch (Exception ex) {
-        meterRegistry
-            .counter("awap.knowledge.search.fallback", "reason", ex.getClass().getSimpleName())
-            .increment();
-        log.warn("Knowledge OpenSearch query failed; using metadata fallback: {}", ex.toString());
-      }
+    try {
+      return searchOpenSearch(tenantId, effectiveQuery, Math.max(1, limit));
+    } catch (Exception ex) {
+      meterRegistry
+          .counter("awap.knowledge.search.fallback", "reason", ex.getClass().getSimpleName())
+          .increment();
+      log.warn("Knowledge OpenSearch query failed; returning no hits: {}", ex.toString());
+      return List.of();
     }
-    return searchMetadata(tenantId, effectiveQuery, Math.max(1, limit));
   }
 
   public int indexDocument(
@@ -78,13 +64,6 @@ public class KnowledgeSearchService {
     List<String> chunks = chunkingService.chunk(content);
     if (chunks.isEmpty()) {
       chunks = chunkingService.chunk(title == null ? "" : title);
-    }
-    OpenSearchTransport transport = transportProvider.getIfAvailable();
-    if (transport == null) {
-      meterRegistry
-          .counter("awap.knowledge.index.skipped", "reason", "opensearch_disabled")
-          .increment();
-      return 0;
     }
     try {
       StringBuilder bulk = new StringBuilder();
@@ -107,11 +86,8 @@ public class KnowledgeSearchService {
                         chunk.content())))
             .append('\n');
       }
-      OpenSearchResponse response =
-          transport.execute(
-              "POST",
-              "/_bulk?refresh=true",
-              bulk.toString().getBytes(StandardCharsets.UTF_8).length > 0 ? bulk.toString() : null);
+      KnowledgeOpenSearchClient.Response response =
+          client.post("/_bulk?refresh=true", bulk.toString());
       boolean ok = response.status() / 100 == 2;
       meterRegistry
           .counter("awap.knowledge.index.chunks", "outcome", ok ? "success" : "failure")
@@ -124,8 +100,8 @@ public class KnowledgeSearchService {
     }
   }
 
-  private List<KnowledgeHit> searchOpenSearch(
-      OpenSearchTransport transport, UUID tenantId, String query, int limit) throws Exception {
+  private List<KnowledgeHit> searchOpenSearch(UUID tenantId, String query, int limit)
+      throws Exception {
     ObjectNode root = objectMapper.createObjectNode();
     ObjectNode queryNode = root.putObject("query").putObject("bool");
     queryNode.putObject("filter").putObject("term").put("tenantId", tenantId.toString());
@@ -134,8 +110,8 @@ public class KnowledgeSearchService {
     multiMatch.putArray("fields").add("title^2").add("content");
     multiMatch.put("type", "best_fields");
     root.put("size", limit);
-    OpenSearchResponse response =
-        transport.execute("POST", "/" + index + "/_search", objectMapper.writeValueAsString(root));
+    KnowledgeOpenSearchClient.Response response =
+        client.post("/" + index + "/_search", objectMapper.writeValueAsString(root));
     if (response.status() / 100 != 2) {
       throw new IllegalStateException("OpenSearch returned status " + response.status());
     }
@@ -158,60 +134,6 @@ public class KnowledgeSearchService {
     }
     meterRegistry.counter("awap.knowledge.search", "backend", "opensearch").increment();
     return results;
-  }
-
-  private List<KnowledgeHit> searchMetadata(UUID tenantId, String query, int limit) {
-    List<String> tokens = searchTokens(query);
-    List<KnowledgeHit> results = new ArrayList<>();
-    for (DocumentVersion document : documentService.list(tenantId)) {
-      String haystack =
-          (document.getObjectKey() + " " + document.getFormat() + " " + document.getFileId())
-              .toLowerCase(Locale.ROOT);
-      boolean matches = tokens.isEmpty() || tokens.stream().anyMatch(haystack::contains);
-      if (matches) {
-        results.add(
-            new KnowledgeHit(
-                document.getFileId().toString(),
-                document.getObjectKey(),
-                document.getFormat(),
-                1,
-                0,
-                document.getObjectKey(),
-                1.0));
-      }
-      if (results.size() >= limit) {
-        break;
-      }
-    }
-    meterRegistry.counter("awap.knowledge.search", "backend", "metadata").increment();
-    return results;
-  }
-
-  private static final java.util.Map<String, String> QUERY_SYNONYMS =
-      java.util.Map.ofEntries(
-          java.util.Map.entry("izin", "leave"),
-          java.util.Map.entry("talep", "request"),
-          java.util.Map.entry("görev", "task"),
-          java.util.Map.entry("onay", "approval"),
-          java.util.Map.entry("belge", "document"),
-          java.util.Map.entry("doküman", "document"),
-          java.util.Map.entry("ara", "search"),
-          java.util.Map.entry("bul", "find"),
-          java.util.Map.entry("başlat", "start"));
-
-  private static final java.util.Set<String> ACTION_STOPWORDS =
-      java.util.Set.of("start", "başlat", "initiate", "search", "ara", "bul", "find", "lütfen");
-
-  private static List<String> searchTokens(String query) {
-    if (query == null || query.isBlank()) {
-      return List.of();
-    }
-    return java.util.Arrays.stream(query.toLowerCase(Locale.ROOT).split("[^\\p{L}\\p{N}]+"))
-        .filter(token -> token.length() > 2)
-        .map(token -> QUERY_SYNONYMS.getOrDefault(token, token))
-        .filter(token -> !ACTION_STOPWORDS.contains(token))
-        .distinct()
-        .toList();
   }
 
   private static String snippet(String content, String query) {

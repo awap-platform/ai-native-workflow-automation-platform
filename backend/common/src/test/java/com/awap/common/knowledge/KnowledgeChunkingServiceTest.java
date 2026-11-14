@@ -1,4 +1,4 @@
-package com.awap.knowledge.application;
+package com.awap.common.knowledge;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

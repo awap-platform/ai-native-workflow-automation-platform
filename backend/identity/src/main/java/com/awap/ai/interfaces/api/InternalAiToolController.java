@@ -5,14 +5,13 @@ import com.awap.ai.domain.AutomationAudit;
 import com.awap.ai.infrastructure.AutomationAuditRepository;
 import com.awap.common.api.AwapException;
 import com.awap.common.api.ErrorCode;
+import com.awap.common.knowledge.KnowledgeSearchService;
+import com.awap.engine.application.OutboxEventPublisher;
 import com.awap.engine.interfaces.dto.StartWorkflowRequest;
 import com.awap.engine.interfaces.dto.WorkflowInstanceResponse;
 import com.awap.identity.domain.Permission;
 import com.awap.identity.domain.User;
 import com.awap.identity.infrastructure.UserRepository;
-import com.awap.knowledge.application.KnowledgeSearchService;
-import com.awap.notification.application.NotificationService;
-import com.awap.notification.domain.NotificationChannel;
 import com.awap.task.application.TaskService;
 import com.awap.task.interfaces.dto.TaskAssignRequest;
 import com.awap.task.interfaces.dto.TaskRequest;
@@ -53,7 +52,7 @@ public class InternalAiToolController {
   private final WorkflowDefinitionService workflowDefinitionService;
   private final com.awap.engine.application.WorkflowEngineService workflowEngineService;
   private final TaskService taskService;
-  private final NotificationService notificationService;
+  private final OutboxEventPublisher outboxEventPublisher;
   private final KnowledgeSearchService knowledgeSearchService;
   private final UserRepository userRepository;
   private final AutomationAuditRepository auditRepository;
@@ -64,7 +63,7 @@ public class InternalAiToolController {
       WorkflowDefinitionService workflowDefinitionService,
       com.awap.engine.application.WorkflowEngineService workflowEngineService,
       TaskService taskService,
-      NotificationService notificationService,
+      OutboxEventPublisher outboxEventPublisher,
       KnowledgeSearchService knowledgeSearchService,
       UserRepository userRepository,
       AutomationAuditRepository auditRepository,
@@ -73,7 +72,7 @@ public class InternalAiToolController {
     this.workflowDefinitionService = workflowDefinitionService;
     this.workflowEngineService = workflowEngineService;
     this.taskService = taskService;
-    this.notificationService = notificationService;
+    this.outboxEventPublisher = outboxEventPublisher;
     this.knowledgeSearchService = knowledgeSearchService;
     this.userRepository = userRepository;
     this.auditRepository = auditRepository;
@@ -83,8 +82,9 @@ public class InternalAiToolController {
   @PostMapping("/find_workflow")
   public List<Map<String, Object>> findWorkflow(
       @RequestBody JsonNode body, HttpServletRequest request) {
+    JsonNode payload = requireBody(body);
     InternalAiToolAuth.Caller caller = auth.authenticate(request, Permission.INSTANCE_READ);
-    List<String> tokens = searchTokens(text(body, "query"));
+    List<String> tokens = searchTokens(text(payload, "query"));
     return auth.inTenant(
         caller,
         () ->
@@ -107,10 +107,11 @@ public class InternalAiToolController {
   @PostMapping("/create_workflow_instance")
   public Map<String, Object> createWorkflowInstance(
       @RequestBody JsonNode body, HttpServletRequest request) {
+    JsonNode payload = requireBody(body);
     InternalAiToolAuth.Caller caller = auth.authenticate(request, Permission.INSTANCE_MANAGE);
-    UUID workflowId = uuid(body, "workflowId");
-    String context = body.hasNonNull("context") ? body.path("context").toString() : "{}";
-    String idempotencyKey = textOrNull(body, "idempotencyKey");
+    UUID workflowId = uuid(payload, "workflowId");
+    String context = payload.hasNonNull("context") ? payload.path("context").toString() : "{}";
+    String idempotencyKey = textOrNull(payload, "idempotencyKey");
     return auth.inTenant(
         caller,
         () -> {
@@ -146,13 +147,14 @@ public class InternalAiToolController {
 
   @PostMapping("/complete_task")
   public Map<String, Object> completeTask(@RequestBody JsonNode body, HttpServletRequest request) {
+    JsonNode payload = requireBody(body);
     InternalAiToolAuth.Caller caller = auth.authenticate(request, Permission.TASK_MANAGE);
-    UUID taskId = uuid(body, "taskId");
+    UUID taskId = uuid(payload, "taskId");
     String decision =
-        text(body, "decision").isBlank()
+        text(payload, "decision").isBlank()
             ? "complete"
-            : text(body, "decision").toLowerCase(Locale.ROOT);
-    String comment = textOrNull(body, "comment");
+            : text(payload, "decision").toLowerCase(Locale.ROOT);
+    String comment = textOrNull(payload, "comment");
     return auth.inTenant(
         caller,
         () -> {
@@ -177,9 +179,10 @@ public class InternalAiToolController {
 
   @PostMapping("/assign_task")
   public Map<String, Object> assignTask(@RequestBody JsonNode body, HttpServletRequest request) {
+    JsonNode payload = requireBody(body);
     InternalAiToolAuth.Caller caller = auth.authenticate(request, Permission.TASK_MANAGE);
-    UUID taskId = uuid(body, "taskId");
-    UUID assigneeId = uuid(body, "assigneeId");
+    UUID taskId = uuid(payload, "taskId");
+    UUID assigneeId = uuid(payload, "assigneeId");
     return auth.inTenant(
         caller,
         () ->
@@ -190,11 +193,12 @@ public class InternalAiToolController {
   @PostMapping("/create_approval")
   public Map<String, Object> createApproval(
       @RequestBody JsonNode body, HttpServletRequest request) {
+    JsonNode payload = requireBody(body);
     InternalAiToolAuth.Caller caller = auth.authenticate(request, Permission.TASK_MANAGE);
-    UUID workflowInstanceId = uuid(body, "workflowInstanceId");
-    UUID assigneeId = optionalUuid(body, "assigneeId");
-    String title = textOrNull(body, "title");
-    String description = textOrNull(body, "description");
+    UUID workflowInstanceId = uuid(payload, "workflowInstanceId");
+    UUID assigneeId = optionalUuid(payload, "assigneeId");
+    String title = textOrNull(payload, "title");
+    String description = textOrNull(payload, "description");
     return auth.inTenant(
         caller,
         () ->
@@ -212,35 +216,46 @@ public class InternalAiToolController {
   @PostMapping("/send_notification")
   public Map<String, Object> sendNotification(
       @RequestBody JsonNode body, HttpServletRequest request) {
+    JsonNode payload = requireBody(body);
     InternalAiToolAuth.Caller caller = auth.authenticate(request, Permission.INSTANCE_MANAGE);
-    String recipient = text(body, "recipient");
+    String recipient = text(payload, "recipient");
     if (recipient.isBlank()) {
       throw new AwapException(
           ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "recipient is required.");
     }
-    NotificationChannel channel = channel(textOrNull(body, "channel"));
+    String channel = channel(textOrNull(payload, "channel"));
     String templateKey =
-        textOrNull(body, "templateKey") == null ? "notification" : textOrNull(body, "templateKey");
-    String locale = textOrNull(body, "locale") == null ? "en" : textOrNull(body, "locale");
-    String variables = body.hasNonNull("variables") ? body.path("variables").toString() : "{}";
-    String businessKey = textOrNull(body, "businessKey");
+        textOrNull(payload, "templateKey") == null
+            ? "notification"
+            : textOrNull(payload, "templateKey");
+    String locale = textOrNull(payload, "locale") == null ? "en" : textOrNull(payload, "locale");
+    String variables =
+        payload.hasNonNull("variables") ? payload.path("variables").toString() : "{}";
+    String businessKey = textOrNull(payload, "businessKey");
+    String dedupeKey = textOrNull(payload, "dedupeKey");
     return auth.inTenant(
         caller,
         () -> {
-          notificationService.send(
+          Map<String, Object> event = new LinkedHashMap<>();
+          event.put("tenantId", caller.tenantId().toString());
+          event.put("recipient", recipient);
+          event.put("channel", channel);
+          event.put("templateKey", templateKey);
+          event.put("locale", locale);
+          event.put("variablesJson", variables);
+          event.put("dedupeKey", dedupeKey);
+          event.put("businessKey", businessKey);
+          event.put("eventType", "NOTIFICATION_REQUESTED");
+          outboxEventPublisher.publish(
               caller.tenantId(),
-              recipient,
-              channel,
-              templateKey,
-              locale,
-              variables,
-              textOrNull(body, "dedupeKey"),
-              businessKey,
-              "NOTIFICATION_REQUESTED");
+              "NOTIFICATION",
+              UUID.randomUUID(),
+              "NOTIFICATION_REQUESTED",
+              event);
           Map<String, Object> result = new LinkedHashMap<>();
           result.put("queued", true);
           result.put("recipient", recipient);
-          result.put("channel", channel.name());
+          result.put("channel", channel);
           return result;
         });
   }
@@ -248,21 +263,23 @@ public class InternalAiToolController {
   @PostMapping("/search_documents")
   public List<KnowledgeSearchService.KnowledgeHit> searchDocuments(
       @RequestBody JsonNode body, HttpServletRequest request) {
+    JsonNode payload = requireBody(body);
     InternalAiToolAuth.Caller caller = auth.authenticate(request, Permission.INSTANCE_READ);
-    String query = text(body, "query");
-    int limit = body.path("limit").asInt(10);
+    String query = text(payload, "query");
+    int limit = payload.path("limit").asInt(10);
     return auth.inTenant(
         caller, () -> knowledgeSearchService.search(caller.tenantId(), query, limit));
   }
 
   @PostMapping("/index_document")
   public Map<String, Object> indexDocument(@RequestBody JsonNode body, HttpServletRequest request) {
+    JsonNode payload = requireBody(body);
     InternalAiToolAuth.Caller caller = auth.authenticate(request, Permission.INSTANCE_MANAGE);
-    UUID fileId = uuid(body, "fileId");
-    String title = textOrNull(body, "title");
-    String content = textOrNull(body, "content");
-    String format = textOrNull(body, "format");
-    int version = body.path("version").asInt(1);
+    UUID fileId = uuid(payload, "fileId");
+    String title = textOrNull(payload, "title");
+    String content = textOrNull(payload, "content");
+    String format = textOrNull(payload, "format");
+    int version = payload.path("version").asInt(1);
     return auth.inTenant(
         caller,
         () -> {
@@ -309,12 +326,13 @@ public class InternalAiToolController {
 
   @PostMapping("/audit_decision")
   public Map<String, Object> auditDecision(@RequestBody JsonNode body, HttpServletRequest request) {
+    JsonNode payload = requireBody(body);
     InternalAiToolAuth.Caller caller = auth.authenticate(request, null);
-    String action = textOrNull(body, "action");
-    String outcome = textOrNull(body, "outcome");
+    String action = textOrNull(payload, "action");
+    String outcome = textOrNull(payload, "outcome");
     BigDecimal confidence =
-        body.hasNonNull("confidence")
-            ? BigDecimal.valueOf(body.path("confidence").asDouble())
+        payload.hasNonNull("confidence")
+            ? BigDecimal.valueOf(payload.path("confidence").asDouble())
             : null;
     return auth.inTenant(
         caller,
@@ -327,13 +345,13 @@ public class InternalAiToolController {
                   AutomationAudit.AuditKind.AI,
                   action == null ? "COPILOT" : action,
                   "ai-layer",
-                  textOrNull(body, "model"),
-                  hash(body.toString()),
+                  textOrNull(payload, "model"),
+                  hash(payload.toString()),
                   confidence,
                   0,
                   0,
                   outcome == null ? "SUCCESS" : outcome,
-                  body.toString()));
+                  payload.toString()));
           Map<String, Object> result = new LinkedHashMap<>();
           result.put("recorded", true);
           return result;
@@ -363,18 +381,16 @@ public class InternalAiToolController {
     return result;
   }
 
-  private NotificationChannel channel(String value) {
-    if (value == null || value.isBlank()) {
-      return NotificationChannel.EMAIL;
-    }
-    try {
-      return NotificationChannel.valueOf(value.trim().toUpperCase(Locale.ROOT));
-    } catch (IllegalArgumentException ex) {
+  private String channel(String value) {
+    String normalized =
+        value == null || value.isBlank() ? "EMAIL" : value.trim().toUpperCase(Locale.ROOT);
+    if (!java.util.Set.of("EMAIL", "SMS", "PUSH", "WEB", "WEBHOOK").contains(normalized)) {
       throw new AwapException(
           ErrorCode.VALIDATION_FAILED,
           HttpStatus.BAD_REQUEST,
           "Unknown notification channel: " + value);
     }
+    return normalized;
   }
 
   private static String safe(String value) {
@@ -411,6 +427,14 @@ public class InternalAiToolController {
         .filter(token -> !ACTION_STOPWORDS.contains(token))
         .distinct()
         .toList();
+  }
+
+  private static JsonNode requireBody(JsonNode body) {
+    if (body == null) {
+      throw new AwapException(
+          ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Request body is required.");
+    }
+    return body;
   }
 
   private static String text(JsonNode body, String field) {

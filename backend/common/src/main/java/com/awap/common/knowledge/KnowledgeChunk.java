@@ -1,4 +1,4 @@
-package com.awap.knowledge.domain;
+package com.awap.common.knowledge;
 
 import java.util.UUID;
 

@@ -24,7 +24,7 @@ tenant-scoped knowledge search.
 | Task completion | `complete_task` supports approve, reject and complete |
 | Approval assistance | `create_approval` creates a tenant-scoped approval task |
 | Notification | `send_notification` uses the durable notification delivery path |
-| Knowledge search | `search_documents` queries the tenant knowledge index with metadata fallback |
+| Knowledge search | `search_documents` queries the tenant-filtered OpenSearch knowledge index |
 | Audit | `audit_decision` writes an immutable `automation_audit_records` row |
 | Prompt injection | Input guardrails reject injection markers, zero-width obfuscation and oversized input |
 | Output guardrails | System-prompt leakage and oversized completions are blocked |
@@ -99,7 +99,8 @@ Production must supply `AI_INTERNAL_TOKEN` from Vault/External Secrets, never fr
 - Role lacks the required permission: `403`, no domain service is invoked.
 - Prompt injection or output leakage: blocked and audited.
 - Low confidence: `requires_human_approval=true`; state-changing tools are not called.
-- OpenSearch unavailable: knowledge search falls back to tenant document metadata.
+- OpenSearch unavailable: knowledge search returns no hits and increments a failure counter; it
+  never returns another tenant's data and never fails the caller.
 - Model provider 429/5xx/transport failure: backend AI node falls back to the local heuristic
   provider; the Copilot surface reports the failure instead of inventing an answer.
 - Metering or budget exhaustion: `429` before the model is called.

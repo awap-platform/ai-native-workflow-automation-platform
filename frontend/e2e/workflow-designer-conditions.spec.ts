@@ -41,9 +41,15 @@ async function mockValidation(page: Page, valid = true): Promise<string[]> {
 
 async function addNode(page: Page, type: string): Promise<void> {
   await page.getByRole("button", { name: type, exact: true }).click();
+  // React Flow measures and paints a node one frame after the palette click; waiting here keeps
+  // the subsequent drag deterministic instead of racing the canvas render.
+  await expect(page.locator(".react-flow__node", { hasText: type }).first()).toBeVisible();
 }
 
 async function connectNodes(page: Page, from: string, to: string): Promise<void> {
+  // The inspector and the growing palette can push the fixed-height canvas out of view. Scroll the
+  // canvas (not the page) back into view so both handles are visible for the drag.
+  await page.locator('[data-testid="designer-canvas"]').scrollIntoViewIfNeeded();
   const edges = page.locator(".react-flow__edge");
   const before = await edges.count();
   const fromHandle = page
@@ -54,6 +60,10 @@ async function connectNodes(page: Page, from: string, to: string): Promise<void>
     .locator(".react-flow__node", { hasText: to })
     .first()
     .locator(".react-flow__handle.target");
+  await expect(fromHandle).toBeVisible();
+  await expect(toHandle).toBeVisible();
+  await fromHandle.scrollIntoViewIfNeeded();
+  await toHandle.scrollIntoViewIfNeeded();
   const source = await fromHandle.boundingBox();
   const target = await toHandle.boundingBox();
   if (!source || !target) {
@@ -181,8 +191,14 @@ test("blocks saving while an edge condition is malformed", async ({ page }) => {
 
 test("supports keyboard-only editing and passes the axe check", async ({ page }) => {
   await mockValidation(page);
-  await page.route(CREATE_URL, (route) =>
-    route.fulfill({
+  await page.route(CREATE_URL, async (route) => {
+    // Only the draft POST is mocked; any other method falls through so the route cannot shadow a
+    // collection read with a single-resource payload.
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
       status: 201,
       contentType: "application/json",
       body: JSON.stringify({
@@ -193,8 +209,8 @@ test("supports keyboard-only editing and passes the axe check", async ({ page })
         status: "DRAFT",
         currentVersion: 1,
       }),
-    }),
-  );
+    });
+  });
 
   await openDesigner(page);
   await addNode(page, "START");

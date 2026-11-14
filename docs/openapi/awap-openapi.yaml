@@ -2335,6 +2335,7 @@ paths:
     post:
       operationId: copilotChat
       summary: Send a natural-language request to the Copilot
+      description: Forwards the authenticated user context to the AI layer. High-risk actions return a HITL confirmation request.
       tags: [Copilot]
       requestBody:
         required: true
@@ -2369,6 +2370,7 @@ paths:
     get:
       operationId: copilotTasks
       summary: Ask the Copilot for the caller's tasks
+      description: Returns only tenant-scoped tasks visible to the authenticated caller.
       tags: [Copilot]
       responses:
         "200":
@@ -2382,6 +2384,7 @@ paths:
     post:
       operationId: copilotCompleteTask
       summary: Request a task decision through the Copilot
+      description: Supports approve, reject and complete; the backend re-verifies the caller's permission.
       tags: [Copilot]
       parameters:
         - name: taskId
@@ -2416,6 +2419,7 @@ paths:
     post:
       operationId: copilotApprovalAssistance
       summary: Prepare an approval task through the Copilot
+      description: Creates a tenant-scoped approval task linked to the workflow instance.
       tags: [Copilot]
       requestBody:
         required: true
@@ -2447,6 +2451,7 @@ paths:
     post:
       operationId: copilotKnowledgeSearch
       summary: Search tenant documents through the Copilot
+      description: Queries the tenant-filtered knowledge index and returns only the caller's documents.
       tags: [Copilot]
       requestBody:
         required: true
@@ -2474,6 +2479,7 @@ paths:
     get:
       operationId: copilotPrompts
       summary: List versioned Copilot prompts
+      description: Returns the source-controlled prompt keys and their active version.
       tags: [Copilot]
       responses:
         "200":
@@ -2489,6 +2495,7 @@ paths:
     get:
       operationId: copilotMetrics
       summary: Read Copilot counters
+      description: Returns per-instance Copilot counters and the active prompt version.
       tags: [Copilot]
       responses:
         "200":
@@ -2502,6 +2509,7 @@ paths:
     post:
       operationId: aiToolFindWorkflow
       summary: Discover published workflows for the AI layer
+      description: Internal machine-to-machine tool; the caller's role is re-verified before execution.
       tags: [AI Tools]
       security: []
       parameters:
@@ -2520,6 +2528,7 @@ paths:
     post:
       operationId: aiToolCreateWorkflowInstance
       summary: Start a workflow instance for the AI layer
+      description: Internal machine-to-machine tool; requires INSTANCE_MANAGE and an idempotency key.
       tags: [AI Tools]
       security: []
       parameters:
@@ -2536,6 +2545,7 @@ paths:
     post:
       operationId: aiToolQueryTasks
       summary: Query the caller's tasks for the AI layer
+      description: Internal machine-to-machine tool scoped to the authenticated tenant and user.
       tags: [AI Tools]
       security: []
       parameters:
@@ -2554,6 +2564,7 @@ paths:
     post:
       operationId: aiToolCompleteTask
       summary: Apply a task decision for the AI layer
+      description: Internal machine-to-machine tool; approve/reject also require the task decision right.
       tags: [AI Tools]
       security: []
       parameters:
@@ -2570,6 +2581,7 @@ paths:
     post:
       operationId: aiToolAssignTask
       summary: Assign a task for the AI layer
+      description: Internal machine-to-machine tool requiring TASK_MANAGE.
       tags: [AI Tools]
       security: []
       parameters:
@@ -2586,6 +2598,7 @@ paths:
     post:
       operationId: aiToolCreateApproval
       summary: Create an approval task for the AI layer
+      description: Internal machine-to-machine tool requiring TASK_MANAGE.
       tags: [AI Tools]
       security: []
       parameters:
@@ -2602,6 +2615,7 @@ paths:
     post:
       operationId: aiToolSendNotification
       summary: Queue a notification for the AI layer
+      description: Internal machine-to-machine tool using the durable notification delivery path.
       tags: [AI Tools]
       security: []
       parameters:
@@ -2618,6 +2632,7 @@ paths:
     post:
       operationId: aiToolSearchDocuments
       summary: Search tenant knowledge for the AI layer
+      description: Internal machine-to-machine tool with a mandatory tenant filter.
       tags: [AI Tools]
       security: []
       parameters:
@@ -2636,6 +2651,7 @@ paths:
     post:
       operationId: aiToolIndexDocument
       summary: Chunk and index a tenant document
+      description: Internal machine-to-machine tool that writes tenant-scoped chunks to OpenSearch.
       tags: [AI Tools]
       security: []
       parameters:
@@ -2652,6 +2668,7 @@ paths:
     post:
       operationId: aiToolGetUser
       summary: Resolve the authenticated user for the AI layer
+      description: Internal machine-to-machine tool returning only the caller's own profile.
       tags: [AI Tools]
       security: []
       parameters:
@@ -2668,6 +2685,7 @@ paths:
     post:
       operationId: aiToolAuditDecision
       summary: Write an immutable AI decision audit row
+      description: Internal machine-to-machine tool appending an audit record for a Copilot decision.
       tags: [AI Tools]
       security: []
       parameters:

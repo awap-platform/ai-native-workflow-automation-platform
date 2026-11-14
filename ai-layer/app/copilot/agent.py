@@ -74,9 +74,7 @@ class LlmClient:
         timeout_seconds: float = 10.0,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
-        self.base_url = (
-            base_url or os.getenv("AI_COPILOT_LLM_BASE_URL", "")
-        ).rstrip("/")
+        self.base_url = (base_url or os.getenv("AI_COPILOT_LLM_BASE_URL", "")).rstrip("/")
         self.api_key = api_key or os.getenv("AI_COPILOT_LLM_API_KEY", "")
         self.timeout_seconds = timeout_seconds
         self.transport = transport
@@ -107,12 +105,7 @@ class LlmClient:
                 )
             if response.status_code >= 400:
                 return None
-            content = (
-                response.json()
-                .get("choices", [{}])[0]
-                .get("message", {})
-                .get("content")
-            )
+            content = response.json().get("choices", [{}])[0].get("message", {}).get("content")
             return content if isinstance(content, str) and content.strip() else None
         except Exception:
             return None
@@ -278,9 +271,7 @@ class CopilotAgent:
             state["requires_human_approval"] = True
             self.metrics.increment("copilot.guardrail.output_blocked")
         state["answer"] = answer
-        state["confidence"] = state.get(
-            "confidence", estimate_confidence(answer, action.value)
-        )
+        state["confidence"] = state.get("confidence", estimate_confidence(answer, action.value))
         if state["confidence"] < self.confidence_threshold:
             state["requires_human_approval"] = True
             self.metrics.increment("copilot.hitl.low_confidence")
@@ -304,9 +295,7 @@ class CopilotAgent:
     # ------------------------------------------------------------------ intent handlers
     async def _discover_workflow(self, state: AgentState) -> AgentState:
         security = state["security"]
-        call = await self.tools.invoke(
-            "find_workflow", {"query": state["message"]}, security
-        )
+        call = await self.tools.invoke("find_workflow", {"query": state["message"]}, security)
         return self._record(state, call, self._workflow_answer(call))
 
     async def _start_workflow(self, state: AgentState) -> AgentState:
@@ -326,9 +315,7 @@ class CopilotAgent:
                 )
             workflow_id = self._first_workflow_id(discovery.result)
             if not workflow_id:
-                return self._record(
-                    state, discovery, "No published workflow matches this request."
-                )
+                return self._record(state, discovery, "No published workflow matches this request.")
         if not state.get("confirm_high_risk"):
             state["data"] = {"workflowId": workflow_id, "proposedAction": "start_workflow"}
             state["requires_human_approval"] = True
@@ -357,9 +344,7 @@ class CopilotAgent:
         return self._record(state, call, answer, data=call.result)
 
     async def _query_tasks(self, state: AgentState) -> AgentState:
-        call = await self.tools.invoke(
-            "query_tasks", {"mine": True}, state["security"]
-        )
+        call = await self.tools.invoke("query_tasks", {"mine": True}, state["security"])
         if not call.ok:
             return self._record(state, call, f"I could not query tasks: {call.error}")
         tasks = call.result if isinstance(call.result, list) else []
@@ -523,9 +508,7 @@ class CopilotAgent:
             if not result:
                 return "No published workflow matches this request."
             titles = [
-                item.get("name") or item.get("id")
-                for item in result[:5]
-                if isinstance(item, dict)
+                item.get("name") or item.get("id") for item in result[:5] if isinstance(item, dict)
             ]
             return "Matching workflows: " + ", ".join(str(title) for title in titles)
         if isinstance(result, dict):

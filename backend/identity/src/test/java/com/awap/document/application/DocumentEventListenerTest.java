@@ -11,8 +11,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.awap.common.knowledge.KnowledgeSearchService;
 import com.awap.identity.infrastructure.security.KafkaTenantContext;
-import com.awap.knowledge.application.KnowledgeSearchService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.Optional;

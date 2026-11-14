@@ -160,9 +160,7 @@ class ToolRegistry:
             result = await self.client.call(tool_name, arguments, security, idempotency_key)
             return ToolCall(name=tool_name, arguments=arguments, result=result, ok=True)
         except ToolPermissionDenied as ex:
-            return ToolCall(
-                name=tool_name, arguments=arguments, ok=False, error=str(ex)
-            )
+            return ToolCall(name=tool_name, arguments=arguments, ok=False, error=str(ex))
         except Exception as ex:  # tool failure must be visible, never silently swallowed
             return ToolCall(
                 name=tool_name,

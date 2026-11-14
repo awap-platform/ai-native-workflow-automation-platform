@@ -213,6 +213,12 @@ awap:
       complex-model: ${AI_MODEL_COMPLEX:gpt-4o}
   knowledge:
     index: ${KNOWLEDGE_INDEX:awap-knowledge}
+    opensearch:
+      # Shared-kernel knowledge search uses its own client so it does not depend on the analytics
+      # module (and cannot create a module cycle).
+      endpoint: ${OPENSEARCH_ENDPOINT:http://localhost:9200}
+      connect-timeout-ms: ${KNOWLEDGE_OPENSEARCH_CONNECT_TIMEOUT_MS:2000}
+      request-timeout-ms: ${KNOWLEDGE_OPENSEARCH_REQUEST_TIMEOUT_MS:3000}
   script:
     # Fail-closed: the SCRIPT node is disabled unless the sandbox is explicitly enabled.
     enabled: ${SCRIPT_NODE_ENABLED:false}

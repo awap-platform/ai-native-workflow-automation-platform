@@ -35,9 +35,7 @@ def client() -> TestClient:
 
 
 def test_chat_returns_the_versioned_copilot_envelope() -> None:
-    response = client().post(
-        "/api/v1/copilot/chat", json={"message": "hello"}, headers=HEADERS
-    )
+    response = client().post("/api/v1/copilot/chat", json={"message": "hello"}, headers=HEADERS)
     assert response.status_code == 200
     body = response.json()
     assert body["prompt_version"] == "v1"

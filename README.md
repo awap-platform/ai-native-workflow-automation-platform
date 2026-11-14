@@ -188,7 +188,7 @@ capability truth; the versioned contract is
 | Copilot chat, workflow discovery/initiation, task query/completion, approval assistance | Implemented |
 | Permission-checked backend tools + HITL + audit | Implemented |
 | Versioned prompts and dynamic model routing | Implemented |
-| Tenant-scoped knowledge search with chunking | Implemented (OpenSearch with metadata fallback) |
+| Tenant-scoped knowledge search with chunking | Implemented (OpenSearch, tenant-filtered) |
 | RAG / vector store | Not implemented |
 
 The backend calls the AI layer through the authenticated `/api/v1/copilot/*` proxy when

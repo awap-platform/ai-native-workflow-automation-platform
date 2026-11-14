@@ -58,9 +58,7 @@ def security_context(
         user_id=x_user_id,
         role=x_user_role,
         permissions=[
-            permission.strip()
-            for permission in x_user_permissions.split(",")
-            if permission.strip()
+            permission.strip() for permission in x_user_permissions.split(",") if permission.strip()
         ],
         correlation_id=x_correlation_id,
         access_token=access_token,

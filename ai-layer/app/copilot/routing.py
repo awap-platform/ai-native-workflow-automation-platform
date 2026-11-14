@@ -37,9 +37,7 @@ class ModelRouter:
         complex_model: str | None = None,
     ) -> None:
         self.cheap_model = cheap_model or os.getenv("AI_MODEL_CHEAP", "local-heuristic")
-        self.standard_model = standard_model or os.getenv(
-            "AI_MODEL_STANDARD", "gpt-4o-mini"
-        )
+        self.standard_model = standard_model or os.getenv("AI_MODEL_STANDARD", "gpt-4o-mini")
         self.complex_model = complex_model or os.getenv("AI_MODEL_COMPLEX", "gpt-4o")
 
     def complexity(self, message: str, action: CopilotAction) -> float:

@@ -1,7 +1,7 @@
 package com.awap.document.application;
 
+import com.awap.common.knowledge.KnowledgeSearchService;
 import com.awap.identity.infrastructure.security.KafkaTenantContext;
-import com.awap.knowledge.application.KnowledgeSearchService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;

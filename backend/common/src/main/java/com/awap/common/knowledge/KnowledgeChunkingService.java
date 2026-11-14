@@ -1,4 +1,4 @@
-package com.awap.knowledge.application;
+package com.awap.common.knowledge;
 
 import java.util.ArrayList;
 import java.util.List;
