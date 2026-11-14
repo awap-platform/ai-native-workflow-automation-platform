@@ -186,6 +186,43 @@ class IdempotencyFilterTest {
   }
 
   @Test
+  void replaysTheRacedRecordWhenItAppearsAfterTheInsertFails() throws Exception {
+    IdempotencyRecord raced = new IdempotencyRecord(tenantId, "key-1");
+    raced.setResponse(201, "{\"created\":true}", "application/json");
+    when(repository.findByTenantIdAndIdempotencyKey(tenantId, "key-1"))
+        .thenReturn(Optional.empty(), Optional.of(raced));
+    when(repository.save(any(IdempotencyRecord.class)))
+        .thenThrow(new DataIntegrityViolationException("duplicate"));
+
+    MockHttpServletRequest request = request("key-1", "{\"message\":\"start\"}");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+    AtomicInteger downstream = new AtomicInteger();
+
+    filter.doFilter(request, response, (req, res) -> downstream.incrementAndGet());
+
+    assertThat(downstream.get()).isZero();
+    assertThat(response.getStatus()).isEqualTo(201);
+    assertThat(response.getContentAsString()).contains("created");
+  }
+
+  @Test
+  void rejectsAnInFlightDuplicateWith409() throws Exception {
+    IdempotencyRecord inFlight = new IdempotencyRecord(tenantId, "key-1");
+    when(repository.findByTenantIdAndIdempotencyKey(tenantId, "key-1"))
+        .thenReturn(Optional.of(inFlight));
+
+    MockHttpServletRequest request = request("key-1", "{\"message\":\"start\"}");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+    MockFilterChain chain = new MockFilterChain();
+
+    filter.doFilter(request, response, chain);
+
+    assertThat(chain.getRequest()).isNull();
+    assertThat(response.getStatus()).isEqualTo(409);
+    assertThat(response.getContentAsString()).contains("already been used");
+  }
+
+  @Test
   void writesConflictWhenTheRacingRecordCannotBeRead() throws Exception {
     when(repository.findByTenantIdAndIdempotencyKey(tenantId, "key-1"))
         .thenReturn(Optional.empty());
