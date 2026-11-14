@@ -47,6 +47,32 @@ class AiAgentServiceTest {
   }
 
   @Test
+  void routedOverloadsForwardTheSelectedModel() {
+    AtomicInteger modelAwareCalls = new AtomicInteger();
+    java.util.List<String> models = new java.util.ArrayList<>();
+    AiBackendClient recording =
+        new AiBackendClient() {
+          @Override
+          public String complete(String prompt, int maxTokens) {
+            return "unrouted";
+          }
+
+          @Override
+          public String complete(String prompt, int maxTokens, String model) {
+            modelAwareCalls.incrementAndGet();
+            models.add(model);
+            return prompt.startsWith("classify:") ? "FINANCE" : "summary";
+          }
+        };
+    AiAgentService agent = new AiAgentService(recording, 1000, 100, executor, usageMeteringService);
+
+    assertThat(agent.summarize("hello", "cheap-model")).isEqualTo("summary");
+    assertThat(agent.classify("invoice payment", "standard-model")).isEqualTo("FINANCE");
+    assertThat(modelAwareCalls).hasValue(2);
+    assertThat(models).containsExactly("cheap-model", "standard-model");
+  }
+
+  @Test
   void classifyHappyPath() {
     assertThat(service(1000, 100).classify("invoice payment")).isEqualTo("FINANCE");
   }

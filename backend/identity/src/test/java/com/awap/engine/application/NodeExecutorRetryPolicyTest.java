@@ -227,13 +227,18 @@ class NodeExecutorRetryPolicyTest {
 
   static List<NodeType> failingNodeTypes() {
     return List.of(
-        NodeType.TASK, NodeType.WEBHOOK, NodeType.AI, NodeType.SCRIPT, NodeType.SUB_PROCESS);
+        NodeType.TASK,
+        NodeType.WEBHOOK,
+        NodeType.AI,
+        NodeType.AI_TASK,
+        NodeType.SCRIPT,
+        NodeType.SUB_PROCESS);
   }
 
   @ParameterizedTest
   @EnumSource(
       value = NodeType.class,
-      names = {"TASK", "WEBHOOK", "AI", "SCRIPT", "SUB_PROCESS"})
+      names = {"TASK", "WEBHOOK", "AI", "AI_TASK", "SCRIPT", "SUB_PROCESS"})
   void everyExecutableNodeTypeHonoursThePolicyAndReachesTheNodeDlq(NodeType nodeType) {
     WorkflowInstance instance = instance(WorkflowState.RUNNING);
     NodeDefinition node = node(nodeType, "{\"maxAttempts\":1,\"delaysMs\":[1000]}");

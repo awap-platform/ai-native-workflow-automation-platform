@@ -29,6 +29,10 @@ by the dashboard/alert tests in CI.
 | `awap.document.sse.disconnected` | `awap_document_sse_disconnected_total` | `DocumentScanMetrics` | Document scan stream health | – |
 | `awap.document.sse.events` | `awap_document_sse_events_total` | `DocumentScanMetrics` | Document scan stream health | – |
 | `awap.document.scan.status.latency` | `awap_document_scan_status_latency_seconds_*` | `DocumentScanMetrics` | Document scan status latency | – |
+| `awap.ai.routing` | `awap_ai_routing_total` | `AiNodeService` | AI routing by tier/model | – |
+| `awap.knowledge.search` | `awap_knowledge_search_total` | `KnowledgeSearchService` | Knowledge search backend (OpenSearch/metadata) | – |
+| `awap.knowledge.index.chunks` | `awap_knowledge_index_chunks_total` | `KnowledgeSearchService` | Indexed knowledge chunks | – |
+| `awap.knowledge.index.failures` | `awap_knowledge_index_failures_total` | `KnowledgeSearchService` | Knowledge indexing failures | – |
 | HTTP observations | `http_server_requests_seconds_count` | Spring Boot | Outbox backlog, relay rate and DLQ (5xx) | `AwapHighErrorRate`, `AwapHighLatency` |
 
 ## Live validation (issue #160)

@@ -63,7 +63,7 @@ def test_readiness_is_healthy_without_a_configured_dependency() -> None:
     body = response.json()
     assert body["status"] == "UP"
     assert body["dependency"] == "none"
-    documented = CONTRACT["components"]["schemas"]["ReadinessResponse"]["allOf"][1]["required"]
+    documented = CONTRACT["components"]["schemas"]["ReadinessResponse"]["required"]
     assert set(documented) <= set(body)
 
 

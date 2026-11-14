@@ -215,6 +215,17 @@ services:
       context: ..
       dockerfile: ai-layer/Dockerfile
     profiles: ["full"]
+    environment:
+      # Local-only machine-to-machine credentials. Production supplies these from Vault.
+      AI_BACKEND_URL: http://backend:8080
+      AI_BACKEND_SERVICE_TOKEN: ${AI_INTERNAL_TOKEN:-local-dev-internal-token}
+      AI_LAYER_SERVICE_TOKEN: ${AI_INTERNAL_TOKEN:-local-dev-internal-token}
+      AI_MODEL_CHEAP: ${AI_MODEL_CHEAP:-local-heuristic}
+      AI_MODEL_STANDARD: ${AI_MODEL_STANDARD:-gpt-4o-mini}
+      AI_MODEL_COMPLEX: ${AI_MODEL_COMPLEX:-gpt-4o}
+      AI_CONFIDENCE_THRESHOLD: ${AI_CONFIDENCE_THRESHOLD:-0.7}
+      AI_COPILOT_LLM_BASE_URL: ${AI_COPILOT_LLM_BASE_URL:-}
+      AI_COPILOT_LLM_API_KEY: ${AI_COPILOT_LLM_API_KEY:-}
     ports:
       - "8000:8000"
     healthcheck:
@@ -452,6 +463,14 @@ services:
       # the backend without the AI layer healthy.
       AI_LAYER_ENABLED: ${AI_LAYER_ENABLED:-false}
       AI_LAYER_URL: ${AI_LAYER_URL:-http://ai-layer:8000}
+      # Phase 2 Copilot: shared tool credential, SPA proxy and dynamic model routing.
+      AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:-local-dev-internal-token}
+      AI_COPILOT_ENABLED: ${AI_COPILOT_ENABLED:-true}
+      AI_COPILOT_TIMEOUT_MS: ${AI_COPILOT_TIMEOUT_MS:-10000}
+      AI_RATE_LIMIT_PER_MINUTE: ${AI_RATE_LIMIT_PER_MINUTE:-60}
+      AI_MODEL_CHEAP: ${AI_MODEL_CHEAP:-local-heuristic}
+      AI_MODEL_STANDARD: ${AI_MODEL_STANDARD:-gpt-4o-mini}
+      AI_MODEL_COMPLEX: ${AI_MODEL_COMPLEX:-gpt-4o}
       OPENSEARCH_ENABLED: ${OPENSEARCH_ENABLED:-true}
       OPENSEARCH_ENDPOINT: ${OPENSEARCH_ENDPOINT:-http://opensearch:9200}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}

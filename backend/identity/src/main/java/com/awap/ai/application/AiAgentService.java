@@ -68,6 +68,16 @@ public class AiAgentService {
     return run("classify:" + input, 64);
   }
 
+  /** Summarize against the model selected by the routing policy. */
+  public String summarize(String input, String model) {
+    return run("summarize:" + input, Math.min(512, input.length()), model);
+  }
+
+  /** Classify against the model selected by the routing policy. */
+  public String classify(String input, String model) {
+    return run("classify:" + input, 64, model);
+  }
+
   /**
    * Tenant-aware summarize: reserves one AI-call unit before the model is invoked, so a tenant at
    * its daily quota gets {@code 429} without spending tokens.
@@ -89,12 +99,16 @@ public class AiAgentService {
   }
 
   private String run(String prompt, int maxTokens) {
+    return run(prompt, maxTokens, null);
+  }
+
+  private String run(String prompt, int maxTokens, String model) {
     String payload = prompt.substring(prompt.indexOf(':') + 1).trim();
     validate(payload);
 
     try {
       return executor
-          .submit(() -> backend.complete(prompt, maxTokens))
+          .submit(() -> backend.complete(prompt, maxTokens, model))
           .get(timeoutMs, TimeUnit.MILLISECONDS);
     } catch (TimeoutException ex) {
       throw new AwapException(

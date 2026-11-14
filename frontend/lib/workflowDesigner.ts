@@ -17,6 +17,8 @@ export const NODE_TYPES = [
   "WEBHOOK",
   "SUB_PROCESS",
   "AI",
+  "AI_TASK",
+  "SCRIPT",
 ] as const;
 
 export type WorkflowNodeType = (typeof NODE_TYPES)[number];
@@ -36,6 +38,8 @@ export const NODE_COLORS: Record<string, string> = {
   WEBHOOK: "#dc2626",
   SUB_PROCESS: "#475569",
   AI: "#10b981",
+  AI_TASK: "#0f766e",
+  SCRIPT: "#65a30d",
 };
 
 /** MIME type used by the palette drag source and the canvas drop target. */

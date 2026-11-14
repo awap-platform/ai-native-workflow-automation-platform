@@ -1,6 +1,6 @@
 # Per-node retry policies (issue #210)
 
-Every executable node type (`TASK`, `WEBHOOK`, `AI`, `SCRIPT`, `SUB_PROCESS`, …) runs under a
+Every executable node type (`TASK`, `WEBHOOK`, `AI`, `AI_TASK`, `SCRIPT`, `SUB_PROCESS`, …) runs under a
 configurable retry policy. Failures are classified before a retry is scheduled: transient errors are
 retried outside the request thread, permanent errors and exhausted budgets are published to the node
 DLQ (`workflow.node.dlq`) and fail the workflow visibly.

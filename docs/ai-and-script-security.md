@@ -4,15 +4,22 @@ Issue #132 enables the `AI` workflow node and adds a `SCRIPT` node. Both are **f
 return `501 Not Implemented` unless the deployment explicitly enables them
 (`AI_NODE_ENABLED=true`, `SCRIPT_NODE_ENABLED=true`).
 
-## AI node
+## AI node and AI_TASK alias
+
+`AI_TASK` is an explicit alias of the `AI` execution path, so existing published definitions keep
+working while new definitions can use the spec's `AI_TASK` name. Both are `ENFORCED` for timeout
+purposes and share the same guardrails, budget, cache, HITL and audit behavior.
 
 | Control | Implementation |
 |---|---|
 | Provider abstraction | `AiBackendClient` seam + `AiAgentService` (timeout, validation); `LocalHeuristicAiBackend` is the default, `OpenAiCompatibleAiBackend` (`AI_PROVIDER=openai`) calls any OpenAI-compatible `/chat/completions` endpoint with a connect/read timeout and falls back to the local provider on 429/5xx/transport/empty answers |
 | Prompt sanitization / guardrails | `AiGuardrails` strips NUL characters, caps the prompt at 8 000 chars and blocks `[INST]`, `<\|`, "ignore previous instructions", "system prompt", "reveal your instructions", "you are now", "jailbreak", "developer mode" and role-spoofing markers |
 | Timeout | `AiAgentService` runs the provider call on a bounded executor with `awap.ai.timeout-ms` (default 5 000 ms) |
-| Confidence + HITL | `AiConfidenceEstimator` (deterministic, explainable) → below `awap.ai.confidence-threshold` (0.7) the node transitions to `WAITING` with `AI_HITL_REQUIRED` instead of advancing |
+| Confidence + HITL | `AiConfidenceEstimator` (deterministic, explainable) → below `awap.ai.confidence-threshold` (0.7) the node transitions to `WAITING` with `AI_HITL_REQUIRED` and creates an idempotent approval task tied to the node execution; approving it advances the workflow through the normal task completion path |
 | Budget / cost | `AiBudgetGuard` reserves estimated tokens per tenant (`awap.ai.monthly-token-budget`, default 200 000) and refuses with `429`; cost is recorded at `awap.ai.cost-micros-per-token` |
+| Rate limit | `AiRateLimiter` enforces a per-tenant sliding window (`awap.ai.rate-limit-per-minute`, default 60) before the provider call |
+| Output guardrail | `AiGuardrails.sanitizeOutput` blocks system-prompt leakage and oversized completions |
+| Model routing | `AiModelRouter` selects cheap/standard/complex tiers from request complexity, action and latency; the model and tier are audited |
 | Rate/caching | Per-instance LRU cache keyed by the SHA-256 of action+prompt (`awap.ai.requests{outcome="cache_hit"}`); repeated prompts never hit the provider |
 | Fallback | The provider seam allows a fallback chain; a provider failure surfaces as `502`/`504` and the node fails the instance rather than silently continuing |
 | Audit | Every decision (success, blocked, budget, cache hit, HITL) writes an immutable `automation_audit_records` row with prompt hash, confidence, tokens and cost |

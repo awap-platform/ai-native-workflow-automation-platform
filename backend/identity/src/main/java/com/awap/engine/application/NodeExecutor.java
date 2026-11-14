@@ -397,7 +397,7 @@ final class NodeExecutor {
         waitForExternal(instance, node, execution, "NODE_WAITING");
         yield Optional.empty();
       }
-      case AI -> {
+      case AI, AI_TASK -> {
         if (aiNodeService == null) {
           throw new AwapException(
               ErrorCode.GENERIC_INTERNAL_ERROR,
@@ -418,6 +418,19 @@ final class NodeExecutor {
             aiNodeService.evaluate(
                 instance.getTenantId(), instance.getId(), node.getNodeId(), action, prompt);
         if (result.requiresHumanApproval()) {
+          UUID assigneeId = resolveAssignee(instance, node);
+          taskService.createIfAbsentForNode(
+              instance.getTenantId(),
+              new TaskRequest(
+                  "AI approval required: " + node.getName(),
+                  "Human approval is required for AI node '"
+                      + node.getNodeId()
+                      + "' because confidence "
+                      + result.confidence()
+                      + " is below the configured threshold.",
+                  instance.getId(),
+                  execution.getId(),
+                  assigneeId));
           waitForExternal(instance, node, execution, "AI_HITL_REQUIRED");
           yield Optional.empty();
         }

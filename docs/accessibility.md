@@ -14,6 +14,7 @@ uses the shared fixtures in
 | Register | `/register` | ✅ | — | Form labels |
 | Tenant selection | `/select-tenant` | — | ✅ | Two memberships |
 | Dashboard | `/dashboard` | ✅ | ✅ | Tasks/instances counts |
+| AI Copilot | `/copilot` | ✅ | ✅ | Natural-language request, HITL warning and tool-call list |
 | Tasks | `/tasks` | ✅ | ✅ | Populated state opens the task detail panel |
 | Workflows | `/workflows` | ✅ | ✅ | Populated state opens the start dialog |
 | Workflow designer | `/workflows/designer` | ✅ | ✅ | Populated state adds a TASK node |

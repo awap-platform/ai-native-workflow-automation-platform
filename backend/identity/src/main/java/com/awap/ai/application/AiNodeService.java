@@ -3,6 +3,7 @@ package com.awap.ai.application;
 import com.awap.ai.domain.AiConfidenceEstimator;
 import com.awap.ai.domain.AiGuardrailViolationException;
 import com.awap.ai.domain.AiGuardrails;
+import com.awap.ai.domain.AiModelRouter;
 import com.awap.ai.domain.AutomationAudit;
 import com.awap.ai.infrastructure.AutomationAuditRepository;
 import com.awap.common.api.AwapException;
@@ -42,6 +43,8 @@ public class AiNodeService {
   private final boolean enabled;
   private final double confidenceThreshold;
   private final long costMicrosPerToken;
+  private final AiModelRouter modelRouter;
+  private final AiRateLimiter rateLimiter;
   private final Map<String, AiNodeResult> cache =
       new LinkedHashMap<>(16, 0.75f, true) {
         @Override
@@ -58,7 +61,54 @@ public class AiNodeService {
       MeterRegistry meterRegistry,
       @Value("${awap.ai.node-enabled:false}") boolean enabled,
       @Value("${awap.ai.confidence-threshold:0.7}") double confidenceThreshold,
-      @Value("${awap.ai.cost-micros-per-token:2}") long costMicrosPerToken) {
+      @Value("${awap.ai.cost-micros-per-token:2}") long costMicrosPerToken,
+      @Value("${awap.ai.routing.cheap-model:local-heuristic}") String cheapModel,
+      @Value("${awap.ai.routing.standard-model:gpt-4o-mini}") String standardModel,
+      @Value("${awap.ai.routing.complex-model:gpt-4o}") String complexModel,
+      AiRateLimiter rateLimiter) {
+    this(
+        agentService,
+        auditRepository,
+        budgetGuard,
+        meterRegistry,
+        enabled,
+        confidenceThreshold,
+        costMicrosPerToken,
+        new AiModelRouter(cheapModel, standardModel, complexModel),
+        rateLimiter);
+  }
+
+  /** Backward-compatible constructor used by focused unit tests without a router/limiter. */
+  AiNodeService(
+      AiAgentService agentService,
+      AutomationAuditRepository auditRepository,
+      AiBudgetGuard budgetGuard,
+      MeterRegistry meterRegistry,
+      boolean enabled,
+      double confidenceThreshold,
+      long costMicrosPerToken) {
+    this(
+        agentService,
+        auditRepository,
+        budgetGuard,
+        meterRegistry,
+        enabled,
+        confidenceThreshold,
+        costMicrosPerToken,
+        null,
+        null);
+  }
+
+  private AiNodeService(
+      AiAgentService agentService,
+      AutomationAuditRepository auditRepository,
+      AiBudgetGuard budgetGuard,
+      MeterRegistry meterRegistry,
+      boolean enabled,
+      double confidenceThreshold,
+      long costMicrosPerToken,
+      AiModelRouter modelRouter,
+      AiRateLimiter rateLimiter) {
     this.agentService = agentService;
     this.auditRepository = auditRepository;
     this.budgetGuard = budgetGuard;
@@ -66,6 +116,8 @@ public class AiNodeService {
     this.enabled = enabled;
     this.confidenceThreshold = confidenceThreshold;
     this.costMicrosPerToken = Math.max(0, costMicrosPerToken);
+    this.modelRouter = modelRouter;
+    this.rateLimiter = rateLimiter;
   }
 
   /** Runs the AI action for a workflow node and returns the validated result. */
@@ -109,7 +161,8 @@ public class AiNodeService {
           ErrorCode.FORBIDDEN, HttpStatus.FORBIDDEN, "AI prompt rejected by guardrails.");
     }
 
-    String promptHash = hash(prompt);
+    // Tenant-scoped cache key: two tenants asking the same prompt must never share a completion.
+    String promptHash = hash(tenantId + ":" + prompt);
     synchronized (cache) {
       AiNodeResult cached = cache.get(promptHash);
       if (cached != null) {
@@ -128,6 +181,34 @@ public class AiNodeService {
         return cached;
       }
     }
+
+    if (rateLimiter != null && !rateLimiter.tryAcquire(tenantId)) {
+      meterRegistry.counter("awap.ai.requests", "outcome", "rate_limited").increment();
+      audit(
+          tenantId,
+          instanceId,
+          nodeId,
+          action,
+          promptHash,
+          null,
+          0,
+          0,
+          "RATE_LIMITED",
+          "tenant AI rate limit exceeded");
+      throw new AwapException(
+          ErrorCode.QUOTA_EXCEEDED,
+          HttpStatus.TOO_MANY_REQUESTS,
+          "AI request rate limit exceeded for this tenant.");
+    }
+
+    AiModelRouter.Decision route =
+        modelRouter == null
+            ? new AiModelRouter.Decision(
+                AiModelRouter.Tier.CHEAP, "local-heuristic", 0.0, "default")
+            : modelRouter.route(input, action.name());
+    meterRegistry
+        .counter("awap.ai.routing", "tier", route.tier().name(), "model", route.model())
+        .increment();
 
     int estimatedTokens = Math.max(1, prompt.length() / 4);
     if (!budgetGuard.reserve(tenantId, estimatedTokens)) {
@@ -149,11 +230,38 @@ public class AiNodeService {
           "AI token budget exhausted for this tenant.");
     }
 
-    String output =
-        action == AiAction.SUMMARIZE ? agentService.summarize(input) : agentService.classify(input);
+    String rawOutput =
+        action == AiAction.SUMMARIZE
+            ? (modelRouter == null
+                ? agentService.summarize(input)
+                : agentService.summarize(input, route.model()))
+            : (modelRouter == null
+                ? agentService.classify(input)
+                : agentService.classify(input, route.model()));
+    String output;
+    try {
+      output = AiGuardrails.sanitizeOutput(rawOutput);
+    } catch (AiGuardrailViolationException ex) {
+      meterRegistry.counter("awap.ai.requests", "outcome", "blocked_output").increment();
+      audit(
+          tenantId,
+          instanceId,
+          nodeId,
+          action,
+          promptHash,
+          null,
+          estimatedTokens,
+          0,
+          "BLOCKED_OUTPUT",
+          ex.getMessage(),
+          route.model());
+      throw new AwapException(
+          ErrorCode.FORBIDDEN, HttpStatus.FORBIDDEN, "AI output rejected by guardrails.");
+    }
     double confidence = AiConfidenceEstimator.estimate(output);
     boolean requiresHumanApproval = confidence < confidenceThreshold;
-    long costMicros = estimatedTokens * costMicrosPerToken;
+    long tierMultiplier = route.tier() == AiModelRouter.Tier.COMPLEX ? 2L : 1L;
+    long costMicros = estimatedTokens * costMicrosPerToken * tierMultiplier;
     AiNodeResult result = new AiNodeResult(output, confidence, requiresHumanApproval, false);
 
     synchronized (cache) {
@@ -182,7 +290,8 @@ public class AiNodeService {
         estimatedTokens,
         costMicros,
         requiresHumanApproval ? "HITL" : "SUCCESS",
-        requiresHumanApproval ? "confidence below threshold" : null);
+        requiresHumanApproval ? "confidence below threshold" : null,
+        route.model());
     return result;
   }
 
@@ -197,6 +306,32 @@ public class AiNodeService {
       long costMicros,
       String outcome,
       String detail) {
+    audit(
+        tenantId,
+        instanceId,
+        nodeId,
+        action,
+        promptHash,
+        output,
+        tokens,
+        costMicros,
+        outcome,
+        detail,
+        "local-heuristic");
+  }
+
+  private void audit(
+      UUID tenantId,
+      UUID instanceId,
+      String nodeId,
+      AiAction action,
+      String promptHash,
+      String output,
+      int tokens,
+      long costMicros,
+      String outcome,
+      String detail,
+      String model) {
     auditRepository.save(
         new AutomationAudit(
             tenantId,
@@ -204,8 +339,8 @@ public class AiNodeService {
             nodeId == null ? "ai" : nodeId,
             AutomationAudit.AuditKind.AI,
             action.name(),
-            "local-heuristic",
-            "awap-local",
+            "ai-router",
+            model,
             promptHash,
             output == null ? null : BigDecimal.valueOf(AiConfidenceEstimator.estimate(output)),
             tokens,

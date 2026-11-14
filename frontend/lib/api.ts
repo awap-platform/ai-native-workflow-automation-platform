@@ -644,3 +644,57 @@ export function markNotificationUnread(id: string): Promise<NotificationDelivery
     `/api/v1/notifications/${encodeURIComponent(id)}/unread`,
   );
 }
+
+export interface CopilotToolCallDto {
+  name: string;
+  arguments: Record<string, unknown>;
+  result: unknown;
+  ok: boolean;
+  error: string | null;
+}
+
+export interface CopilotResponseDto {
+  answer: string;
+  action: string;
+  confidence: number;
+  requires_human_approval: boolean;
+  tool_calls: CopilotToolCallDto[];
+  data: unknown;
+  model: string | null;
+  model_tier: string | null;
+  prompt_version: string;
+  correlation_id: string;
+  idempotency_key: string | null;
+}
+
+export interface CopilotChatPayload {
+  message: string;
+  action?: string;
+  context?: Record<string, unknown>;
+  idempotency_key?: string;
+  confirm_high_risk?: boolean;
+}
+
+export function copilotChat(payload: CopilotChatPayload): Promise<CopilotResponseDto> {
+  return authPost<CopilotResponseDto>("/api/v1/copilot/chat", payload);
+}
+
+export function copilotTasks(): Promise<CopilotResponseDto> {
+  return authFetch<CopilotResponseDto>("/api/v1/copilot/tasks");
+}
+
+export function copilotTaskDecision(
+  taskId: string,
+  decision: "approve" | "reject" | "complete",
+  comment?: string,
+  confirmHighRisk = false,
+): Promise<CopilotResponseDto> {
+  return authPost<CopilotResponseDto>(
+    `/api/v1/copilot/tasks/${encodeURIComponent(taskId)}/complete`,
+    { decision, comment, confirm_high_risk: confirmHighRisk },
+  );
+}
+
+export function copilotKnowledgeSearch(query: string): Promise<CopilotResponseDto> {
+  return authPost<CopilotResponseDto>("/api/v1/copilot/knowledge/search", { query, limit: 10 });
+}

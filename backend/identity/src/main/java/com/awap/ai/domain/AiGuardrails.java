@@ -52,4 +52,24 @@ public final class AiGuardrails {
     }
     return normalized;
   }
+
+  /** Rejects completions that leak system instructions or exceed the output budget. */
+  public static String sanitizeOutput(String output) {
+    if (output == null || output.isBlank()) {
+      throw new AiGuardrailViolationException("AI output must not be empty.");
+    }
+    String normalized = output.strip();
+    if (normalized.length() > 16_000) {
+      throw new AiGuardrailViolationException("AI output exceeds the 16000-character limit.");
+    }
+    String lower = normalized.toLowerCase(Locale.ROOT);
+    for (String marker :
+        List.of(
+            "system prompt", "my instructions are", "here is my prompt", "jailbreak successful")) {
+      if (lower.contains(marker)) {
+        throw new AiGuardrailViolationException("AI output blocked by guardrails: " + marker);
+      }
+    }
+    return normalized;
+  }
 }
