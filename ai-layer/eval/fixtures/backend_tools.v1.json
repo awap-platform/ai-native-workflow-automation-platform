@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "description": "Recorded backend /internal/tools responses used by deterministic PR CI. Each entry is keyed by the golden-set id and returns only tenant-scoped published workflows. Rotate when the backend workflow catalog changes.",
+  "entries": {
+    "tr-start-leave": {
+      "find_workflow": [{ "id": "wf-leave", "name": "İzin Talebi", "status": "PUBLISHED" }]
+    },
+    "en-start-leave": {
+      "find_workflow": [{ "id": "wf-leave", "name": "Leave Request", "status": "PUBLISHED" }]
+    },
+    "tr-start-expense": {
+      "find_workflow": [{ "id": "wf-expense", "name": "Masraf Talebi", "status": "PUBLISHED" }]
+    },
+    "en-start-onboarding": {
+      "find_workflow": [{ "id": "wf-onboarding", "name": "Onboarding Request", "status": "PUBLISHED" }]
+    },
+    "tr-multi-intent": {
+      "find_workflow": [{ "id": "wf-leave", "name": "İzin Talebi", "status": "PUBLISHED" }]
+    },
+    "en-multi-intent": {
+      "find_workflow": [{ "id": "wf-leave", "name": "Leave Request", "status": "PUBLISHED" }]
+    },
+    "tr-query-tasks": {},
+    "en-query-tasks": {},
+    "tr-knowledge-leave": {},
+    "en-knowledge-policy": {},
+    "tr-approve-task": {},
+    "en-approve-task": {},
+    "tr-reject-task": {},
+    "en-complete-task": {},
+    "tr-approval-assist": {},
+    "en-approval-assist": {},
+    "tr-chat": {},
+    "en-chat": {}
+  }
+}

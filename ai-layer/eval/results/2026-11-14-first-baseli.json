@@ -1,0 +1,573 @@
+{
+  "generated_at": "2026-11-14T18:53:14.232695+00:00",
+  "git_sha": "first-baseline",
+  "dataset": {
+    "path": "eval/golden_set.v1.jsonl",
+    "count": 18
+  },
+  "mode": "deterministic",
+  "incomplete": false,
+  "errors": [],
+  "metrics": {
+    "classification": {
+      "tp": 18,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "workflow_match": {
+      "tp": 6,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "accuracy": 1.0,
+    "confusion_matrix": {
+      "start_workflow": {
+        "start_workflow": 6
+      },
+      "query_tasks": {
+        "query_tasks": 2
+      },
+      "knowledge_search": {
+        "knowledge_search": 2
+      },
+      "complete_task": {
+        "complete_task": 4
+      },
+      "approval_assistance": {
+        "approval_assistance": 2
+      },
+      "chat": {
+        "chat": 2
+      }
+    },
+    "calibration": [
+      {
+        "bucket": "0.8-1.0",
+        "count": 6,
+        "accuracy": 1.0,
+        "avg_confidence": 0.82
+      }
+    ]
+  },
+  "slices": {
+    "locale": {
+      "en": {
+        "classification": {
+          "tp": 9,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "workflow_match": {
+          "tp": 3,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "support": 9
+      },
+      "tr": {
+        "classification": {
+          "tp": 9,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "workflow_match": {
+          "tp": 3,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "support": 9
+      }
+    },
+    "tenant": {
+      "tenant-a": {
+        "classification": {
+          "tp": 10,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "workflow_match": {
+          "tp": 4,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "support": 10
+      },
+      "tenant-b": {
+        "classification": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "workflow_match": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "support": 8
+      }
+    },
+    "action": {
+      "approval_assistance": {
+        "classification": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "workflow_match": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "support": 2
+      },
+      "chat": {
+        "classification": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "workflow_match": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "support": 2
+      },
+      "complete_task": {
+        "classification": {
+          "tp": 4,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "workflow_match": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "support": 4
+      },
+      "knowledge_search": {
+        "classification": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "workflow_match": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "support": 2
+      },
+      "query_tasks": {
+        "classification": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "workflow_match": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "support": 2
+      },
+      "start_workflow": {
+        "classification": {
+          "tp": 6,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "workflow_match": {
+          "tp": 6,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "support": 6
+      }
+    },
+    "risk": {
+      "high": {
+        "classification": {
+          "tp": 11,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "workflow_match": {
+          "tp": 6,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "support": 11
+      },
+      "low": {
+        "classification": {
+          "tp": 6,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "workflow_match": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "support": 6
+      },
+      "medium": {
+        "classification": {
+          "tp": 1,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "workflow_match": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "support": 1
+      }
+    }
+  },
+  "predictions": [
+    {
+      "id": "tr-start-leave",
+      "locale": "tr",
+      "tenant_scope": "tenant-a",
+      "expected_action": "start_workflow",
+      "predicted_action": "start_workflow",
+      "expected_workflow_id": "wf-leave",
+      "proposed_workflow_ids": [
+        "wf-leave"
+      ],
+      "confidence": 0.82,
+      "requires_human_approval": true,
+      "outcome": "HITL",
+      "blocked": false
+    },
+    {
+      "id": "en-start-leave",
+      "locale": "en",
+      "tenant_scope": "tenant-a",
+      "expected_action": "start_workflow",
+      "predicted_action": "start_workflow",
+      "expected_workflow_id": "wf-leave",
+      "proposed_workflow_ids": [
+        "wf-leave"
+      ],
+      "confidence": 0.82,
+      "requires_human_approval": true,
+      "outcome": "HITL",
+      "blocked": false
+    },
+    {
+      "id": "tr-start-expense",
+      "locale": "tr",
+      "tenant_scope": "tenant-b",
+      "expected_action": "start_workflow",
+      "predicted_action": "start_workflow",
+      "expected_workflow_id": "wf-expense",
+      "proposed_workflow_ids": [
+        "wf-expense"
+      ],
+      "confidence": 0.82,
+      "requires_human_approval": true,
+      "outcome": "HITL",
+      "blocked": false
+    },
+    {
+      "id": "en-start-onboarding",
+      "locale": "en",
+      "tenant_scope": "tenant-b",
+      "expected_action": "start_workflow",
+      "predicted_action": "start_workflow",
+      "expected_workflow_id": "wf-onboarding",
+      "proposed_workflow_ids": [
+        "wf-onboarding"
+      ],
+      "confidence": 0.82,
+      "requires_human_approval": true,
+      "outcome": "HITL",
+      "blocked": false
+    },
+    {
+      "id": "tr-multi-intent",
+      "locale": "tr",
+      "tenant_scope": "tenant-a",
+      "expected_action": "start_workflow",
+      "predicted_action": "start_workflow",
+      "expected_workflow_id": "wf-leave",
+      "proposed_workflow_ids": [
+        "wf-leave"
+      ],
+      "confidence": 0.82,
+      "requires_human_approval": true,
+      "outcome": "HITL",
+      "blocked": false
+    },
+    {
+      "id": "en-multi-intent",
+      "locale": "en",
+      "tenant_scope": "tenant-a",
+      "expected_action": "start_workflow",
+      "predicted_action": "start_workflow",
+      "expected_workflow_id": "wf-leave",
+      "proposed_workflow_ids": [
+        "wf-leave"
+      ],
+      "confidence": 0.82,
+      "requires_human_approval": true,
+      "outcome": "HITL",
+      "blocked": false
+    },
+    {
+      "id": "tr-query-tasks",
+      "locale": "tr",
+      "tenant_scope": "tenant-a",
+      "expected_action": "query_tasks",
+      "predicted_action": "query_tasks",
+      "expected_workflow_id": null,
+      "proposed_workflow_ids": [],
+      "confidence": 0.86,
+      "requires_human_approval": false,
+      "outcome": "SUCCESS",
+      "blocked": false
+    },
+    {
+      "id": "en-query-tasks",
+      "locale": "en",
+      "tenant_scope": "tenant-b",
+      "expected_action": "query_tasks",
+      "predicted_action": "query_tasks",
+      "expected_workflow_id": null,
+      "proposed_workflow_ids": [],
+      "confidence": 0.86,
+      "requires_human_approval": false,
+      "outcome": "SUCCESS",
+      "blocked": false
+    },
+    {
+      "id": "tr-knowledge-leave",
+      "locale": "tr",
+      "tenant_scope": "tenant-a",
+      "expected_action": "knowledge_search",
+      "predicted_action": "knowledge_search",
+      "expected_workflow_id": null,
+      "proposed_workflow_ids": [],
+      "confidence": 0.86,
+      "requires_human_approval": false,
+      "outcome": "SUCCESS",
+      "blocked": false
+    },
+    {
+      "id": "en-knowledge-policy",
+      "locale": "en",
+      "tenant_scope": "tenant-b",
+      "expected_action": "knowledge_search",
+      "predicted_action": "knowledge_search",
+      "expected_workflow_id": null,
+      "proposed_workflow_ids": [],
+      "confidence": 0.86,
+      "requires_human_approval": false,
+      "outcome": "SUCCESS",
+      "blocked": false
+    },
+    {
+      "id": "tr-approve-task",
+      "locale": "tr",
+      "tenant_scope": "tenant-a",
+      "expected_action": "complete_task",
+      "predicted_action": "complete_task",
+      "expected_workflow_id": null,
+      "proposed_workflow_ids": [],
+      "confidence": 0.81,
+      "requires_human_approval": false,
+      "outcome": "SUCCESS",
+      "blocked": false
+    },
+    {
+      "id": "en-approve-task",
+      "locale": "en",
+      "tenant_scope": "tenant-b",
+      "expected_action": "complete_task",
+      "predicted_action": "complete_task",
+      "expected_workflow_id": null,
+      "proposed_workflow_ids": [],
+      "confidence": 0.81,
+      "requires_human_approval": false,
+      "outcome": "SUCCESS",
+      "blocked": false
+    },
+    {
+      "id": "tr-reject-task",
+      "locale": "tr",
+      "tenant_scope": "tenant-a",
+      "expected_action": "complete_task",
+      "predicted_action": "complete_task",
+      "expected_workflow_id": null,
+      "proposed_workflow_ids": [],
+      "confidence": 0.81,
+      "requires_human_approval": false,
+      "outcome": "SUCCESS",
+      "blocked": false
+    },
+    {
+      "id": "en-complete-task",
+      "locale": "en",
+      "tenant_scope": "tenant-b",
+      "expected_action": "complete_task",
+      "predicted_action": "complete_task",
+      "expected_workflow_id": null,
+      "proposed_workflow_ids": [],
+      "confidence": 0.81,
+      "requires_human_approval": false,
+      "outcome": "SUCCESS",
+      "blocked": false
+    },
+    {
+      "id": "tr-approval-assist",
+      "locale": "tr",
+      "tenant_scope": "tenant-a",
+      "expected_action": "approval_assistance",
+      "predicted_action": "approval_assistance",
+      "expected_workflow_id": null,
+      "proposed_workflow_ids": [],
+      "confidence": 0.81,
+      "requires_human_approval": false,
+      "outcome": "SUCCESS",
+      "blocked": false
+    },
+    {
+      "id": "en-approval-assist",
+      "locale": "en",
+      "tenant_scope": "tenant-b",
+      "expected_action": "approval_assistance",
+      "predicted_action": "approval_assistance",
+      "expected_workflow_id": null,
+      "proposed_workflow_ids": [],
+      "confidence": 0.81,
+      "requires_human_approval": false,
+      "outcome": "SUCCESS",
+      "blocked": false
+    },
+    {
+      "id": "tr-chat",
+      "locale": "tr",
+      "tenant_scope": "tenant-a",
+      "expected_action": "chat",
+      "predicted_action": "chat",
+      "expected_workflow_id": null,
+      "proposed_workflow_ids": [],
+      "confidence": 0.86,
+      "requires_human_approval": false,
+      "outcome": "SUCCESS",
+      "blocked": false
+    },
+    {
+      "id": "en-chat",
+      "locale": "en",
+      "tenant_scope": "tenant-b",
+      "expected_action": "chat",
+      "predicted_action": "chat",
+      "expected_workflow_id": null,
+      "proposed_workflow_ids": [],
+      "confidence": 0.86,
+      "requires_human_approval": false,
+      "outcome": "SUCCESS",
+      "blocked": false
+    }
+  ],
+  "gate": {
+    "passed": true,
+    "thresholds": {
+      "precision": 0.9,
+      "recall": 0.9,
+      "slice_precision": 0.85,
+      "slice_recall": 0.85
+    },
+    "violations": []
+  }
+}
