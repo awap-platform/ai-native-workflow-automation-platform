@@ -34,23 +34,24 @@ class CopilotControllerTest {
     // A fresh stream per call: a Stream can only be consumed once and the controller calls
     // stream().findFirst() on every request.
     when(provider.stream()).thenAnswer(invocation -> Stream.of(client));
-    controller = new CopilotController(provider, objectMapper);
+    controller = new CopilotController(provider);
     when(client.forward(anyString(), any())).thenReturn(response);
     when(client.forward(anyString(), any(), any())).thenReturn(response);
   }
 
   @Test
   void chatForwardsTheBody() throws Exception {
-    assertThat(controller.chat("{\"message\":\"start leave\"}", null).getBody())
-        .isEqualTo(response);
-    verify(client)
-        .forward(
-            "/api/v1/copilot/chat", objectMapper.readTree("{\"message\":\"start leave\"}"), null);
+    JsonNode body = objectMapper.readTree("{\"message\":\"start leave\"}");
+
+    assertThat(controller.chat(body, null).getBody()).isEqualTo(response);
+    verify(client).forward("/api/v1/copilot/chat", body, null);
   }
 
   @Test
-  void chatForwardsTheIdempotencyKeyAndAddsItToTheBody() {
-    controller.chat("{\"message\":\"start leave\"}", "intent-1");
+  void chatForwardsTheIdempotencyKeyAndAddsItToTheBody() throws Exception {
+    JsonNode body = objectMapper.readTree("{\"message\":\"start leave\"}");
+
+    controller.chat(body, "intent-1");
 
     ArgumentCaptor<JsonNode> forwardedBody = ArgumentCaptor.forClass(JsonNode.class);
     verify(client).forward(anyString(), forwardedBody.capture(), any());
@@ -59,32 +60,15 @@ class CopilotControllerTest {
   }
 
   @Test
-  void chatDoesNotRewriteAnExistingBodyKey() {
-    controller.chat("{\"message\":\"start leave\",\"idempotency_key\":\"body-key\"}", "header-key");
+  void chatDoesNotRewriteAnExistingBodyKey() throws Exception {
+    JsonNode body =
+        objectMapper.readTree("{\"message\":\"start leave\",\"idempotency_key\":\"body-key\"}");
+
+    controller.chat(body, "header-key");
 
     ArgumentCaptor<JsonNode> forwardedBody = ArgumentCaptor.forClass(JsonNode.class);
     verify(client).forward(anyString(), forwardedBody.capture(), any());
     assertThat(forwardedBody.getValue().path("idempotency_key").asText()).isEqualTo("body-key");
-  }
-
-  @Test
-  void chatRejectsABlankBodyWith400() {
-    assertThatThrownBy(() -> controller.chat("", null))
-        .isInstanceOf(AwapException.class)
-        .satisfies(
-            ex ->
-                assertThat(((AwapException) ex).status())
-                    .isEqualTo(org.springframework.http.HttpStatus.BAD_REQUEST));
-  }
-
-  @Test
-  void chatRejectsAMalformedBodyWith400() {
-    assertThatThrownBy(() -> controller.chat("{not-json", null))
-        .isInstanceOf(AwapException.class)
-        .satisfies(
-            ex ->
-                assertThat(((AwapException) ex).status())
-                    .isEqualTo(org.springframework.http.HttpStatus.BAD_REQUEST));
   }
 
   @Test
@@ -99,18 +83,17 @@ class CopilotControllerTest {
 
   @Test
   void completeTaskBuildsTheTaskScopedPath() throws Exception {
-    assertThat(controller.completeTask("task-9", "{\"decision\":\"approve\"}", null).getBody())
-        .isEqualTo(response);
-    verify(client)
-        .forward(
-            "/api/v1/copilot/tasks/task-9/complete",
-            objectMapper.readTree("{\"decision\":\"approve\"}"),
-            null);
+    JsonNode body = objectMapper.readTree("{\"decision\":\"approve\"}");
+
+    assertThat(controller.completeTask("task-9", body, null).getBody()).isEqualTo(response);
+    verify(client).forward("/api/v1/copilot/tasks/task-9/complete", body, null);
   }
 
   @Test
-  void completeTaskForwardsTheIdempotencyKey() {
-    controller.completeTask("task-9", "{\"decision\":\"approve\"}", "task-key");
+  void completeTaskForwardsTheIdempotencyKey() throws Exception {
+    JsonNode body = objectMapper.readTree("{\"decision\":\"approve\"}");
+
+    controller.completeTask("task-9", body, "task-key");
 
     ArgumentCaptor<JsonNode> forwarded = ArgumentCaptor.forClass(JsonNode.class);
     verify(client).forward(anyString(), forwarded.capture(), any());
@@ -121,19 +104,13 @@ class CopilotControllerTest {
 
   @Test
   void approvalAssistanceAndKnowledgeSearchForwardTheirBodies() throws Exception {
-    assertThat(controller.approvalAssistance("{\"workflowInstanceId\":\"i-1\"}", null).getBody())
-        .isEqualTo(response);
-    assertThat(controller.knowledgeSearch("{\"query\":\"leave policy\"}").getBody())
-        .isEqualTo(response);
-    verify(client)
-        .forward(
-            "/api/v1/copilot/approvals",
-            objectMapper.readTree("{\"workflowInstanceId\":\"i-1\"}"),
-            null);
-    verify(client)
-        .forward(
-            "/api/v1/copilot/knowledge/search",
-            objectMapper.readTree("{\"query\":\"leave policy\"}"));
+    JsonNode approval = objectMapper.readTree("{\"workflowInstanceId\":\"i-1\"}");
+    JsonNode query = objectMapper.readTree("{\"query\":\"leave policy\"}");
+
+    assertThat(controller.approvalAssistance(approval, null).getBody()).isEqualTo(response);
+    assertThat(controller.knowledgeSearch(query).getBody()).isEqualTo(response);
+    verify(client).forward("/api/v1/copilot/approvals", approval, null);
+    verify(client).forward("/api/v1/copilot/knowledge/search", query);
   }
 
   @Test
@@ -156,7 +133,7 @@ class CopilotControllerTest {
   void reportsNotImplementedWhenCopilotIsDisabled() {
     ObjectProvider<AiCopilotClient> empty = mock(ObjectProvider.class);
     when(empty.stream()).thenReturn(Stream.empty());
-    CopilotController disabled = new CopilotController(empty, objectMapper);
+    CopilotController disabled = new CopilotController(empty);
 
     assertThatThrownBy(disabled::tasks)
         .isInstanceOf(AwapException.class)
