@@ -50,8 +50,7 @@ class KnowledgeOpenSearchClientTest {
 
   @Test
   void theAutowiredConstructorIsUsableWithRealConfigurationValues() {
-    KnowledgeOpenSearchClient client =
-        new KnowledgeOpenSearchClient("http://localhost:9200", 0, 0);
+    KnowledgeOpenSearchClient client = new KnowledgeOpenSearchClient("http://localhost:9200", 0, 0);
 
     assertThat(client).isNotNull();
   }

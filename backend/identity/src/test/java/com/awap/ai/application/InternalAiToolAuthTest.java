@@ -57,8 +57,7 @@ class InternalAiToolAuthTest {
     InternalAiToolAuth unconfigured =
         new InternalAiToolAuth(" ", mock(TenantTransactionRunner.class));
 
-    assertThatThrownBy(
-            () -> unconfigured.authenticate(request("anything", "TENANT_ADMIN"), null))
+    assertThatThrownBy(() -> unconfigured.authenticate(request("anything", "TENANT_ADMIN"), null))
         .isInstanceOf(AwapException.class)
         .hasMessageContaining("not configured");
   }

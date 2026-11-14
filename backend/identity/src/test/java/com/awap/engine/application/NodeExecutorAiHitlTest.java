@@ -110,8 +110,6 @@ class NodeExecutorAiHitlTest {
     assertThat(request.assigneeId()).isEqualTo(approver.getId());
     assertThat(execution.getStatus()).isEqualTo(NodeExecutionStatus.WAITING);
     assertThat(instance.getState()).isEqualTo(WorkflowState.WAITING);
-    verify(port)
-        .log(instance, "ai-1", NodeType.AI_TASK.name(), "AI_HITL_REQUIRED", null);
+    verify(port).log(instance, "ai-1", NodeType.AI_TASK.name(), "AI_HITL_REQUIRED", null);
   }
-
 }

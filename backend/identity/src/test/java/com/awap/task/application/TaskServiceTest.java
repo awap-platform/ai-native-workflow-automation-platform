@@ -71,16 +71,14 @@ class TaskServiceTest {
   void createIfAbsentForNodeReusesTheApprovalTaskOfTheSameExecution() {
     UUID tenantId = UUID.randomUUID();
     UUID nodeExecutionId = UUID.randomUUID();
-    Task existing =
-        new Task(tenantId, UUID.randomUUID(), nodeExecutionId, "Approve", "desc", null);
+    Task existing = new Task(tenantId, UUID.randomUUID(), nodeExecutionId, "Approve", "desc", null);
     when(taskRepository.findFirstByTenantIdAndNodeExecutionIdAndDeletedFalse(
             tenantId, nodeExecutionId))
         .thenReturn(Optional.of(existing));
 
     TaskResponse response =
         service.createIfAbsentForNode(
-            tenantId,
-            new TaskRequest("Approve", "desc", UUID.randomUUID(), nodeExecutionId, null));
+            tenantId, new TaskRequest("Approve", "desc", UUID.randomUUID(), nodeExecutionId, null));
 
     assertThat(response.id()).isEqualTo(existing.getId());
     verify(taskRepository)
@@ -97,8 +95,7 @@ class TaskServiceTest {
 
     TaskResponse response =
         service.createIfAbsentForNode(
-            tenantId,
-            new TaskRequest("Approve", "desc", UUID.randomUUID(), nodeExecutionId, null));
+            tenantId, new TaskRequest("Approve", "desc", UUID.randomUUID(), nodeExecutionId, null));
 
     assertThat(response.title()).isEqualTo("Approve");
     assertThat(response.status()).isEqualTo(TaskStatus.OPEN.name());

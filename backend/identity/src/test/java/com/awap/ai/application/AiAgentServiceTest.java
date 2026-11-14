@@ -64,8 +64,7 @@ class AiAgentServiceTest {
             return prompt.startsWith("classify:") ? "FINANCE" : "summary";
           }
         };
-    AiAgentService agent =
-        new AiAgentService(recording, 1000, 100, executor, usageMeteringService);
+    AiAgentService agent = new AiAgentService(recording, 1000, 100, executor, usageMeteringService);
 
     assertThat(agent.summarize("hello", "cheap-model")).isEqualTo("summary");
     assertThat(agent.classify("invoice payment", "standard-model")).isEqualTo("FINANCE");

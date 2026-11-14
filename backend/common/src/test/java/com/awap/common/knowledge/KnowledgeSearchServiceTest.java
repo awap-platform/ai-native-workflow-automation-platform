@@ -67,6 +67,26 @@ class KnowledgeSearchServiceTest {
   }
 
   @Test
+  void aHitWithoutContentYieldsAnEmptySnippet() throws Exception {
+    String body =
+        """
+        {"hits":{"hits":[
+          {"_score":1.0,"_source":{"tenantId":"%s","fileId":"file-3","format":"txt",
+           "version":1,"chunkIndex":0,"content":""}}
+        ]}}
+        """
+            .formatted(tenantId);
+    when(client.post(anyString(), anyString()))
+        .thenReturn(new KnowledgeOpenSearchClient.Response(200, body));
+
+    List<KnowledgeSearchService.KnowledgeHit> hits = service.search(tenantId, "leave", 10);
+
+    assertThat(hits).hasSize(1);
+    assertThat(hits.get(0).title()).isEqualTo("file-3");
+    assertThat(hits.get(0).snippet()).isEmpty();
+  }
+
+  @Test
   void openSearchOutageReturnsNoHitsInsteadOfFailingTheCaller() throws Exception {
     when(client.post(anyString(), anyString())).thenThrow(new IOException("down"));
 

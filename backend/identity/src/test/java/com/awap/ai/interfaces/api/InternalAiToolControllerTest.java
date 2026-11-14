@@ -340,12 +340,30 @@ class InternalAiToolControllerTest {
   }
 
   @Test
+  void createApprovalAcceptsAValidAssignee() throws Exception {
+    UUID instanceId = UUID.randomUUID();
+    UUID assigneeId = UUID.randomUUID();
+    when(tasks.create(eq(tenantId), any(TaskRequest.class))).thenReturn(task());
+
+    controller.createApproval(
+        json(
+            "{\"workflowInstanceId\":\""
+                + instanceId
+                + "\",\"assigneeId\":\""
+                + assigneeId
+                + "\"}"),
+        request);
+
+    ArgumentCaptor<TaskRequest> captor = ArgumentCaptor.forClass(TaskRequest.class);
+    verify(tasks).create(eq(tenantId), captor.capture());
+    assertThat(captor.getValue().assigneeId()).isEqualTo(assigneeId);
+  }
+
+  @Test
   void createApprovalRejectsANonUuidAssignee() throws Exception {
     JsonNode body =
         json(
-            "{\"workflowInstanceId\":\""
-                + UUID.randomUUID()
-                + "\",\"assigneeId\":\"not-a-uuid\"}");
+            "{\"workflowInstanceId\":\"" + UUID.randomUUID() + "\",\"assigneeId\":\"not-a-uuid\"}");
 
     assertThatThrownBy(() -> controller.createApproval(body, request))
         .isInstanceOf(AwapException.class)
