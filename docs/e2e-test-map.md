@@ -12,10 +12,11 @@ The suite lives in [`frontend/e2e`](../frontend/e2e) and runs in two modes:
   The job sets `KAFKA_ENABLED=true` so the outbox relay delivers analytics, `CLAMAV_ENABLED=true`
   for the real scan pipeline, `MINIO_PUBLIC_ENDPOINT=http://localhost:9000` so presigned URLs point
   at the host-published port, and `FILE_SCAN_INTERVAL_MS=1000` so a scan completes within the test
-  budget. Buckets are created by the `minio-init` provisioner (re-run in the foreground before the
-  suite), so the backend keeps `FILE_MANAGE_BUCKETS=false`. The in-network `fake-webhook` is the
-  allowlisted and SSRF-trusted target for the combined scenario; its `/control`, `/reset` and
-  `/requests` endpoints are published on port 9099 for assertions.
+  budget. `AI_NODE_ENABLED=true` lets the Copilot journey start a real AI_TASK workflow and observe
+  the low-confidence HITL handover. Buckets are created by the `minio-init` provisioner (re-run in
+  the foreground before the suite), so the backend keeps `FILE_MANAGE_BUCKETS=false`. The in-network
+  `fake-webhook` is the allowlisted and SSRF-trusted target for the combined scenario; its
+  `/control`, `/reset` and `/requests` endpoints are published on port 9099 for assertions.
 
 Both modes use one worker (fixtures stay deterministic) and retry once on CI with traces,
 screenshots and video retained on failure.
@@ -51,6 +52,8 @@ screenshots and video retained on failure.
 | A webhook that keeps returning 5xx exhausts its attempt budget, reaches DEAD and fails the workflow | `combined-automation-live.spec.ts` — `retry DLQ` | stack |
 | An EICAR upload reaches INFECTED and stays undownloadable | `combined-automation-live.spec.ts` — `infected` | stack |
 | A paused instance does not advance on task approval until it is resumed | `combined-automation-live.spec.ts` — `paused` | stack |
+| A natural-language Copilot request previews, confirms and starts exactly one instance; the AI_TASK waits for HITL, approval completes the workflow, the correlation ID is echoed end to end, a duplicate key replays the same instance and metrics count the two logical calls | [`copilot-journey.spec.ts`](../frontend/e2e/copilot-journey.spec.ts) — `copilot HITL` | stack |
+| Nightly live-provider variant of the Copilot journey against a configured OpenAI-compatible provider | [`copilot-live-provider.spec.ts`](../frontend/e2e/copilot-live-provider.spec.ts) — `live provider` | stack + `E2E_AI_LIVE_PROVIDER=1` |
 
 ## Conventions
 
@@ -60,6 +63,9 @@ screenshots and video retained on failure.
   reuses the tenant (409 is treated as success).
 - The live journey is environment-gated rather than skipped: `playwright.config.ts` excludes it
   from the dependency-free PR run, so no `test.skip` is introduced.
+- The nightly live-provider run sets `E2E_AI_LIVE_PROVIDER=1`, `AI_PROVIDER=openai`,
+  `AI_OPENAI_BASE_URL`, `AI_OPENAI_API_KEY` and `AI_OPENAI_MODEL`; the scheduler records the model
+  version in the run log. PR CI always uses the deterministic local heuristic provider.
 - No `test.skip` is allowed without a linked issue and an expiry date.
 - Artifacts: `frontend/playwright-report` (HTML) and `frontend/test-results` (trace/video/screenshot)
   are uploaded by the `e2e` job on every run/failure respectively; the live journey runs in the

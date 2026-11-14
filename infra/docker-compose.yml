@@ -471,6 +471,12 @@ services:
       AI_MODEL_CHEAP: ${AI_MODEL_CHEAP:-local-heuristic}
       AI_MODEL_STANDARD: ${AI_MODEL_STANDARD:-gpt-4o-mini}
       AI_MODEL_COMPLEX: ${AI_MODEL_COMPLEX:-gpt-4o}
+      # Issue #284: the nightly live-provider E2E variant selects the OpenAI-compatible adapter.
+      # The default `local` keeps PR CI deterministic and needs no provider credential.
+      AI_PROVIDER: ${AI_PROVIDER:-local}
+      AI_OPENAI_BASE_URL: ${AI_OPENAI_BASE_URL:-}
+      AI_OPENAI_API_KEY: ${AI_OPENAI_API_KEY:-}
+      AI_OPENAI_MODEL: ${AI_OPENAI_MODEL:-gpt-4o-mini}
       OPENSEARCH_ENABLED: ${OPENSEARCH_ENABLED:-true}
       OPENSEARCH_ENDPOINT: ${OPENSEARCH_ENDPOINT:-http://opensearch:9200}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}

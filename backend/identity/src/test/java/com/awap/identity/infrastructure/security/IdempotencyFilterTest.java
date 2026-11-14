@@ -12,6 +12,7 @@ import com.awap.identity.domain.IdempotencyRecord;
 import com.awap.identity.infrastructure.IdempotencyRecordRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.BufferedReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
@@ -274,8 +275,47 @@ class IdempotencyFilterTest {
 
     assertThat(downstream.get()).isEqualTo(1);
     assertThat(store).hasSize(1);
-    assertThat(responses[0].getStatus()).isEqualTo(200);
+    // One caller wins and answers 200; the other either sees the committed response (replay 200)
+    // or the in-flight record (deterministic 409). Either way the downstream ran once.
+    assertThat(responses[0].getStatus()).isIn(200, 409);
     assertThat(responses[1].getStatus()).isIn(200, 409);
+    assertThat(java.util.Arrays.asList(responses[0].getStatus(), responses[1].getStatus()))
+        .contains(200);
+  }
+
+  @Test
+  void leavesTheRequestBodyReadableForTheDownstreamHandler() throws Exception {
+    when(repository.findByTenantIdAndIdempotencyKey(any(), any())).thenReturn(Optional.empty());
+    when(repository.save(any(IdempotencyRecord.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    String body = "{\"message\":\"start\"}";
+    MockHttpServletRequest request = request("key-1", body);
+    request.setCharacterEncoding("UTF-8");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+    String[] seen = new String[3];
+
+    filter.doFilter(
+        request,
+        response,
+        (req, res) -> {
+          String readAgain =
+              new String(req.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+          String readViaReader = new BufferedReader(req.getReader()).readLine();
+          jakarta.servlet.ServletInputStream stream = req.getInputStream();
+          stream.setReadListener(null);
+          boolean ready = stream.isReady();
+          int firstByte = stream.read();
+          stream.readAllBytes();
+          seen[0] = readAgain;
+          seen[1] = readViaReader;
+          seen[2] = Boolean.toString(ready && firstByte >= 0 && stream.isFinished());
+          ((HttpServletResponse) res).setStatus(200);
+        });
+
+    assertThat(seen[0]).isEqualTo(body);
+    assertThat(seen[1]).isEqualTo(body);
+    assertThat(seen[2]).isEqualTo("true");
   }
 
   private void perform(
