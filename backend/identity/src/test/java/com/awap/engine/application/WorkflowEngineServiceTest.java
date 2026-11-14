@@ -541,6 +541,20 @@ class WorkflowEngineServiceTest {
   }
 
   @Test
+  void startReplaysWhenTheContextsAreBothNull() {
+    WorkflowInstance existing =
+        new WorkflowInstance(
+            tenantId, workflowDefinitionId, 1, WorkflowState.RUNNING, "key-1", null);
+    when(instanceRepository.findByTenantIdAndIdempotencyKey(tenantId, "key-1"))
+        .thenReturn(Optional.of(existing));
+
+    WorkflowInstanceResponse response =
+        service.start(tenantId, new StartWorkflowRequest(workflowDefinitionId, "key-1", null));
+
+    assertThat(response.state()).isEqualTo("RUNNING");
+  }
+
+  @Test
   void startRejectsTheSameKeyWithADifferentWorkflow() {
     WorkflowInstance existing =
         new WorkflowInstance(tenantId, UUID.randomUUID(), 1, WorkflowState.RUNNING, "key-1", "{}");

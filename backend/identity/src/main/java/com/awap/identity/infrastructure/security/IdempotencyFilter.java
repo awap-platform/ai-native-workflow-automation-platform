@@ -136,21 +136,28 @@ public class IdempotencyFilter extends OncePerRequestFilter {
    */
   private static String requestHash(HttpServletRequest request) throws IOException {
     byte[] body = request.getInputStream().readAllBytes();
+    String query = request.getQueryString();
+    String canonical =
+        request.getMethod()
+            + "\n"
+            + request.getRequestURI()
+            + "\n"
+            + (query == null ? "" : query)
+            + "\n"
+            + new String(body, StandardCharsets.UTF_8);
+    return digest("SHA-256", canonical);
+  }
+
+  /**
+   * Digest with a parameterized algorithm so the defensive branch (a JVM without the requested
+   * digest) is exercised by a test instead of staying unreachable.
+   */
+  static String digest(String algorithm, String value) {
     try {
-      MessageDigest digest = MessageDigest.getInstance("SHA-256");
-      digest.update(request.getMethod().getBytes(StandardCharsets.UTF_8));
-      digest.update((byte) '\n');
-      digest.update(request.getRequestURI().getBytes(StandardCharsets.UTF_8));
-      digest.update((byte) '\n');
-      String query = request.getQueryString();
-      if (query != null) {
-        digest.update(query.getBytes(StandardCharsets.UTF_8));
-      }
-      digest.update((byte) '\n');
-      digest.update(body);
-      return HexFormat.of().formatHex(digest.digest());
+      MessageDigest messageDigest = MessageDigest.getInstance(algorithm);
+      return HexFormat.of().formatHex(messageDigest.digest(value.getBytes(StandardCharsets.UTF_8)));
     } catch (NoSuchAlgorithmException ex) {
-      throw new IllegalStateException("SHA-256 is not available", ex);
+      throw new IllegalStateException(algorithm + " is not available", ex);
     }
   }
 }

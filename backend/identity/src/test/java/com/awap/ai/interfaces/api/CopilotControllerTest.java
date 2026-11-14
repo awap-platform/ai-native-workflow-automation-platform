@@ -122,6 +122,13 @@ class CopilotControllerTest {
   }
 
   @Test
+  void withIdempotencyKeyIgnoresABlankHeader() throws Exception {
+    JsonNode body = objectMapper.readTree("{\"message\":\"start\"}");
+
+    assertThat(CopilotController.withIdempotencyKey(body, "  ")).isSameAs(body);
+  }
+
+  @Test
   @SuppressWarnings("unchecked")
   void reportsNotImplementedWhenCopilotIsDisabled() {
     ObjectProvider<AiCopilotClient> empty = mock(ObjectProvider.class);

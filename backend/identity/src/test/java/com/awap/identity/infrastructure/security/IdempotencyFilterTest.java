@@ -162,6 +162,49 @@ class IdempotencyFilterTest {
   }
 
   @Test
+  void includesTheQueryStringInTheRequestHash() throws Exception {
+    Map<String, IdempotencyRecord> store = new ConcurrentHashMap<>();
+    stubInMemoryRepository(store);
+    AtomicInteger downstream = new AtomicInteger();
+    MockHttpServletResponse first = new MockHttpServletResponse();
+    MockHttpServletResponse second = new MockHttpServletResponse();
+
+    perform("key-1", "{\"message\":\"start\"}", downstream, first, "tenant=1");
+    perform("key-1", "{\"message\":\"start\"}", downstream, second, "tenant=2");
+
+    assertThat(downstream.get()).isEqualTo(1);
+    assertThat(second.getStatus()).isEqualTo(409);
+  }
+
+  @Test
+  void digestFailsClosedForAnUnavailableAlgorithm() {
+    assertThat(
+            org.assertj.core.api.Assertions.catchThrowable(
+                () -> IdempotencyFilter.digest("NO-SUCH-ALGORITHM", "value")))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("not available");
+  }
+
+  @Test
+  void writesConflictWhenTheRacingRecordCannotBeRead() throws Exception {
+    when(repository.findByTenantIdAndIdempotencyKey(tenantId, "key-1"))
+        .thenReturn(Optional.empty());
+    when(repository.save(any(IdempotencyRecord.class)))
+        .thenThrow(new DataIntegrityViolationException("duplicate"));
+
+    MockHttpServletRequest request = request("key-1", "{\"message\":\"start\"}");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+    AtomicInteger downstream = new AtomicInteger();
+    FilterChain chain = (req, res) -> downstream.incrementAndGet();
+
+    filter.doFilter(request, response, chain);
+
+    assertThat(downstream.get()).isZero();
+    assertThat(response.getStatus()).isEqualTo(409);
+    assertThat(response.getContentAsString()).contains("already been used");
+  }
+
+  @Test
   void concurrentDuplicateRequestsRunTheDownstreamOnce() throws Exception {
     Map<String, IdempotencyRecord> store = new ConcurrentHashMap<>();
     stubInMemoryRepository(store);
@@ -201,6 +244,16 @@ class IdempotencyFilterTest {
   private void perform(
       String key, String body, AtomicInteger downstream, MockHttpServletResponse response)
       throws Exception {
+    perform(key, body, downstream, response, null);
+  }
+
+  private void perform(
+      String key,
+      String body,
+      AtomicInteger downstream,
+      MockHttpServletResponse response,
+      String query)
+      throws Exception {
     UUID randomUser = UUID.randomUUID();
     TenantContext.set(tenantId, randomUser, "TENANT_ADMIN");
     try {
@@ -212,15 +265,22 @@ class IdempotencyFilterTest {
             http.setContentType("application/json");
             http.getWriter().write("{\"ok\":true}");
           };
-      filter.doFilter(request(key, body), response, chain);
+      filter.doFilter(request(key, body, query), response, chain);
     } finally {
       TenantContext.clear();
     }
   }
 
   private MockHttpServletRequest request(String key, String body) {
+    return request(key, body, null);
+  }
+
+  private MockHttpServletRequest request(String key, String body, String query) {
     MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/copilot/chat");
     request.addHeader("Idempotency-Key", key);
+    if (query != null) {
+      request.setQueryString(query);
+    }
     request.setContent(body.getBytes(StandardCharsets.UTF_8));
     return request;
   }
