@@ -50,6 +50,14 @@ public class KnowledgeSearchService {
     }
     try {
       return searchOpenSearch(tenantId, effectiveQuery, Math.max(1, limit));
+    } catch (InterruptedException ex) {
+      // A cancelled request must not lose the interrupt signal for the caller thread.
+      Thread.currentThread().interrupt();
+      meterRegistry
+          .counter("awap.knowledge.search.fallback", "reason", "InterruptedException")
+          .increment();
+      log.warn("Knowledge OpenSearch query was interrupted; returning no hits: {}", ex.toString());
+      return List.of();
     } catch (Exception ex) {
       meterRegistry
           .counter("awap.knowledge.search.fallback", "reason", ex.getClass().getSimpleName())
@@ -93,6 +101,12 @@ public class KnowledgeSearchService {
           .counter("awap.knowledge.index.chunks", "outcome", ok ? "success" : "failure")
           .increment(chunks.size());
       return ok ? chunks.size() : 0;
+    } catch (InterruptedException ex) {
+      // A cancelled request must not lose the interrupt signal for the caller thread.
+      Thread.currentThread().interrupt();
+      meterRegistry.counter("awap.knowledge.index.failures").increment();
+      log.warn("Knowledge indexing was interrupted for file {}: {}", fileId, ex.toString());
+      return 0;
     } catch (Exception ex) {
       meterRegistry.counter("awap.knowledge.index.failures").increment();
       log.warn("Knowledge indexing failed for file {}: {}", fileId, ex.toString());

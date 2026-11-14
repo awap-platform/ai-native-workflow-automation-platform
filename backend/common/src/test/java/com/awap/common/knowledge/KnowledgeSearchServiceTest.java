@@ -102,6 +102,29 @@ class KnowledgeSearchServiceTest {
   }
 
   @Test
+  void anInterruptedSearchReturnsNoHitsAndRestoresTheInterruptFlag() throws Exception {
+    when(client.post(anyString(), anyString())).thenThrow(new InterruptedException("stop"));
+    try {
+      assertThat(service.search(tenantId, "leave", 10)).isEmpty();
+      assertThat(Thread.currentThread().isInterrupted()).isTrue();
+    } finally {
+      Thread.interrupted();
+    }
+  }
+
+  @Test
+  void anInterruptedIndexRestoresTheInterruptFlag() throws Exception {
+    when(client.post(anyString(), anyString())).thenThrow(new InterruptedException("stop"));
+    try {
+      assertThat(service.indexDocument(tenantId, UUID.randomUUID(), "t", "content", "txt", 1))
+          .isZero();
+      assertThat(Thread.currentThread().isInterrupted()).isTrue();
+    } finally {
+      Thread.interrupted();
+    }
+  }
+
+  @Test
   void blankQuerySkipsOpenSearch() {
     assertThat(service.search(tenantId, " ", 10)).isEmpty();
     assertThat(service.search(tenantId, null, 10)).isEmpty();
