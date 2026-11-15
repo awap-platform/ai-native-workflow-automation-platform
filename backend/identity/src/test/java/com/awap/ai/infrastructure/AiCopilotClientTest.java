@@ -54,6 +54,17 @@ class AiCopilotClientTest {
   }
 
   @Test
+  void theMeterlessConstructorStillForwards() throws Exception {
+    TenantContext.set(tenantId, userId, "EMPLOYEE");
+    respond(200, "{}");
+    AiCopilotClient withoutMetrics =
+        new AiCopilotClient(
+            httpClient, objectMapper, "http://ai.local/", "service-secret", Duration.ofSeconds(2));
+
+    assertThat(withoutMetrics.forward("/api/v1/copilot/prompts", null).isObject()).isTrue();
+  }
+
+  @Test
   void theAutowiredConstructorClampsTheTimeoutToASafeMinimum() {
     AiCopilotClient real =
         new AiCopilotClient("http://ai.local/", "token", 0L, objectMapper, registry);
