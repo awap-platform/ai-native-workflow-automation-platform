@@ -35,6 +35,21 @@ export const queryKeys = {
     all: ["analytics-summary"] as const,
     summary: (from?: string, to?: string) =>
       ["analytics-summary", from ?? null, to ?? null] as const,
+    dashboard: (
+      from?: string,
+      to?: string,
+      granularity?: string,
+      groupBy?: string,
+      limit?: number,
+    ) =>
+      [
+        "analytics-dashboard",
+        from ?? null,
+        to ?? null,
+        granularity ?? null,
+        groupBy ?? null,
+        limit ?? null,
+      ] as const,
   },
   organizationTree: {
     all: ["organization-tree"] as const,

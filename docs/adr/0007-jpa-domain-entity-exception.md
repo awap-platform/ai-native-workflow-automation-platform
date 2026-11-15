@@ -48,7 +48,8 @@ and makes it explicit and enforceable:
 The exception covers the entities whose mapping is annotation-driven:
 
 - AI: `AutomationAudit`
-- Analytics: `AnalyticsAggregate`
+- Analytics: `AnalyticsAggregate`, `AnalyticsEventSample` (issue #285 bounded
+  raw-event samples for percentiles and bottleneck rankings)
 - Document: `DocumentVersion`
 - Engine: `ExecutionContext`, `ExecutionLog`, `NodeExecution`, `OutboxEvent`,
   `ReplayRun`, `SagaInstance`, `SagaStep`, `WorkflowInstance`

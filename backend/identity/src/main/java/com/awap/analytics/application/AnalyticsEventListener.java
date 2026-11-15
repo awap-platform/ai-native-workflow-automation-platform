@@ -44,11 +44,14 @@ public class AnalyticsEventListener {
               : UUID.fromString(event.path("workflowInstanceId").asText());
       UUID taskId =
           event.path("taskId").isNull() ? null : UUID.fromString(event.path("taskId").asText());
+      String nodeId = event.hasNonNull("nodeId") ? event.get("nodeId").asText() : null;
       long durationMs = event.path("durationMs").isNull() ? 0L : event.path("durationMs").asLong();
 
       tenantContext.run(
           tenantId,
-          () -> analyticsService.record(tenantId, type, workflowInstanceId, taskId, durationMs));
+          () ->
+              analyticsService.record(
+                  tenantId, type, workflowInstanceId, taskId, nodeId, durationMs));
     } catch (Exception ex) {
       // Throwing hands the malformed record to the Kafka error handler and then the per-topic DLQ.
       throw new AwapException(
