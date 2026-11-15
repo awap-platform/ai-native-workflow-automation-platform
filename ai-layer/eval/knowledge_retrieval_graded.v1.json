@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "k": 2,
+  "description": "Graded hybrid-retrieval fixture (issue #293). Grades: 3 exact answer, 2 useful, 1 supporting.",
+  "queries": [
+    {
+      "id": "leave-semantic",
+      "query": "time off request",
+      "relevant": { "leave-policy": 3, "hr-handbook": 1 },
+      "returned": ["leave-policy", "hr-handbook", "finance-faq"]
+    },
+    {
+      "id": "expense-semantic",
+      "query": "reimburse travel costs",
+      "relevant": { "expense-policy": 2 },
+      "returned": ["expense-policy", "finance-faq"]
+    },
+    {
+      "id": "security-semantic",
+      "query": "password rotation",
+      "relevant": { "security-standard": 3 },
+      "returned": ["security-standard", "it-faq"]
+    }
+  ]
+}
