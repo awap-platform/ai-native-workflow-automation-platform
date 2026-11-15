@@ -1,12 +1,9 @@
 package com.awap.ai.infrastructure;
 
 import com.awap.ai.application.AiCapability;
-import com.awap.ai.application.AiProviderRequest;
 import com.awap.ai.domain.AiModelRouter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.time.Duration;
@@ -63,16 +60,6 @@ public class AnthropicProvider extends AbstractHttpAiProvider {
   @Override
   protected String path() {
     return "/v1/messages";
-  }
-
-  @Override
-  protected ObjectNode payload(AiProviderRequest request, String selectedModel) {
-    ObjectNode root = objectMapper.createObjectNode();
-    root.put("model", selectedModel);
-    root.put("max_tokens", request.maxTokens());
-    ArrayNode messages = root.putArray("messages");
-    messages.addObject().put("role", "user").put("content", request.prompt());
-    return root;
   }
 
   @Override

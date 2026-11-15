@@ -9,6 +9,7 @@ import com.awap.ai.domain.AiModelRouter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.net.URI;
@@ -57,7 +58,15 @@ abstract class AbstractHttpAiProvider implements AiProvider {
 
   protected abstract String path();
 
-  protected abstract ObjectNode payload(AiProviderRequest request, String selectedModel);
+  /** OpenAI and Anthropic share the same message payload shape. */
+  protected ObjectNode payload(AiProviderRequest request, String selectedModel) {
+    ObjectNode root = objectMapper.createObjectNode();
+    root.put("model", selectedModel);
+    root.put("max_tokens", request.maxTokens());
+    ArrayNode messages = root.putArray("messages");
+    messages.addObject().put("role", "user").put("content", request.prompt());
+    return root;
+  }
 
   protected abstract void headers(HttpRequest.Builder builder);
 
