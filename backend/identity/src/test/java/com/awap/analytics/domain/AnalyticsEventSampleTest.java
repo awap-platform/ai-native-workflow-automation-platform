@@ -31,6 +31,15 @@ class AnalyticsEventSampleTest {
   }
 
   @Test
+  void theJpaNoArgumentConstructorLeavesTheEntityUninitialised() {
+    AnalyticsEventSample sample = new AnalyticsEventSample();
+
+    assertThat(sample.getId()).isNull();
+    assertThat(sample.getTenantId()).isNull();
+    assertThat(sample.getEventType()).isNull();
+  }
+
+  @Test
   void negativeDurationIsClampedToZero() {
     AnalyticsEventSample sample =
         AnalyticsEventSample.of(

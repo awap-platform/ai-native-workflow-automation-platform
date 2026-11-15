@@ -99,6 +99,23 @@ class AnalyticsServiceTest {
   }
 
   @Test
+  void theTaskOnlyOverloadDelegatesWithNoNodeId() {
+    UUID tenant = UUID.randomUUID();
+    UUID instance = UUID.randomUUID();
+    UUID task = UUID.randomUUID();
+
+    service.record(tenant, AnalyticsEventType.TASK_COMPLETED, instance, task, 120L);
+
+    assertThat(
+            meterRegistry
+                .get("awap.process.duration")
+                .tag("tenant", tenant.toString())
+                .timer()
+                .count())
+        .isEqualTo(1L);
+  }
+
+  @Test
   void persistsARawSampleAndAddsTheNodeIdToTheSinkDocument() {
     AnalyticsAggregateRepository repository = mock(AnalyticsAggregateRepository.class);
     AnalyticsEventSink sink = mock(AnalyticsEventSink.class);
