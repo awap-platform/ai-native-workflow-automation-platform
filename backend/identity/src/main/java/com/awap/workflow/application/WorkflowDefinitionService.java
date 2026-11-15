@@ -304,6 +304,15 @@ public class WorkflowDefinitionService {
           }
         }
         validateExtractionSchema(node, nodeId);
+        if ("APPROVAL".equals(type) || "AI".equals(type) || "AI_TASK".equals(type)) {
+          JsonNode approvers = node.path("config").path("approvers");
+          if (!approvers.isArray() || approvers.isEmpty()) {
+            throw new AwapException(
+                ErrorCode.VALIDATION_FAILED,
+                HttpStatus.BAD_REQUEST,
+                "Node '" + nodeId + "' requires at least one approver.");
+          }
+        }
       }
 
       JsonNode transitions = root.get("transitions");

@@ -17,8 +17,8 @@ import com.awap.engine.infrastructure.NodeExecutionRepository;
 import com.awap.identity.domain.Role;
 import com.awap.identity.domain.User;
 import com.awap.identity.infrastructure.UserRepository;
+import com.awap.task.application.ApprovalTaskRequest;
 import com.awap.task.application.TaskService;
-import com.awap.task.interfaces.dto.TaskRequest;
 import com.awap.workflow.application.WorkflowDefinitionService;
 import com.awap.workflow.domain.NodeDefinition;
 import com.awap.workflow.domain.NodeType;
@@ -99,9 +99,9 @@ class NodeExecutorAiHitlTest {
 
     executor.executeNode(instance, node);
 
-    ArgumentCaptor<TaskRequest> captor = ArgumentCaptor.forClass(TaskRequest.class);
-    verify(taskService).createIfAbsentForNode(eq(tenantId), captor.capture());
-    TaskRequest request = captor.getValue();
+    ArgumentCaptor<ApprovalTaskRequest> captor = ArgumentCaptor.forClass(ApprovalTaskRequest.class);
+    verify(taskService).createApprovalForNode(eq(tenantId), captor.capture());
+    ApprovalTaskRequest request = captor.getValue();
     assertThat(request.title()).isEqualTo("AI approval required: AI classification");
     assertThat(request.description())
         .contains("ai-1")
@@ -110,6 +110,8 @@ class NodeExecutorAiHitlTest {
     assertThat(request.workflowInstanceId()).isEqualTo(instance.getId());
     assertThat(request.nodeExecutionId()).isEqualTo(execution.getId());
     assertThat(request.assigneeId()).isEqualTo(approver.getId());
+    assertThat(request.approvers()).containsExactly("role:TENANT_ADMIN");
+    assertThat(request.escalateAt()).isNotNull();
     assertThat(execution.getStatus()).isEqualTo(NodeExecutionStatus.WAITING);
     assertThat(instance.getState()).isEqualTo(WorkflowState.WAITING);
     verify(port).log(instance, "ai-1", NodeType.AI_TASK.name(), "AI_HITL_REQUIRED", null);

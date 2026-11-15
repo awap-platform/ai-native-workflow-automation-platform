@@ -11,6 +11,7 @@ import com.awap.common.api.AwapException;
 import com.awap.engine.application.OutboxEventPublisher;
 import com.awap.task.domain.Task;
 import com.awap.task.domain.TaskStatus;
+import com.awap.task.domain.TaskType;
 import com.awap.task.infrastructure.TaskRepository;
 import com.awap.task.interfaces.dto.TaskMapperImpl;
 import com.awap.task.interfaces.dto.TaskRequest;
@@ -22,8 +23,10 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -108,6 +111,108 @@ class TaskServiceTest {
             UUID.randomUUID(), new TaskRequest("Approve", null, null, null, null));
 
     assertThat(response.title()).isEqualTo("Approve");
+  }
+
+  @Test
+  void createApprovalForNodeCreatesAnApprovalWithSlaAndExecutionLink() {
+    UUID tenantId = UUID.randomUUID();
+    UUID executionId = UUID.randomUUID();
+    Instant deadline = Instant.parse("2026-11-15T12:00:00Z");
+    when(taskRepository.findFirstByTenantIdAndNodeExecutionIdAndDeletedFalse(tenantId, executionId))
+        .thenReturn(Optional.empty());
+
+    TaskResponse response =
+        service.createApprovalForNode(
+            tenantId,
+            new ApprovalTaskRequest(
+                "AI approval required",
+                "confidence below threshold",
+                UUID.randomUUID(),
+                executionId,
+                null,
+                List.of("role:TENANT_ADMIN"),
+                deadline));
+
+    assertThat(response.status()).isEqualTo(TaskStatus.OPEN.name());
+    verify(taskRepository)
+        .save(
+            org.mockito.ArgumentMatchers.argThat(
+                task ->
+                    task.getTaskType() == TaskType.APPROVAL
+                        && executionId.equals(task.getNodeExecutionId())
+                        && deadline.equals(task.getEscalateAt())));
+  }
+
+  @Test
+  void createApprovalForNodeIsIdempotentPerExecution() {
+    UUID tenantId = UUID.randomUUID();
+    UUID executionId = UUID.randomUUID();
+    Task existing =
+        new Task(
+            tenantId,
+            UUID.randomUUID(),
+            executionId,
+            "Approve",
+            "desc",
+            null,
+            TaskType.APPROVAL,
+            Instant.now());
+    when(taskRepository.findFirstByTenantIdAndNodeExecutionIdAndDeletedFalse(tenantId, executionId))
+        .thenReturn(Optional.of(existing));
+
+    TaskResponse response =
+        service.createApprovalForNode(
+            tenantId,
+            new ApprovalTaskRequest(
+                "Approve",
+                "desc",
+                UUID.randomUUID(),
+                executionId,
+                null,
+                List.of("role:TENANT_ADMIN"),
+                Instant.now()));
+
+    assertThat(response.id()).isEqualTo(existing.getId());
+  }
+
+  @Test
+  void createApprovalForNodeAssignsAndPublishesWhenAnApproverResolved() {
+    UUID tenantId = UUID.randomUUID();
+    UUID assignee = UUID.randomUUID();
+    when(taskRepository.save(org.mockito.ArgumentMatchers.any(Task.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    TaskResponse response =
+        service.createApprovalForNode(
+            tenantId,
+            new ApprovalTaskRequest(
+                "Approve",
+                "desc",
+                UUID.randomUUID(),
+                null,
+                assignee,
+                List.of("role:TENANT_ADMIN"),
+                Instant.now()));
+
+    assertThat(response.assigneeId()).isEqualTo(assignee);
+    verify(outboxEventPublisher)
+        .publish(
+            org.mockito.ArgumentMatchers.eq(tenantId),
+            org.mockito.ArgumentMatchers.eq("TASK"),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.eq("TASK_ASSIGNED"),
+            org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void createApprovalForNodeRejectsAnEmptyApproverList() {
+    assertThatThrownBy(
+            () ->
+                service.createApprovalForNode(
+                    UUID.randomUUID(),
+                    new ApprovalTaskRequest("Approve", "desc", null, null, null, List.of(), null)))
+        .isInstanceOf(AwapException.class)
+        .satisfies(ex -> assertThat(((AwapException) ex).status().value()).isEqualTo(400));
   }
 
   @Test

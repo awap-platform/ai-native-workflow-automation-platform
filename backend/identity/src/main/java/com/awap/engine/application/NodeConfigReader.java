@@ -205,6 +205,12 @@ final class NodeConfigReader {
         .orElse("SUMMARIZE");
   }
 
+  /** APPROVAL SLA in minutes (issue #288); bounded to one week and defaulted to one hour. */
+  long readApprovalSlaMinutes(NodeDefinition node) {
+    long configured = readLong(node, "approvalSlaMinutes", 60);
+    return Math.max(1, Math.min(configured, 10_080));
+  }
+
   String readContextJson(NodeDefinition node) {
     JsonNode context = readConfig(node).get("context");
     return context == null || context.isNull() ? "{}" : context.toString();

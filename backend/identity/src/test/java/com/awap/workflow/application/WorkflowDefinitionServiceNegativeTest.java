@@ -124,13 +124,15 @@ class WorkflowDefinitionServiceNegativeTest {
   @Test
   void rejectsExtractWithoutASchema() {
     assertInvalid(
-        "{\"nodes\":[{\"id\":\"a\",\"type\":\"AI_TASK\",\"config\":{\"action\":\"EXTRACT\"}}]}");
+        "{\"nodes\":[{\"id\":\"a\",\"type\":\"AI_TASK\",\"config\":{\"action\":\"EXTRACT\","
+            + "\"approvers\":[\"role:TENANT_ADMIN\"]}}]}");
   }
 
   @Test
   void rejectsAnInvalidExtractSchema() {
     assertInvalid(
         "{\"nodes\":[{\"id\":\"a\",\"type\":\"AI_TASK\",\"config\":{\"action\":\"EXTRACT\","
+            + "\"approvers\":[\"role:TENANT_ADMIN\"],"
             + "\"schema\":{\"properties\":{\"amount\":{\"type\":\"date\"}}}}}]}");
   }
 
@@ -142,8 +144,18 @@ class WorkflowDefinitionServiceNegativeTest {
             "W",
             null,
             "{\"nodes\":[{\"id\":\"a\",\"type\":\"AI_TASK\",\"config\":{\"action\":\"EXTRACT\","
+                + "\"approvers\":[\"role:TENANT_ADMIN\"],"
                 + "\"schema\":{\"required\":[\"vendor\"],\"properties\":"
                 + "{\"vendor\":{\"type\":\"string\"}}}}}]}"));
+  }
+
+  @Test
+  void rejectsApprovalAndAiNodesWithoutApprovers() {
+    assertInvalid("{\"nodes\":[{\"id\":\"a\",\"type\":\"APPROVAL\"}]}");
+    assertInvalid(
+        "{\"nodes\":[{\"id\":\"a\",\"type\":\"AI_TASK\",\"config\":{\"action\":\"SUMMARIZE\"}}]}");
+    assertInvalid(
+        "{\"nodes\":[{\"id\":\"a\",\"type\":\"APPROVAL\",\"config\":{\"approvers\":[]}}]}");
   }
 
   @Test
