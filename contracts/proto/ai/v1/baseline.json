@@ -1,0 +1,286 @@
+{
+  "messages": {
+    "SecurityContext": {
+      "fields": {
+        "1": {
+          "name": "tenant_id",
+          "type": "string",
+          "label": "singular"
+        },
+        "2": {
+          "name": "user_id",
+          "type": "string",
+          "label": "singular"
+        },
+        "3": {
+          "name": "role",
+          "type": "string",
+          "label": "singular"
+        },
+        "4": {
+          "name": "permissions",
+          "type": "string",
+          "label": "repeated"
+        },
+        "5": {
+          "name": "correlation_id",
+          "type": "string",
+          "label": "singular"
+        },
+        "6": {
+          "name": "access_token",
+          "type": "string",
+          "label": "singular"
+        }
+      }
+    },
+    "CopilotRequest": {
+      "fields": {
+        "1": {
+          "name": "message",
+          "type": "string",
+          "label": "singular"
+        },
+        "2": {
+          "name": "action",
+          "type": "string",
+          "label": "optional"
+        },
+        "3": {
+          "name": "context",
+          "type": "google.protobuf.Struct",
+          "label": "singular"
+        },
+        "4": {
+          "name": "idempotency_key",
+          "type": "string",
+          "label": "optional"
+        },
+        "5": {
+          "name": "confirm_high_risk",
+          "type": "bool",
+          "label": "singular"
+        },
+        "6": {
+          "name": "security",
+          "type": "SecurityContext",
+          "label": "singular"
+        },
+        "7": {
+          "name": "deadline_ms",
+          "type": "int64",
+          "label": "singular"
+        }
+      }
+    },
+    "ToolCall": {
+      "fields": {
+        "1": {
+          "name": "name",
+          "type": "string",
+          "label": "singular"
+        },
+        "2": {
+          "name": "arguments",
+          "type": "google.protobuf.Struct",
+          "label": "singular"
+        },
+        "3": {
+          "name": "result",
+          "type": "google.protobuf.Value",
+          "label": "singular"
+        },
+        "4": {
+          "name": "ok",
+          "type": "bool",
+          "label": "singular"
+        },
+        "5": {
+          "name": "error",
+          "type": "string",
+          "label": "optional"
+        }
+      }
+    },
+    "CopilotResponse": {
+      "fields": {
+        "1": {
+          "name": "answer",
+          "type": "string",
+          "label": "singular"
+        },
+        "2": {
+          "name": "action",
+          "type": "string",
+          "label": "singular"
+        },
+        "3": {
+          "name": "confidence",
+          "type": "double",
+          "label": "singular"
+        },
+        "4": {
+          "name": "requires_human_approval",
+          "type": "bool",
+          "label": "singular"
+        },
+        "5": {
+          "name": "tool_calls",
+          "type": "ToolCall",
+          "label": "repeated"
+        },
+        "6": {
+          "name": "data",
+          "type": "google.protobuf.Value",
+          "label": "singular"
+        },
+        "7": {
+          "name": "model",
+          "type": "string",
+          "label": "optional"
+        },
+        "8": {
+          "name": "model_tier",
+          "type": "string",
+          "label": "optional"
+        },
+        "9": {
+          "name": "prompt_key",
+          "type": "string",
+          "label": "singular"
+        },
+        "10": {
+          "name": "prompt_version",
+          "type": "string",
+          "label": "singular"
+        },
+        "11": {
+          "name": "prompt_hash",
+          "type": "string",
+          "label": "singular"
+        },
+        "12": {
+          "name": "correlation_id",
+          "type": "string",
+          "label": "singular"
+        },
+        "13": {
+          "name": "idempotency_key",
+          "type": "string",
+          "label": "optional"
+        },
+        "14": {
+          "name": "cache_hit",
+          "type": "bool",
+          "label": "singular"
+        }
+      }
+    },
+    "AiError": {
+      "fields": {
+        "1": {
+          "name": "code",
+          "type": "ErrorCode",
+          "label": "singular"
+        },
+        "2": {
+          "name": "message",
+          "type": "string",
+          "label": "singular"
+        },
+        "3": {
+          "name": "retryable",
+          "type": "bool",
+          "label": "singular"
+        }
+      }
+    },
+    "AuditEvent": {
+      "fields": {
+        "1": {
+          "name": "action",
+          "type": "string",
+          "label": "singular"
+        },
+        "2": {
+          "name": "confidence",
+          "type": "double",
+          "label": "singular"
+        },
+        "3": {
+          "name": "requires_human_approval",
+          "type": "bool",
+          "label": "singular"
+        },
+        "4": {
+          "name": "model",
+          "type": "string",
+          "label": "optional"
+        },
+        "5": {
+          "name": "model_tier",
+          "type": "string",
+          "label": "optional"
+        },
+        "6": {
+          "name": "prompt_key",
+          "type": "string",
+          "label": "singular"
+        },
+        "7": {
+          "name": "prompt_version",
+          "type": "string",
+          "label": "singular"
+        },
+        "8": {
+          "name": "prompt_hash",
+          "type": "string",
+          "label": "singular"
+        },
+        "9": {
+          "name": "tools",
+          "type": "string",
+          "label": "repeated"
+        },
+        "10": {
+          "name": "outcome",
+          "type": "string",
+          "label": "singular"
+        },
+        "11": {
+          "name": "correlation_id",
+          "type": "string",
+          "label": "singular"
+        },
+        "12": {
+          "name": "idempotency_key",
+          "type": "string",
+          "label": "optional"
+        }
+      }
+    }
+  },
+  "enums": {
+    "ErrorCode": {
+      "values": {
+        "0": "ERROR_CODE_UNSPECIFIED",
+        "1": "INVALID_ARGUMENT",
+        "2": "UNAUTHENTICATED",
+        "3": "FORBIDDEN",
+        "4": "DEADLINE_EXCEEDED",
+        "5": "UNAVAILABLE",
+        "6": "INTERNAL"
+      }
+    }
+  },
+  "services": {
+    "CopilotService": {
+      "methods": {
+        "Chat": {
+          "input": "CopilotRequest",
+          "output": "CopilotResponse"
+        }
+      }
+    }
+  }
+}

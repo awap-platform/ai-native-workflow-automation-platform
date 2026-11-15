@@ -7,6 +7,8 @@ import com.awap.identity.domain.Role;
 import com.awap.identity.infrastructure.security.TenantContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
@@ -17,6 +19,7 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -37,6 +40,7 @@ public class AiCopilotClient {
   private final String serviceToken;
   private final Duration timeout;
   private final MeterRegistry meterRegistry;
+  private final GrpcCopilotTransport grpcTransport;
 
   @Autowired
   public AiCopilotClient(
@@ -44,7 +48,8 @@ public class AiCopilotClient {
       @Value("${awap.ai.internal-token:}") String serviceToken,
       @Value("${awap.ai.copilot.timeout-ms:10000}") long timeoutMs,
       ObjectMapper objectMapper,
-      MeterRegistry meterRegistry) {
+      MeterRegistry meterRegistry,
+      ObjectProvider<GrpcCopilotTransport> grpcTransport) {
     this(
         HttpClient.newBuilder()
             .connectTimeout(Duration.ofMillis(Math.min(Math.max(timeoutMs, 1), 2_000)))
@@ -53,7 +58,8 @@ public class AiCopilotClient {
         baseUrl,
         serviceToken,
         Duration.ofMillis(Math.max(timeoutMs, 1)),
-        meterRegistry);
+        meterRegistry,
+        grpcTransport.getIfAvailable());
   }
 
   public AiCopilotClient(
@@ -72,12 +78,24 @@ public class AiCopilotClient {
       String serviceToken,
       Duration timeout,
       MeterRegistry meterRegistry) {
+    this(httpClient, objectMapper, baseUrl, serviceToken, timeout, meterRegistry, null);
+  }
+
+  public AiCopilotClient(
+      HttpClient httpClient,
+      ObjectMapper objectMapper,
+      String baseUrl,
+      String serviceToken,
+      Duration timeout,
+      MeterRegistry meterRegistry,
+      GrpcCopilotTransport grpcTransport) {
     this.httpClient = httpClient;
     this.objectMapper = objectMapper;
     this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
     this.serviceToken = serviceToken;
     this.timeout = timeout;
     this.meterRegistry = meterRegistry;
+    this.grpcTransport = grpcTransport;
   }
 
   public JsonNode forward(String path, JsonNode body) {
@@ -101,6 +119,24 @@ public class AiCopilotClient {
     String tier = null;
     boolean cacheHit = false;
     try {
+      if (grpcTransport != null && body != null && body.isObject() && isChat(path)) {
+        try {
+          JsonNode node = grpcTransport.chat(body, context, role, permissions, idempotencyKey);
+          tier = node.path("model_tier").asText(null);
+          cacheHit = node.path("cache_hit").asBoolean(false);
+          outcome = "SUCCESS";
+          return node;
+        } catch (StatusRuntimeException ex) {
+          meterRegistry
+              .counter("awap.ai.transport.fallback", "reason", ex.getStatus().getCode().name())
+              .increment();
+          if (isTerminalGrpc(ex.getStatus().getCode())) {
+            throw grpcError(ex);
+          }
+        } catch (IOException ex) {
+          meterRegistry.counter("awap.ai.transport.fallback", "reason", "IO").increment();
+        }
+      }
       HttpRequest.Builder builder =
           HttpRequest.newBuilder(URI.create(baseUrl + path))
               .timeout(timeout)
@@ -174,6 +210,26 @@ public class AiCopilotClient {
           cacheHit,
           context.tenantId());
     }
+  }
+
+  private static boolean isChat(String path) {
+    return "/api/v1/copilot/chat".equals(path);
+  }
+
+  static boolean isTerminalGrpc(Status.Code code) {
+    return code == Status.Code.UNAUTHENTICATED
+        || code == Status.Code.PERMISSION_DENIED
+        || code == Status.Code.INVALID_ARGUMENT;
+  }
+
+  static AwapException grpcError(StatusRuntimeException ex) {
+    Status.Code code = ex.getStatus().getCode();
+    HttpStatus status =
+        code == Status.Code.UNAUTHENTICATED
+            ? HttpStatus.UNAUTHORIZED
+            : code == Status.Code.PERMISSION_DENIED ? HttpStatus.FORBIDDEN : HttpStatus.BAD_REQUEST;
+    return new AwapException(
+        ErrorCode.GENERIC_INTERNAL_ERROR, status, "AI Copilot gRPC failed: " + code.name());
   }
 
   /** Maps a Copilot path to the bounded action tag used by the latency meter. */

@@ -423,6 +423,20 @@ jobs:
         run: node --test "scripts/test/check-prompt-versions.test.mjs"
       - name: Prompt registry check
         run: node scripts/check-prompt-versions.mjs
+      - name: Protobuf contract tests
+        # Issue #291: removed/renumbered fields, type changes and removed RPCs are breaking.
+        run: |
+          node --test "scripts/test/check-proto-compatibility.test.mjs"
+          node scripts/check-proto-compatibility.mjs
+      - name: Regenerate Python protobuf stubs
+        # Issue #291: committed stubs must match contracts/proto exactly.
+        run: |
+          uv run python -m grpc_tools.protoc \
+            -I ../contracts/proto \
+            -I "$(uv run python -c 'import grpc_tools, os; print(os.path.join(os.path.dirname(grpc_tools.__file__), "_proto"))')" \
+            --python_out=. --grpc_python_out=. ../contracts/proto/ai/v1/copilot.proto
+          git diff --exit-code ai/v1
+        working-directory: ai-layer
       - name: Prompt immutability check
         if: github.event_name == 'pull_request'
         run: |
