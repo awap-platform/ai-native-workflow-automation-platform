@@ -1,0 +1,27 @@
+{
+  "index_patterns": ["{{index_pattern}}"],
+  "priority": 110,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.plugins.index_state_management.policy_id": "{{ism_policy_id}}"
+    },
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "tenantId": {"type": "keyword"},
+        "service": {"type": "keyword"},
+        "level": {"type": "keyword"},
+        "logger": {"type": "keyword"},
+        "message": {"type": "text"},
+        "correlationId": {"type": "keyword"},
+        "traceId": {"type": "keyword"},
+        "timestamp": {
+          "type": "date",
+          "format": "strict_date_optional_time||epoch_millis"
+        }
+      }
+    }
+  }
+}

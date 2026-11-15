@@ -9,7 +9,13 @@
         <encoder class="ch.qos.logback.classic.encoder.JsonEncoder"/>
     </appender>
 
+    <!-- Issue #286: forwards redacted structured log events to the bounded OpenSearch shipper.
+         The appender is inert until Spring installs a shipper and a tenant is present in the MDC. -->
+    <appender name="OPENSEARCH_LOGS"
+              class="com.awap.observability.log.infrastructure.LogbackOpenSearchAppender"/>
+
     <root level="INFO">
         <appender-ref ref="JSON_CONSOLE"/>
+        <appender-ref ref="OPENSEARCH_LOGS"/>
     </root>
 </configuration>
