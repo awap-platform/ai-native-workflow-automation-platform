@@ -124,6 +124,25 @@ class KnowledgeHybridSearchTest {
   }
 
   @Test
+  void aNonFiniteVectorFallsBackToLexical() throws Exception {
+    when(client.post(anyString(), anyString())).thenReturn(hits(source("own", 0, "x", tenantId)));
+    float[] vector = new float[64];
+    vector[0] = Float.NaN;
+
+    List<KnowledgeSearchService.KnowledgeHit> results =
+        service(new FakeEmbeddings(64, vector)).search(tenantId, "x", 5);
+
+    assertThat(results).hasSize(1);
+    assertThat(
+            registry
+                .get("awap.knowledge.search.vector_fallback")
+                .tag("reason", "invalid-vector")
+                .counter()
+                .count())
+        .isEqualTo(1.0);
+  }
+
+  @Test
   void anEmbeddingFailureFallsBackToLexical() throws Exception {
     when(client.post(anyString(), anyString())).thenReturn(hits(source("own", 0, "x", tenantId)));
 
