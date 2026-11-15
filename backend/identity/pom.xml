@@ -14,6 +14,11 @@
     <name>AWAP Identity</name>
     <description>Identity service scaffold (authentication, RBAC, tenant isolation)</description>
 
+    <properties>
+        <!-- The contract is outside the module; the container build overrides this to /app/contracts/proto. -->
+        <proto.root>${project.basedir}/../../contracts/proto</proto.root>
+    </properties>
+
     <dependencyManagement>
         <dependencies>
             <dependency>
@@ -304,7 +309,7 @@
                 <artifactId>protobuf-maven-plugin</artifactId>
                 <version>${protobuf-maven-plugin.version}</version>
                 <configuration>
-                    <protoSourceRoot>${project.basedir}/../../contracts/proto</protoSourceRoot>
+                    <protoSourceRoot>${proto.root}</protoSourceRoot>
                     <protocArtifact>com.google.protobuf:protoc:${protoc.version}:exe:${os.detected.classifier}</protocArtifact>
                     <pluginId>grpc-java</pluginId>
                     <pluginArtifact>io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
