@@ -106,13 +106,28 @@ class AiExtractionSchemaTest {
   }
 
   @Test
-  void optionalFieldsMayBeAbsent() {
+  void optionalFieldsMayBeAbsentAndRequiredMayBeOmitted() {
     AiExtractionSchema schema = AiExtractionSchema.parse(SCHEMA);
 
     AiExtractionSchema.ExtractionResult result =
         schema.validateOutput("{\"vendor\":\"Acme\",\"amount\":1}");
 
     assertThat(result.fieldCount()).isEqualTo(2);
+
+    AiExtractionSchema noRequired =
+        AiExtractionSchema.parse("{\"properties\":{\"a\":{\"type\":\"string\"}}}");
+    assertThat(noRequired.required()).isEmpty();
+    assertThat(noRequired.validateOutput("{}").fieldCount()).isZero();
+  }
+
+  @Test
+  void anUnknownPropertyTypeFailsClosedWhenValidated() {
+    AiExtractionSchema.Property property =
+        new AiExtractionSchema.Property("x", "date", java.util.Set.of(), null);
+
+    assertThatThrownBy(
+            () -> property.validate("x", com.fasterxml.jackson.databind.node.TextNode.valueOf("v")))
+        .isInstanceOf(AiGuardrailViolationException.class);
   }
 
   private static void assertInvalid(AiExtractionSchema schema, String output) {

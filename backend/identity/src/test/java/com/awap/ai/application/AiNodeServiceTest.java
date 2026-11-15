@@ -164,6 +164,17 @@ class AiNodeServiceTest {
   }
 
   @Test
+  void routedClassifyUsesTheSelectedModel() {
+    when(agentService.classify(anyString(), anyString()))
+        .thenReturn("FINANCE a substantive category answer");
+    AiNodeService service = routedService(1_000, new AiRateLimiter(10));
+
+    service.evaluate(tenantId, instanceId, "ai-1", AiNodeService.AiAction.CLASSIFY, "short text");
+
+    verify(agentService).classify(anyString(), anyString());
+  }
+
+  @Test
   void multiStepRoutedCallUsesTheComplexTierAndCostMultiplier() {
     when(agentService.summarize(anyString(), anyString()))
         .thenReturn("A substantive answer for the complex workflow and approval document request");
