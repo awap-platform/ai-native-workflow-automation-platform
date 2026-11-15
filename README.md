@@ -23,7 +23,7 @@ AWAP digitizes operational processes end to end:
 | **Multi-tenancy** | Shared database with PostgreSQL row-level security; every request is tenant-scoped and isolated. |
 | **Enterprise security** | JWT authentication with rotating refresh tokens, RBAC permissions, CSRF protection, HttpOnly cookies, rate limiting, ClamAV file scanning and Vault-backed secrets. |
 | **Event-driven engine** | Transactional outbox to Kafka with DLQ and retry, so workflow events are delivered reliably and in order. |
-| **AI layer scaffold** | A FastAPI health/readiness service. LangChain/LangGraph are pinned and compatibility-tested, but no agent or AI execution endpoint exists yet. |
+| **AI Copilot service** | A FastAPI/gRPC Copilot with a LangGraph agent graph, versioned prompts, permission-checked tools, HITL, latency metrics and an async job path. LangChain is intentionally not installed (see ADR-0009). |
 | **Observability** | Prometheus metrics, OpenTelemetry tracing, structured JSON logs with correlation IDs, and Grafana dashboards. |
 
 ---
@@ -51,7 +51,7 @@ flowchart LR
 |---|---|---|
 | `backend/` | Identity, organization, workflow definitions, engine, tasks, forms, files | Java 25, Spring Boot 4.1.1, Maven |
 | `frontend/` | Workflow designer, form builder, task/approval screens, admin | Next.js 16, TypeScript 7.0.2, TanStack Query, React Flow, Tailwind |
-| `ai-layer/` | Health/readiness contract; future AI execution | Python 3.15.0, FastAPI, pinned LangChain/LangGraph |
+| `ai-layer/` | Copilot API, gRPC transport, prompt/tool orchestration | Python 3.15.0, FastAPI, pinned LangGraph |
 | `infra/` | Local stack, Kubernetes manifests, observability | Docker Compose, Kafka + Schema Registry, PostgreSQL, MinIO, OpenSearch, Vault, Prometheus, Grafana |
 
 The authoritative compatibility matrix is maintained in
@@ -184,7 +184,7 @@ capability truth; the versioned contract is
 | `GET /api/v1/health` (liveness + version/build metadata) | Implemented |
 | `GET /api/v1/health/live` | Implemented |
 | `GET /api/v1/health/ready` (503 when a configured dependency is down) | Implemented |
-| LangChain 1.4.5 / LangGraph 1.2.15 on Python 3.15 | Implemented; LangGraph agent graph |
+| LangGraph 1.2.15 on Python 3.15 (no LangChain meta-package) | Implemented; LangGraph agent graph |
 | Copilot chat, workflow discovery/initiation, task query/completion, approval assistance | Implemented |
 | Permission-checked backend tools + HITL + audit | Implemented |
 | Versioned prompts and dynamic model routing | Implemented |

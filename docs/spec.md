@@ -23,8 +23,7 @@ AI Layer
 
 - Python 3.15.0 (uv)
 - FastAPI
-- LangGraph
-- LangChain
+- LangGraph (no LangChain meta-package; ADR-0009)
 - OpenAI Compatible Models
 
 Infrastructure
@@ -53,7 +52,7 @@ Deployment
 | Spring Modulith | Latest stable version compatible with Boot 4.1.1 | Managed via Boot BOM |
 | Python | Python 3.15.0 (uv) | Pinned with `pyproject.toml` + `uv.lock` |
 | FastAPI | Latest version supporting 3.15 | Pinned with `pyproject.toml` + `uv.lock` |
-| LangChain / LangGraph | Version verified for 3.15 compatibility | Pinned with `pyproject.toml` + `uv.lock` |
+| LangGraph | Version verified for 3.15 compatibility | Pinned with `pyproject.toml` + `uv.lock`; LangChain intentionally omitted (ADR-0009) |
 | TypeScript | TypeScript 7.0.2 | Native compiler; ESLint via TS 6 alias |
 | Node.js | Current LTS | Compatible with TS 7.x + Next.js |
 | Next.js | Version compatible with TS 7.x | Pinned with `pnpm-lock.yaml` |

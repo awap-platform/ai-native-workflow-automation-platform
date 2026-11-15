@@ -28,7 +28,8 @@ developed safely and reproducibly.
    TS 7 support.
 5. **AI Layer environment:** uv with `ai-layer/pyproject.toml` and the
    committed `ai-layer/uv.lock` as the single source of truth. Python 3.15.0
-   (uv-managed); LangChain and LangGraph 1.x are installed from PyPI.
+   (uv-managed); LangGraph 1.x is installed from PyPI. The LangChain meta-package
+   is not installed (ADR-0009).
 6. **License:** MIT.
 7. **Project language:** English for all code, comments, commit messages, and
    documentation.
@@ -58,8 +59,8 @@ modules. This resolves the contradiction with the module checklist:
 - The uv environment must be kept in sync with `pyproject.toml`/`uv.lock`;
   adding an AI Layer dependency means updating those files and running
   `uv sync --locked`.
-- The AI stack stays on LangChain/LangGraph 1.x via PyPI on Python 3.15.0;
-  `cp315` wheels are verified by the pilot compatibility check (see
-  `COMPATIBILITY.md`).
+- The AI stack stays on LangGraph 1.x via PyPI on Python 3.15.0; the LangChain
+  meta-package is intentionally omitted (ADR-0009). `cp315` wheels are verified
+  by the pilot compatibility check (see `COMPATIBILITY.md`).
 - Personal planning documents are excluded from the repository and must never
   be committed.

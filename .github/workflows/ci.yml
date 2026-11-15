@@ -412,6 +412,11 @@ jobs:
       - name: Sync dependencies (locked)
         run: uv sync --locked
         working-directory: ai-layer
+      - name: Dependency usage check
+        # Issue #295: every runtime dependency must be imported or explicitly allowlisted.
+        run: |
+          node --test "scripts/test/check-python-deps.test.mjs"
+          node scripts/check-python-deps.mjs
       - name: Lint (Ruff)
         run: uv run ruff check .
         working-directory: ai-layer
