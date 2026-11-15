@@ -492,3 +492,43 @@ groups:
           summary: "Designer expression validation is failing repeatedly"
           description: "{{ $value }} invalid conditions were rejected in 15 minutes; check the expression builder/autocomplete contract or a recent backend deploy."
           runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o19--edge-condition-editing-and-expression-validation-issue-134"
+
+  - name: awap-ai
+    rules:
+      # AI latency is alerted separately from the platform SLO (issue #290): a slow provider must
+      # not be mistaken for a slow workflow API.
+      - alert: AwapAiLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(awap_ai_request_duration_seconds_bucket{outcome="SUCCESS"}[10m]))) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI request p95 above 5s"
+          description: "Copilot/model calls exceeded the 5s p95 AI budget; platform latency is measured separately."
+          runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o34--ai-latency-and-async-jobs-issue-290"
+
+      - alert: AwapAiErrorRateHigh
+        expr: |
+          sum(rate(awap_ai_request_duration_seconds_count{outcome=~"ERROR|TIMEOUT"}[10m]))
+            / clamp_min(sum(rate(awap_ai_request_duration_seconds_count[10m])), 0.001) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI error ratio above 10%"
+          description: "AI calls are failing or timing out above the 10% budget; inspect provider health and fallback counters."
+          runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o34--ai-latency-and-async-jobs-issue-290"
+
+      - alert: AwapAiJobQueueWaitHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(awap_ai_job_queue_wait_seconds_bucket[10m]))) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Async Copilot job queue wait p95 above 5s"
+          description: "Long-running Copilot jobs wait above the 5s queue budget; check runner saturation and provider capacity."
+          runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o34--ai-latency-and-async-jobs-issue-290"

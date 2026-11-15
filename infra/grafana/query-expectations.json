@@ -14,6 +14,9 @@
     "SLA breaches (1h)": "series",
     "Notification deliveries and failures": "series",
     "Notification retry lag and dispatch latency": "series",
-    "Outbox backlog, relay rate and DLQ": "series"
+    "Outbox backlog, relay rate and DLQ": "series",
+    "AI request latency p50/p95/p99": "series",
+    "AI error ratio": "series",
+    "Async Copilot job queue wait p95": "series"
   }
 }

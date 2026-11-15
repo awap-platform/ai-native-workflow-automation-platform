@@ -99,6 +99,8 @@ public class OpenAiCompatibleAiBackend implements AiBackendClient {
     }
     String effectiveModel =
         selectedModel == null || selectedModel.isBlank() ? model : selectedModel;
+    long startedNanos = System.nanoTime();
+    String result = "error";
     try {
       String payload =
           objectMapper.writeValueAsString(
@@ -121,6 +123,7 @@ public class OpenAiCompatibleAiBackend implements AiBackendClient {
           httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
       if (response.statusCode() == 429 || response.statusCode() >= 500) {
+        result = "fallback";
         return degrade("status-" + response.statusCode(), prompt, maxTokens);
       }
       if (response.statusCode() / 100 != 2) {
@@ -138,15 +141,22 @@ public class OpenAiCompatibleAiBackend implements AiBackendClient {
               .path("content")
               .asText("");
       if (content.isBlank()) {
+        result = "fallback";
         return degrade("empty-content", prompt, maxTokens);
       }
       meterRegistry.counter("awap.ai.provider.requests", "result", "success").increment();
+      result = "success";
       return content;
     } catch (IOException ex) {
+      result = "fallback";
       return degrade("transport", prompt, maxTokens);
     } catch (InterruptedException ex) {
       Thread.currentThread().interrupt();
+      result = "fallback";
       return degrade("interrupted", prompt, maxTokens);
+    } finally {
+      AiLatencyMetrics.recordProvider(
+          meterRegistry, System.nanoTime() - startedNanos, effectiveModel, result);
     }
   }
 

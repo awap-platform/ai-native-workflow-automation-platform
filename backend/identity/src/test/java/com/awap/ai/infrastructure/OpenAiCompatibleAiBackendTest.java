@@ -2,6 +2,9 @@ package com.awap.ai.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.awap.ai.application.LocalHeuristicAiBackend;
 import com.awap.common.api.AwapException;
@@ -105,6 +108,13 @@ class OpenAiCompatibleAiBackendTest {
         .contains("classify: invoice payment");
     assertThat(registry.get("awap.ai.provider.requests").tag("result", "success").counter().count())
         .isEqualTo(1.0);
+    assertThat(
+            registry
+                .get("awap.ai.provider.duration")
+                .tags("model", "test-model", "result", "success")
+                .timer()
+                .count())
+        .isEqualTo(1);
   }
 
   @Test
@@ -148,6 +158,40 @@ class OpenAiCompatibleAiBackendTest {
     assertThatThrownBy(() -> backend("sk-test", baseUrl).complete("classify: invoice", 16))
         .isInstanceOf(AwapException.class)
         .satisfies(ex -> assertThat(((AwapException) ex).status().value()).isEqualTo(502));
+    assertThat(registry.get("awap.ai.provider.duration").tag("result", "error").timer().count())
+        .isEqualTo(1);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void interruptedCallsAreRecordedAsFallbacks() throws Exception {
+    HttpClient failing = mock(HttpClient.class);
+    when(failing.send(any(), any())).thenThrow(new InterruptedException("stop"));
+    OpenAiCompatibleAiBackend backend =
+        new OpenAiCompatibleAiBackend(
+            failing,
+            mapper,
+            fallback,
+            registry,
+            baseUrl,
+            "sk-test",
+            "test-model",
+            Duration.ofSeconds(1));
+
+    try {
+      assertThat(backend.complete("classify: invoice", 16)).isEqualTo("FINANCE");
+      assertThat(Thread.currentThread().isInterrupted()).isTrue();
+    } finally {
+      Thread.interrupted();
+    }
+
+    assertThat(
+            registry
+                .get("awap.ai.provider.duration")
+                .tags("model", "test-model", "result", "fallback")
+                .timer()
+                .count())
+        .isEqualTo(1);
   }
 
   @Test

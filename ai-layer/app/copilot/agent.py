@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from typing import Any, TypedDict
 
 import httpx
@@ -43,6 +44,7 @@ from app.copilot.prompts import (
     prompt_hash,
     prompt_key_for_action,
 )
+from app.copilot.response_cache import ResponseCache
 from app.copilot.routing import ModelRouter
 from app.copilot.tools import ToolRegistry
 
@@ -55,6 +57,8 @@ except Exception:  # pragma: no cover - deterministic fallback keeps the service
     StateGraph = None  # type: ignore[assignment]
     LANGGRAPH_AVAILABLE = False
 
+
+CACHEABLE_ACTIONS = {CopilotAction.CHAT}
 
 HIGH_RISK_ACTIONS = {
     CopilotAction.START_WORKFLOW,
@@ -139,11 +143,15 @@ class CopilotAgent:
         confidence_threshold: float | None = None,
         knowledge_min_score: float | None = None,
         knowledge_min_hits: int | None = None,
+        response_cache: ResponseCache | None = None,
     ) -> None:
         self.tools = tools or ToolRegistry()
         self.router = router or ModelRouter()
         self.llm = llm or LlmClient()
         self.metrics = metrics or CopilotMetrics()
+        self.cache = response_cache or ResponseCache(
+            ttl_seconds=float(os.getenv("AI_RESPONSE_CACHE_TTL_SECONDS", "30"))
+        )
         self.confidence_threshold = (
             confidence_threshold
             if confidence_threshold is not None
@@ -178,6 +186,27 @@ class CopilotAgent:
         return graph.compile()
 
     async def run(self, request: CopilotRequest, security: SecurityContext) -> CopilotResponse:
+        started = time.perf_counter()
+        cache_key = self._cache_key(request, security)
+        if cache_key is not None:
+            cached = self.cache.get(cache_key)
+            if cached is not None:
+                self.metrics.increment("copilot.cache.hit")
+                self.metrics.observe(
+                    "copilot.request.duration",
+                    (time.perf_counter() - started) * 1_000,
+                    tier=cached.model_tier or "none",
+                    action=cached.action.value,
+                    outcome="CACHE_HIT",
+                    cache_hit="true",
+                )
+                return cached.model_copy(
+                    update={
+                        "correlation_id": security.correlation_id,
+                        "idempotency_key": request.idempotency_key,
+                        "cache_hit": True,
+                    }
+                )
         state: AgentState = {
             "message": request.message,
             "context": request.context,
@@ -198,7 +227,16 @@ class CopilotAgent:
                 state = await step(state)  # type: ignore[assignment]
             final = state
 
-        return CopilotResponse(
+        outcome = "HITL" if final.get("requires_human_approval") else "SUCCESS"
+        self.metrics.observe(
+            "copilot.request.duration",
+            (time.perf_counter() - started) * 1_000,
+            tier=final.get("route", {}).get("tier") or "none",
+            action=final.get("action", CopilotAction.CHAT).value,
+            outcome=outcome,
+            cache_hit="false",
+        )
+        response = CopilotResponse(
             answer=final["answer"],
             action=final["action"],
             confidence=final["confidence"],
@@ -212,6 +250,26 @@ class CopilotAgent:
             prompt_hash=final.get("prompt_hash", prompt_hash("chat")),
             correlation_id=security.correlation_id,
             idempotency_key=request.idempotency_key,
+        )
+        if cache_key is not None:
+            self.metrics.increment("copilot.cache.miss")
+            self.cache.put(cache_key, response)
+        return response
+
+    def _cache_key(self, request: CopilotRequest, security: SecurityContext) -> str | None:
+        """Only explicit read-only chat requests are cacheable.
+
+        State-changing requests, high-risk confirmations, request-scoped context and idempotent
+        submissions must always execute so the cache can never change an outcome.
+        """
+        if not self.cache.enabled or request.action not in CACHEABLE_ACTIONS:
+            return None
+        if request.context or request.confirm_high_risk or request.idempotency_key:
+            return None
+        prompt_key = prompt_key_for_action(request.action.value)
+        return (
+            f"{security.tenant_id}:{security.user_id}:{prompt_key}:"
+            f"{prompt_hash(prompt_key)}:{request.message}"
         )
 
     # ------------------------------------------------------------------ nodes
@@ -563,9 +621,17 @@ class CopilotAgent:
         user = await self.tools.invoke("get_user", {}, state["security"])
         state.setdefault("tool_calls", []).append(user.model_dump())
         route = state.get("route", {})
-        llm_answer = await self.llm.complete(
-            state.get("prompt", ""), state["message"], route.get("model", "local-heuristic")
-        )
+        provider_started = time.perf_counter()
+        try:
+            llm_answer = await self.llm.complete(
+                state.get("prompt", ""), state["message"], route.get("model", "local-heuristic")
+            )
+        finally:
+            self.metrics.observe(
+                "copilot.provider.duration",
+                (time.perf_counter() - provider_started) * 1_000,
+                model=route.get("model", "local-heuristic"),
+            )
         if llm_answer:
             return self._record(
                 state,

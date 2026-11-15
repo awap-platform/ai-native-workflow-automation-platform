@@ -238,6 +238,18 @@
       "source": "SagaMetrics (awap.saga.duration timer, tagged by terminal status)"
     },
     {
+      "name": "awap_ai_request_duration_seconds",
+      "source": "AiLatencyMetrics (awap.ai.request.duration timer, tagged tier/action/outcome/cache/tenant)"
+    },
+    {
+      "name": "awap_ai_provider_duration_seconds",
+      "source": "AiLatencyMetrics (awap.ai.provider.duration timer, tagged model/result)"
+    },
+    {
+      "name": "awap_ai_job_queue_wait_seconds",
+      "source": "AiLatencyMetrics (awap.ai.job.queue.wait timer, async Copilot jobs)"
+    },
+    {
       "name": "http_server_requests_seconds_count",
       "source": "Spring Boot HTTP server observations"
     },

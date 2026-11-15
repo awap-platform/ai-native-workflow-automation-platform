@@ -165,6 +165,81 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CopilotResponse"
+  /api/v1/copilot/jobs:
+    post:
+      operationId: copilotSubmitJob
+      summary: Submit a long-running Copilot job
+      description: >-
+        Returns 202 with a job handle. A duplicate submission with the same tenant-scoped
+        `idempotency_key` returns the original job; a full bounded queue returns 429.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CopilotRequest"
+      responses:
+        "202":
+          description: Job accepted and queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotJobResponse"
+        "401":
+          description: Missing or invalid service/user security context.
+        "429":
+          description: The bounded async job queue is full.
+  /api/v1/copilot/jobs/{job_id}:
+    get:
+      operationId: copilotJobStatus
+      summary: Poll an async Copilot job
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job state and result when finished.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotJobResponse"
+        "401":
+          description: Missing or invalid service/user security context.
+        "404":
+          description: Unknown, expired, or another tenant's/user's job.
+  /api/v1/copilot/jobs/{job_id}/cancel:
+    post:
+      operationId: copilotCancelJob
+      summary: Cancel an async Copilot job
+      description: >-
+        Marks a queued or running job CANCELLED. Provider cancellation is best effort and a late
+        answer never overwrites the cancelled state.
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cancelled job state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotJobResponse"
+        "401":
+          description: Missing or invalid service/user security context.
+        "404":
+          description: Unknown, expired, or another tenant's/user's job.
   /api/v1/copilot/prompts:
     get:
       operationId: copilotPrompts
@@ -181,10 +256,13 @@ paths:
   /api/v1/copilot/metrics:
     get:
       operationId: copilotMetrics
-      summary: Read Copilot counters
+      summary: Read Copilot counters and latency percentiles
+      description: >-
+        Returns counters, the active prompt version and hashes, and per-tag p50/p95/p99 latency for
+        synchronous requests, provider calls and async job queue waits.
       responses:
         "200":
-          description: Copilot counters.
+          description: Copilot counters, prompt hashes and latency percentiles.
           content:
             application/json:
               schema:
@@ -207,6 +285,32 @@ components:
           type: string
         confirm_high_risk:
           type: boolean
+    CopilotJobResponse:
+      type: object
+      required: [id, status, prompt_version, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELLED]
+        result:
+          $ref: "#/components/schemas/CopilotResponse"
+        error:
+          type: string
+          nullable: true
+        prompt_version:
+          type: string
+        prompt_hash:
+          type: string
+          nullable: true
+        queue_wait_ms:
+          type: number
+          nullable: true
+        created_at:
+          type: number
+        updated_at:
+          type: number
     CopilotResponse:
       type: object
       required:
@@ -244,6 +348,12 @@ components:
         idempotency_key:
           type: string
           nullable: true
+        prompt_key:
+          type: string
+        prompt_hash:
+          type: string
+        cache_hit:
+          type: boolean
     HealthResponse:
       type: object
       additionalProperties: false

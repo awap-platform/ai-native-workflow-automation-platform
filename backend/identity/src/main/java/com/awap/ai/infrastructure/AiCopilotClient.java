@@ -7,11 +7,14 @@ import com.awap.identity.domain.Role;
 import com.awap.identity.infrastructure.security.TenantContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,13 +36,15 @@ public class AiCopilotClient {
   private final String baseUrl;
   private final String serviceToken;
   private final Duration timeout;
+  private final MeterRegistry meterRegistry;
 
   @Autowired
   public AiCopilotClient(
       @Value("${awap.ai.layer.base-url:http://localhost:8000}") String baseUrl,
       @Value("${awap.ai.internal-token:}") String serviceToken,
       @Value("${awap.ai.copilot.timeout-ms:10000}") long timeoutMs,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      MeterRegistry meterRegistry) {
     this(
         HttpClient.newBuilder()
             .connectTimeout(Duration.ofMillis(Math.min(Math.max(timeoutMs, 1), 2_000)))
@@ -47,7 +52,8 @@ public class AiCopilotClient {
         objectMapper,
         baseUrl,
         serviceToken,
-        Duration.ofMillis(Math.max(timeoutMs, 1)));
+        Duration.ofMillis(Math.max(timeoutMs, 1)),
+        meterRegistry);
   }
 
   public AiCopilotClient(
@@ -56,11 +62,22 @@ public class AiCopilotClient {
       String baseUrl,
       String serviceToken,
       Duration timeout) {
+    this(httpClient, objectMapper, baseUrl, serviceToken, timeout, new SimpleMeterRegistry());
+  }
+
+  public AiCopilotClient(
+      HttpClient httpClient,
+      ObjectMapper objectMapper,
+      String baseUrl,
+      String serviceToken,
+      Duration timeout,
+      MeterRegistry meterRegistry) {
     this.httpClient = httpClient;
     this.objectMapper = objectMapper;
     this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
     this.serviceToken = serviceToken;
     this.timeout = timeout;
+    this.meterRegistry = meterRegistry;
   }
 
   public JsonNode forward(String path, JsonNode body) {
@@ -79,6 +96,10 @@ public class AiCopilotClient {
     Role role = parseRole(context.role());
     String permissions =
         role.permissions().stream().map(Enum::name).sorted().collect(Collectors.joining(","));
+    long startedNanos = System.nanoTime();
+    String outcome = "ERROR";
+    String tier = null;
+    boolean cacheHit = false;
     try {
       HttpRequest.Builder builder =
           HttpRequest.newBuilder(URI.create(baseUrl + path))
@@ -102,9 +123,15 @@ public class AiCopilotClient {
       HttpResponse<String> response =
           httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
       if (response.statusCode() / 100 == 2) {
-        return response.body().isBlank()
-            ? objectMapper.createObjectNode()
-            : objectMapper.readTree(response.body());
+        JsonNode node =
+            response.body().isBlank()
+                ? objectMapper.createObjectNode()
+                : objectMapper.readTree(response.body());
+        tier = node.path("model_tier").asText(null);
+        cacheHit = node.path("cache_hit").asBoolean(false);
+        recordQueueWait(node);
+        outcome = "SUCCESS";
+        return node;
       }
       HttpStatus status =
           response.statusCode() == 401
@@ -120,6 +147,12 @@ public class AiCopilotClient {
           ErrorCode.GENERIC_INTERNAL_ERROR,
           status,
           "AI Copilot failed with status " + response.statusCode() + ".");
+    } catch (HttpTimeoutException ex) {
+      outcome = "TIMEOUT";
+      throw new AwapException(
+          ErrorCode.GENERIC_INTERNAL_ERROR,
+          HttpStatus.GATEWAY_TIMEOUT,
+          "AI Copilot timed out: " + ex.getMessage());
     } catch (IOException ex) {
       throw new AwapException(
           ErrorCode.GENERIC_INTERNAL_ERROR,
@@ -131,6 +164,34 @@ public class AiCopilotClient {
           ErrorCode.GENERIC_INTERNAL_ERROR,
           HttpStatus.BAD_GATEWAY,
           "AI Copilot request was interrupted.");
+    } finally {
+      AiLatencyMetrics.recordRequest(
+          meterRegistry,
+          System.nanoTime() - startedNanos,
+          tier,
+          actionOf(path),
+          outcome,
+          cacheHit,
+          context.tenantId());
+    }
+  }
+
+  /** Maps a Copilot path to the bounded action tag used by the latency meter. */
+  static String actionOf(String path) {
+    if (path == null || !path.contains("/copilot/")) {
+      return "unknown";
+    }
+    String suffix = path.substring(path.indexOf("/copilot/") + "/copilot/".length());
+    if (suffix.startsWith("jobs")) {
+      return "async_job";
+    }
+    return suffix.replace('/', '_');
+  }
+
+  private void recordQueueWait(JsonNode node) {
+    JsonNode queueWait = node.path("queue_wait_ms");
+    if (queueWait.isNumber()) {
+      AiLatencyMetrics.recordQueueWait(meterRegistry, queueWait.asLong());
     }
   }
 

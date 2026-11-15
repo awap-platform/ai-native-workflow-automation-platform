@@ -67,6 +67,7 @@ class CopilotResponse(BaseModel):
     prompt_hash: str
     correlation_id: str
     idempotency_key: str | None = None
+    cache_hit: bool = False
 
 
 class WorkflowDiscoveryRequest(BaseModel):
@@ -110,3 +111,24 @@ class MetricsResponse(BaseModel):
     counters: dict[str, int]
     prompt_version: str
     prompt_hashes: dict[str, str] = Field(default_factory=dict)
+    latencies: dict[str, dict[str, float | int]] = Field(default_factory=dict)
+
+
+class JobStatusResponse(StrEnum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class CopilotJobResponse(BaseModel):
+    id: str
+    status: JobStatusResponse
+    result: CopilotResponse | None = None
+    error: str | None = None
+    prompt_version: str
+    prompt_hash: str | None = None
+    queue_wait_ms: float | None = None
+    created_at: float
+    updated_at: float

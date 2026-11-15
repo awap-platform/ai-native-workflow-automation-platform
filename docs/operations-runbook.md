@@ -1335,3 +1335,25 @@ scripts/apply-repo-governance.sh --apply --prune --repo owner/repo        # dele
 **Retire a milestone.** The script never deletes a milestone because deletion silently detaches every
 issue that referenced it. Remove the milestone from the desired state, then close or delete it in
 GitHub manually only after no open issue references it.
+
+## O34 — AI latency and async jobs (issue #290)
+
+**Symptoms.** `AwapAiLatencyHigh` (AI p95 > 5s), `AwapAiErrorRateHigh` (>10% `ERROR`/`TIMEOUT`) or
+`AwapAiJobQueueWaitHigh` (queue wait p95 > 5s). Platform panels may be healthy: AI latency is a
+separate SLO by design (see [`ai-latency-and-async-jobs.md`](ai-latency-and-async-jobs.md)).
+
+1. Open the "AI request latency p50/p95/p99" panel. Break it down by `action` and `tier`: one tier
+   regressing points at the routed model; every tier regressing points at the provider or network.
+2. Compare `awap_ai_provider_duration_seconds` (tags `model`, `result`) with
+   `awap_ai_request_duration_seconds`. Provider time close to request time means the provider is
+   slow; a large gap means queueing or tool latency.
+3. Read `outcome`: `TIMEOUT` means the provider exceeded its bounded timeout; `ERROR` means a non-2xx
+   answer or a transport failure. `cache="hit"` series are expected to be fast.
+4. For `AwapAiJobQueueWaitHigh`, inspect the async runner. The queue is bounded by
+   `AI_JOB_MAX_JOBS` and a full queue returns `429`; look for orphaned long jobs before raising it.
+5. A job result that looks stale: compare `prompt_version`/`prompt_hash` in the job response with
+   `GET /api/v1/copilot/prompts`. A prompt change must create a new version file, never edit one.
+6. If the provider is degraded, rely on the fallback path and move long work to the async endpoint.
+   Do not raise the AI timeout without re-running the golden-set gate.
+7. After changing any latency budget, re-run the isolation proof:
+   `node --test "load-test/test/*.test.mjs"`.
