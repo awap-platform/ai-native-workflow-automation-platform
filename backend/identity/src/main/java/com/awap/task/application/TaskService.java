@@ -5,6 +5,7 @@ import com.awap.common.api.ErrorCode;
 import com.awap.engine.application.NodeCompletedEvent;
 import com.awap.engine.application.OutboxEventPublisher;
 import com.awap.task.domain.Task;
+import com.awap.task.domain.TaskType;
 import com.awap.task.infrastructure.TaskRepository;
 import com.awap.task.interfaces.dto.TaskAssignRequest;
 import com.awap.task.interfaces.dto.TaskMapper;
@@ -61,6 +62,49 @@ public class TaskService {
     if (task.getAssigneeId() != null) {
       publishLifecycle(task, "TASK_ASSIGNED", null);
     }
+    return taskMapper.toResponse(task);
+  }
+
+  /**
+   * Creates a real APPROVAL task for an AI HITL handover (issue #288).
+   *
+   * <p>The task is linked to the AI node execution, carries the configured approvers and the SLA
+   * deadline, and is idempotent per execution. An empty approver list is a configuration error: the
+   * instance must not hang on an approval nobody can decide.
+   */
+  @Transactional
+  public TaskResponse createApprovalForNode(UUID tenantId, ApprovalTaskRequest request) {
+    if (request.approvers() == null || request.approvers().isEmpty()) {
+      throw new AwapException(
+          ErrorCode.VALIDATION_FAILED,
+          HttpStatus.BAD_REQUEST,
+          "An APPROVAL task requires at least one configured approver.");
+    }
+    if (request.nodeExecutionId() != null) {
+      var existing =
+          taskRepository.findFirstByTenantIdAndNodeExecutionIdAndDeletedFalse(
+              tenantId, request.nodeExecutionId());
+      if (existing.isPresent()) {
+        return taskMapper.toResponse(existing.get());
+      }
+    }
+    Task task =
+        new Task(
+            tenantId,
+            request.workflowInstanceId(),
+            request.nodeExecutionId(),
+            request.title(),
+            request.description(),
+            request.assigneeId(),
+            TaskType.APPROVAL,
+            request.escalateAt());
+    taskRepository.save(task);
+    if (task.getAssigneeId() != null) {
+      publishLifecycle(task, "TASK_ASSIGNED", null);
+    }
+    meterRegistry
+        .counter("awap.task.approvals", "approvers", String.valueOf(request.approvers().size()))
+        .increment();
     return taskMapper.toResponse(task);
   }
 

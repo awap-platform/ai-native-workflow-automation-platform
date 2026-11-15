@@ -12,6 +12,7 @@ import com.awap.identity.domain.Role;
 import com.awap.identity.domain.User;
 import com.awap.identity.infrastructure.UserRepository;
 import com.awap.script.application.ScriptNodeService;
+import com.awap.task.application.ApprovalTaskRequest;
 import com.awap.task.application.TaskService;
 import com.awap.task.interfaces.dto.TaskRequest;
 import com.awap.webhook.application.WebhookAttemptResult;
@@ -386,14 +387,24 @@ final class NodeExecutor {
       }
       case APPROVAL, TASK -> {
         UUID assigneeId = resolveAssignee(instance, node);
-        TaskRequest taskRequest =
-            new TaskRequest(
-                node.getName(),
-                "Auto-created by workflow node " + node.getNodeId(),
-                instance.getId(),
-                execution.getId(),
-                assigneeId);
-        taskService.create(instance.getTenantId(), taskRequest);
+        String description = "Auto-created by workflow node " + node.getNodeId();
+        if (node.getNodeType() == NodeType.APPROVAL) {
+          taskService.createApprovalForNode(
+              instance.getTenantId(),
+              new ApprovalTaskRequest(
+                  node.getName(),
+                  description,
+                  instance.getId(),
+                  execution.getId(),
+                  assigneeId,
+                  configReader.readApprovers(node),
+                  approvalDeadline(node)));
+        } else {
+          taskService.create(
+              instance.getTenantId(),
+              new TaskRequest(
+                  node.getName(), description, instance.getId(), execution.getId(), assigneeId));
+        }
         waitForExternal(instance, node, execution, "NODE_WAITING");
         yield Optional.empty();
       }
@@ -420,9 +431,9 @@ final class NodeExecutor {
                 instance.getTenantId(), instance.getId(), node.getNodeId(), action, prompt, schema);
         if (result.requiresHumanApproval()) {
           UUID assigneeId = resolveAssignee(instance, node);
-          taskService.createIfAbsentForNode(
+          taskService.createApprovalForNode(
               instance.getTenantId(),
-              new TaskRequest(
+              new ApprovalTaskRequest(
                   "AI approval required: " + node.getName(),
                   "Human approval is required for AI node '"
                       + node.getNodeId()
@@ -431,7 +442,9 @@ final class NodeExecutor {
                       + " is below the configured threshold.",
                   instance.getId(),
                   execution.getId(),
-                  assigneeId));
+                  assigneeId,
+                  configReader.readApprovers(node),
+                  approvalDeadline(node)));
           waitForExternal(instance, node, execution, "AI_HITL_REQUIRED");
           yield Optional.empty();
         }
@@ -776,6 +789,10 @@ final class NodeExecutor {
       }
     }
     return null;
+  }
+
+  private Instant approvalDeadline(NodeDefinition node) {
+    return Instant.now().plusSeconds(configReader.readApprovalSlaMinutes(node) * 60);
   }
 
   private List<NodeDefinition> nodesOf(WorkflowInstance instance) {

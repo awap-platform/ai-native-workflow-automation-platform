@@ -46,6 +46,26 @@ class TaskTest {
   }
 
   @Test
+  void approvalTaskCarriesTypeAndSlaDeadline() {
+    java.time.Instant deadline = java.time.Instant.parse("2026-11-15T12:00:00Z");
+    Task task = new Task(tenantId, null, null, "Approve", null, userA, TaskType.APPROVAL, deadline);
+
+    assertThat(task.getTaskType()).isEqualTo(TaskType.APPROVAL);
+    assertThat(task.getEscalateAt()).isEqualTo(deadline);
+    assertThat(task.isEscalated()).isFalse();
+  }
+
+  @Test
+  void genericTaskDefaultsToGenericType() {
+    Task task = new Task(tenantId, null, null, "Task", null, null);
+    Task nullType = new Task(tenantId, null, null, "Task", null, null, null, null);
+
+    assertThat(task.getTaskType()).isEqualTo(TaskType.GENERIC);
+    assertThat(task.getEscalateAt()).isNull();
+    assertThat(nullType.getTaskType()).isEqualTo(TaskType.GENERIC);
+  }
+
+  @Test
   void escalateSetsDeadlineAndAssignee() {
     Task task = new Task(tenantId, null, null, "Task", null, null);
     task.escalate(userA, java.time.Instant.now().plusSeconds(60));

@@ -35,6 +35,10 @@ public class Task {
   @Column(name = "node_execution_id")
   private UUID nodeExecutionId;
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "task_type", nullable = false)
+  private TaskType taskType;
+
   @Column(nullable = false)
   private String title;
 
@@ -93,15 +97,37 @@ public class Task {
       String title,
       String description,
       UUID assigneeId) {
+    this(
+        tenantId,
+        workflowInstanceId,
+        nodeExecutionId,
+        title,
+        description,
+        assigneeId,
+        TaskType.GENERIC,
+        null);
+  }
+
+  public Task(
+      UUID tenantId,
+      UUID workflowInstanceId,
+      UUID nodeExecutionId,
+      String title,
+      String description,
+      UUID assigneeId,
+      TaskType taskType,
+      Instant escalateAt) {
     this.id = UUID.randomUUID();
     this.tenantId = tenantId;
     this.workflowInstanceId = workflowInstanceId;
     this.nodeExecutionId = nodeExecutionId;
+    this.taskType = taskType == null ? TaskType.GENERIC : taskType;
     this.title = title;
     this.description = description;
     this.assigneeId = assigneeId;
     this.status = assigneeId == null ? TaskStatus.OPEN : TaskStatus.ASSIGNED;
     this.escalated = false;
+    this.escalateAt = escalateAt;
     this.createdAt = Instant.now();
     this.updatedAt = Instant.now();
     this.deleted = false;
@@ -227,6 +253,10 @@ public class Task {
 
   public UUID getNodeExecutionId() {
     return nodeExecutionId;
+  }
+
+  public TaskType getTaskType() {
+    return taskType;
   }
 
   public String getTitle() {

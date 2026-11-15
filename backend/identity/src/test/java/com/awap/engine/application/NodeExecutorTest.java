@@ -20,6 +20,7 @@ import com.awap.engine.infrastructure.NodeExecutionRepository;
 import com.awap.identity.domain.Role;
 import com.awap.identity.domain.User;
 import com.awap.identity.infrastructure.UserRepository;
+import com.awap.task.application.ApprovalTaskRequest;
 import com.awap.task.application.TaskService;
 import com.awap.task.interfaces.dto.TaskRequest;
 import com.awap.webhook.application.WebhookAttemptResult;
@@ -189,9 +190,10 @@ class NodeExecutorTest {
     executor.executeNode(
         instance, node("approve", NodeType.APPROVAL, "{\"approvers\":[\"role:UNKNOWN_ROLE\"]}"));
 
-    ArgumentCaptor<TaskRequest> captor = ArgumentCaptor.forClass(TaskRequest.class);
-    verify(taskService).create(eq(tenantId), captor.capture());
+    ArgumentCaptor<ApprovalTaskRequest> captor = ArgumentCaptor.forClass(ApprovalTaskRequest.class);
+    verify(taskService).createApprovalForNode(eq(tenantId), captor.capture());
     assertThat(captor.getValue().assigneeId()).isNull();
+    assertThat(captor.getValue().approvers()).containsExactly("role:UNKNOWN_ROLE");
   }
 
   @Test
@@ -205,8 +207,8 @@ class NodeExecutorTest {
     executor.executeNode(
         instance, node("approve", NodeType.APPROVAL, "{\"approvers\":[\"role:TENANT_ADMIN\"]}"));
 
-    ArgumentCaptor<TaskRequest> captor = ArgumentCaptor.forClass(TaskRequest.class);
-    verify(taskService).create(eq(tenantId), captor.capture());
+    ArgumentCaptor<ApprovalTaskRequest> captor = ArgumentCaptor.forClass(ApprovalTaskRequest.class);
+    verify(taskService).createApprovalForNode(eq(tenantId), captor.capture());
     assertThat(captor.getValue().assigneeId()).isEqualTo(admin.getId());
   }
 

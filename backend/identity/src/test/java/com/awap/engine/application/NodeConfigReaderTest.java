@@ -146,6 +146,15 @@ class NodeConfigReaderTest {
   }
 
   @Test
+  void readApprovalSlaMinutesDefaultsAndClamps() {
+    assertThat(reader.readApprovalSlaMinutes(node("{}"))).isEqualTo(60);
+    assertThat(reader.readApprovalSlaMinutes(node("{\"approvalSlaMinutes\":15}"))).isEqualTo(15);
+    assertThat(reader.readApprovalSlaMinutes(node("{\"approvalSlaMinutes\":0}"))).isEqualTo(1);
+    assertThat(reader.readApprovalSlaMinutes(node("{\"approvalSlaMinutes\":99999}")))
+        .isEqualTo(10_080);
+  }
+
+  @Test
   void readSubProcessVersionRejectsNonPositiveValues() {
     assertInvalidVersion("{\"version\":0}", "0");
     assertInvalidVersion("{\"version\":-1}", "-1");
