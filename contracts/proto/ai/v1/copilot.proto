@@ -64,6 +64,8 @@ message CopilotResponse {
   string correlation_id = 12;
   optional string idempotency_key = 13;
   bool cache_hit = 14;
+  optional string provider = 15;
+  optional string fallback_reason = 16;
 }
 
 // Typed error categories returned in gRPC trailing metadata (`ai-error-code`).

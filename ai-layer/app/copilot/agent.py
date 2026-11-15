@@ -30,6 +30,7 @@ from app.copilot.knowledge import (
     assess_hits,
     unavailable,
 )
+from app.copilot.llm_gateway import LlmGateway, LlmUnavailable
 from app.copilot.metrics import CopilotMetrics
 from app.copilot.models import (
     CopilotAction,
@@ -144,11 +145,22 @@ class CopilotAgent:
         knowledge_min_score: float | None = None,
         knowledge_min_hits: int | None = None,
         response_cache: ResponseCache | None = None,
+        llm_gateway: LlmGateway | None = None,
     ) -> None:
         self.tools = tools or ToolRegistry()
         self.router = router or ModelRouter()
         self.llm = llm or LlmClient()
         self.metrics = metrics or CopilotMetrics()
+        self.llm_gateway = llm_gateway or LlmGateway(
+            primary=self.llm,
+            metrics=self.metrics,
+            monthly_budget_tokens=int(os.getenv("AI_LLM_MONTHLY_BUDGET_TOKENS", "1000000")),
+            per_minute_limit=int(os.getenv("AI_LLM_RATE_LIMIT_PER_MINUTE", "60")),
+            cache_ttl_seconds=float(os.getenv("AI_LLM_CACHE_TTL_SECONDS", "30")),
+            cache_max_entries=int(os.getenv("AI_LLM_CACHE_MAX_ENTRIES", "256")),
+            cost_micros_per_token=int(os.getenv("AI_LLM_COST_MICROS_PER_TOKEN", "2")),
+            max_output_tokens=int(os.getenv("AI_LLM_MAX_OUTPUT_TOKENS", "1024")),
+        )
         self.cache = response_cache or ResponseCache(
             ttl_seconds=float(os.getenv("AI_RESPONSE_CACHE_TTL_SECONDS", "30"))
         )
@@ -250,6 +262,8 @@ class CopilotAgent:
             prompt_hash=final.get("prompt_hash", prompt_hash("chat")),
             correlation_id=security.correlation_id,
             idempotency_key=request.idempotency_key,
+            provider=final.get("provider"),
+            fallback_reason=final.get("fallback_reason"),
         )
         if cache_key is not None:
             self.metrics.increment("copilot.cache.miss")
@@ -385,6 +399,11 @@ class CopilotAgent:
             "promptVersion": PROMPT_VERSION,
             "promptHash": state.get("prompt_hash", prompt_hash("chat")),
             "tools": [call["name"] for call in state.get("tool_calls", [])],
+            "provider": state.get("provider"),
+            "fallbackReason": state.get("fallback_reason"),
+            "llmTokens": _llm_tokens(state),
+            "llmCostMicros": _llm_cost(state),
+            "cacheHit": _llm_cached(state),
             "outcome": outcome,
         }
         audit = await self.tools.invoke("audit_decision", audit_payload, security)
@@ -623,28 +642,43 @@ class CopilotAgent:
         route = state.get("route", {})
         provider_started = time.perf_counter()
         try:
-            llm_answer = await self.llm.complete(
-                state.get("prompt", ""), state["message"], route.get("model", "local-heuristic")
+            result = await self.llm_gateway.complete(
+                state.get("prompt", ""),
+                state["message"],
+                route.get("model", "local-heuristic"),
+                tenant_id=state["security"].tenant_id,
+                prompt_hash=state.get("prompt_hash", ""),
             )
+        except LlmUnavailable:
+            self.metrics.increment("copilot.llm.unavailable")
+            raise
         finally:
             self.metrics.observe(
                 "copilot.provider.duration",
                 (time.perf_counter() - provider_started) * 1_000,
                 model=route.get("model", "local-heuristic"),
             )
-        if llm_answer:
-            return self._record(
-                state,
-                ToolCall(name="llm", ok=True),
-                llm_answer,
-            )
+        state["provider"] = result.provider
+        state["fallback_reason"] = result.fallback_reason
+        state["llm_usage"] = result.usage
+        llm_call = ToolCall(
+            name="llm",
+            arguments={
+                "provider": result.provider,
+                "cached": result.cached,
+                "fallbackReason": result.fallback_reason,
+            },
+            ok=True,
+        )
+        if result.text:
+            return self._record(state, llm_call, result.text)
         name = ""
         if isinstance(user.result, dict):
             name = user.result.get("fullName") or user.result.get("email") or ""
         greeting = f"Hello {name}. " if name else ""
         return self._record(
             state,
-            ToolCall(name="llm", ok=True),
+            llm_call,
             greeting
             + "I can discover and start workflows, query and complete your tasks, assist with "
             "approvals and search tenant documents. What would you like to do?",
@@ -703,6 +737,21 @@ class CopilotAgent:
 
 def build_default_agent() -> CopilotAgent:
     return CopilotAgent()
+
+
+def _llm_tokens(state: AgentState) -> int:
+    usage = state.get("llm_usage")
+    return 0 if usage is None else usage.prompt_tokens + usage.completion_tokens
+
+
+def _llm_cost(state: AgentState) -> int:
+    usage = state.get("llm_usage")
+    return 0 if usage is None else usage.cost_micros
+
+
+def _llm_cached(state: AgentState) -> bool:
+    usage = state.get("llm_usage")
+    return bool(usage is not None and usage.cached)
 
 
 def format_tool_payload(payload: Any) -> str:

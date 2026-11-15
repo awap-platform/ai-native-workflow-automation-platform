@@ -3287,6 +3287,12 @@ components:
           nullable: true
         cache_hit:
           type: boolean
+        provider:
+          type: string
+          nullable: true
+        fallback_reason:
+          type: string
+          nullable: true
     ReplayReport:
       type: object
       description: Projection report of a deterministic log replay.

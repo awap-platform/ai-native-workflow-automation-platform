@@ -68,6 +68,8 @@ class CopilotResponse(BaseModel):
     correlation_id: str
     idempotency_key: str | None = None
     cache_hit: bool = False
+    provider: str | None = None
+    fallback_reason: str | None = None
 
 
 class WorkflowDiscoveryRequest(BaseModel):
