@@ -8,12 +8,12 @@ Pilot compatibility report for the AI layer on Python 3.15.0.
 
 | Dependency | Kind | Verified |
 |---|---|---|
-| numpy | C-based | ✅ matrix multiplication |
-| orjson | C-based | ✅ JSON round-trip |
+| grpcio | C-based | ✅ `grpc.__version__` |
+| protobuf | C-based | ✅ via `grpc` / `google.protobuf` |
 | pydantic-core | C-based | ✅ `SchemaValidator` available |
 | fastapi | pure | ✅ via `uv sync --locked` |
 | uvicorn | pure | ✅ via `uv sync --locked` |
-| langchain | pure | ✅ 1.4.5 |
+| httpx | pure | ✅ via `uv sync --locked` |
 | langgraph | pure | ✅ 1.2.15 |
 
 ## How to reproduce
@@ -37,9 +37,10 @@ uv run python compat_check.py
   [`docs/openapi/ai-layer-openapi.yaml`](../docs/openapi/ai-layer-openapi.yaml).
   A pytest contract test fails when the documented paths, status/body or
   version drift from the running app.
-- LangChain 1.4.5 and LangGraph 1.2.15 are installed and compatibility-tested on
-  Python 3.15, but **no agent, AI execution, tool or RAG endpoint is
-  implemented**. Documentation must not claim otherwise.
+- LangGraph 1.2.15 is installed and compatibility-tested on Python 3.15. The
+  `langchain` meta-package, `numpy` and `orjson` were removed because the code
+  never imported them (issue #295 / ADR-0009). `scripts/check-python-deps.mjs`
+  fails CI when a runtime dependency is unused.
 - `/api/v1/health/ready` is dependency-aware: with
   `AI_LAYER_DEPENDENCY_URL` set, an unreachable dependency produces HTTP 503
   with `status: DOWN` and the dependency exception name.

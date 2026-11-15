@@ -11,12 +11,12 @@ FastAPI service for the AI layer. This README describes what the service does
 | `GET /api/v1/health/live` | Implemented | Kubernetes liveness probe |
 | `GET /api/v1/health/ready` | Implemented | Dependency-aware readiness (503 when down) |
 | Versioned OpenAPI contract | Implemented | [contract](../docs/openapi/ai-layer-openapi.yaml) |
-| LangChain / LangGraph | Implemented | LangGraph agent graph, fallback-safe import |
+| LangGraph | Implemented | Agent graph with a fallback-safe optional import; `langchain` is not installed (ADR-0009) |
 | Copilot chat/tasks/approvals | Implemented | `app/api/copilot.py` and `app/copilot/agent.py` |
 | Permission-checked tools | Implemented | `create_workflow_instance`, `assign_task`, `find_workflow`, `get_user`, `send_notification`, `search_documents`, `create_approval`, `query_tasks`, `complete_task`, `audit_decision` |
 | Versioned prompts | Implemented | `app/prompts/*-v1.md`, reported as `prompt_version` |
 | Knowledge search | Implemented | Calls the backend tenant-scoped knowledge endpoint |
-| RAG / vector store | Not implemented | No embedding/vector store dependency is configured |
+| Knowledge retrieval | Implemented in the backend | Hybrid lexical/vector OpenSearch search; the AI layer calls the backend `search_documents` tool |
 
 The backend now calls the AI layer through the authenticated `/api/v1/copilot/*` proxy when
 `AI_COPILOT_ENABLED=true`. The AI layer calls back into the backend's `/internal/tools/*` API with
@@ -74,6 +74,7 @@ OpenAPI JSON is served at `/api/v1/openapi.json`. The versioned human contract i
 
 ## Compatibility
 
-See [`COMPATIBILITY.md`](COMPATIBILITY.md) for the Python 3.15 / LangChain /
-LangGraph compatibility notes. The dependencies are installed and smoke-tested,
-but they are not used by the current health-only service.
+See [`COMPATIBILITY.md`](COMPATIBILITY.md) for the Python 3.15 / LangGraph
+compatibility notes. The `langchain` meta-package was removed because it was
+never imported; [`docs/adr/0009-ai-langgraph-not-langchain.md`](../docs/adr/0009-ai-langgraph-not-langchain.md)
+records the decision and CI enforces that every runtime dependency is used.

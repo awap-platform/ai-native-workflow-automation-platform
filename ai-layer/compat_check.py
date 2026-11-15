@@ -10,18 +10,9 @@ import sys
 def main() -> int:
     assert sys.version_info >= (3, 15), f"Expected Python 3.15+, got {sys.version}"
 
-    import numpy as np
+    import grpc
 
-    matrix_a = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float64)
-    matrix_b = np.array([[5.0, 6.0], [7.0, 8.0]], dtype=np.float64)
-    product = matrix_a @ matrix_b
-    assert product.shape == (2, 2)
-    assert float(product[0, 0]) == 19.0
-
-    import orjson
-
-    payload = orjson.dumps({"status": "ok"})
-    assert orjson.loads(payload)["status"] == "ok"
+    assert grpc.__version__
 
     import pydantic_core
 
