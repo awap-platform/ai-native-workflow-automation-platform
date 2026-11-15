@@ -201,3 +201,10 @@ provider and budget counters are untouched on a rejected call.
   `frontend/e2e/copilot-live-provider.spec.ts` variant is gated by `E2E_AI_LIVE_PROVIDER=1` and a
   configured OpenAI-compatible provider; PR CI always uses the deterministic local heuristic.
 - Existing AI node, SCRIPT sandbox, notification and engine suites remain unchanged.
+
+## Prompt governance
+
+Prompt files are immutable, versioned, hashed and gated by CI. See
+[ADR-0008](adr/0008-ai-prompt-versioning-and-change-control.md). Every response reports
+`prompt_key`, `prompt_version` and `prompt_hash`; the `audit_decision` tool receives the same
+metadata, so a decision can be traced back to the exact immutable prompt file.

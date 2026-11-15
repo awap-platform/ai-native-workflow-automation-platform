@@ -62,7 +62,9 @@ class CopilotResponse(BaseModel):
     data: Any = None
     model: str | None = None
     model_tier: str | None = None
+    prompt_key: str
     prompt_version: str
+    prompt_hash: str
     correlation_id: str
     idempotency_key: str | None = None
 
@@ -101,8 +103,10 @@ class PromptDescriptor(BaseModel):
     key: str
     version: str
     path: str
+    sha256: str
 
 
 class MetricsResponse(BaseModel):
     counters: dict[str, int]
     prompt_version: str
+    prompt_hashes: dict[str, str] = Field(default_factory=dict)

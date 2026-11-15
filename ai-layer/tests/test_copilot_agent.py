@@ -136,6 +136,17 @@ def test_prompt_injection_never_reaches_a_tool() -> None:
     assert not any(name in dangerous_tools for name, _ in client.calls)
 
 
+def test_audit_payload_carries_prompt_key_version_and_hash() -> None:
+    client = FakeClient()
+    response = run(CopilotRequest(message="hello"), client=client)
+
+    payload = next(payload for name, payload in client.calls if name == "audit_decision")
+    assert payload["promptKey"] == "chat"
+    assert payload["promptVersion"] == "v1"
+    assert payload["promptHash"] == response.prompt_hash
+    assert len(payload["promptHash"]) == 64
+
+
 def test_low_permission_employee_cannot_start_a_workflow() -> None:
     response = run(
         CopilotRequest(

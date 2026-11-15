@@ -20,7 +20,7 @@ from app.copilot.models import (
     WorkflowDiscoveryRequest,
     WorkflowInitiationRequest,
 )
-from app.copilot.prompts import PROMPT_VERSION, describe_prompts
+from app.copilot.prompts import PROMPT_VERSION, describe_prompts, prompt_hash
 
 router = APIRouter(prefix="/copilot", tags=["copilot"])
 
@@ -180,4 +180,9 @@ async def metrics(
     agent: CopilotAgent = Depends(get_agent),
     _security: SecurityContext = Depends(security_context),
 ) -> MetricsResponse:
-    return MetricsResponse(counters=agent.metrics.snapshot(), prompt_version=PROMPT_VERSION)
+    prompts = describe_prompts()
+    return MetricsResponse(
+        counters=agent.metrics.snapshot(),
+        prompt_version=PROMPT_VERSION,
+        prompt_hashes={descriptor.key: prompt_hash(descriptor.key) for descriptor in prompts},
+    )
