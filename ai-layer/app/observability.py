@@ -20,12 +20,17 @@ from starlette.responses import Response
 
 CORRELATION_HEADER = "X-Correlation-Id"
 CORRELATION_LOG_FIELD = "correlationId"
+TENANT_HEADER = "X-Tenant-Id"
+TRACE_HEADER = "X-Trace-Id"
+SERVICE_NAME = "ai-layer"
 MAX_LENGTH = 64
 _SAFE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$")
 
 correlation_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
     "correlation_id", default=""
 )
+tenant_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("tenant_id", default="")
+trace_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("trace_id", default="")
 logger = logging.getLogger("awap.ai_layer")
 
 
@@ -43,11 +48,18 @@ def current_correlation_id() -> str:
     return correlation_id_var.get()
 
 
+def current_tenant_id() -> str:
+    return tenant_id_var.get()
+
+
 class JsonFormatter(logging.Formatter):
-    """Minimal JSON formatter that always includes the active correlation ID."""
+    """Structured log contract shared with the backend log pipeline (issue #286)."""
 
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, object] = {
+            "service": SERVICE_NAME,
+            "tenantId": current_tenant_id(),
+            "traceId": trace_id_var.get(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -80,10 +92,14 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
         candidate = request.headers.get(CORRELATION_HEADER)
         correlation_id = resolve(candidate)
         token = correlation_id_var.set(correlation_id)
+        tenant_token = tenant_id_var.set(request.headers.get(TENANT_HEADER, ""))
+        trace_token = trace_id_var.set(request.headers.get(TRACE_HEADER, ""))
         try:
             response = await call_next(request)
             response.headers[CORRELATION_HEADER] = correlation_id
             logger.info("HTTP %s %s -> %s", request.method, request.url.path, response.status_code)
             return response
         finally:
+            trace_id_var.reset(trace_token)
+            tenant_id_var.reset(tenant_token)
             correlation_id_var.reset(token)

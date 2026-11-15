@@ -2454,6 +2454,85 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
 
+  /api/v1/logs/search:
+    get:
+      operationId: searchLogs
+      summary: Search operational logs by correlation ID
+      description: >-
+        Tenant-scoped search over the daily OpenSearch log indices. The tenant filter is always
+        derived from the authenticated session; callers cannot query another tenant. Messages are
+        redacted before they are returned.
+      tags: [Analytics]
+      parameters:
+        - name: correlationId
+          in: query
+          required: false
+          description: Correlation ID shared by backend and AI-layer log entries.
+          schema:
+            type: string
+            maxLength: 64
+        - name: from
+          in: query
+          required: false
+          description: Inclusive start instant (UTC). Defaults to 24 hours before `to`.
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          description: Inclusive end instant (UTC). Defaults to now.
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          description: Maximum rows (1-200).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        "200":
+          description: Tenant-scoped log entries.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [available, total, logs]
+                properties:
+                  available:
+                    type: boolean
+                  total:
+                    type: integer
+                    format: int64
+                  logs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/LogEventResponse"
+        "400":
+          description: The window or limit is invalid.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The caller does not hold INSTANCE_READ.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "503":
+          description: Log search is unavailable because OpenSearch is down.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
   /api/v1/webhook-deliveries:
     get:
       operationId: listWebhookDeliveries
@@ -3952,6 +4031,36 @@ components:
         p95DurationMs:
           type: integer
           format: int64
+
+    LogEventResponse:
+      type: object
+      required:
+        - tenantId
+        - service
+        - level
+        - logger
+        - message
+        - correlationId
+        - traceId
+        - timestamp
+      properties:
+        tenantId:
+          type: string
+        service:
+          type: string
+        level:
+          type: string
+        logger:
+          type: string
+        message:
+          type: string
+        correlationId:
+          type: string
+        traceId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
 
     NotificationTemplateResponse:
       type: object
