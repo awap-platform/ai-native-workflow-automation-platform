@@ -5,6 +5,7 @@ import {
   createDocumentUpload,
   createFormDefinition,
   createWorkflowDefinition,
+  fetchAnalyticsDashboard,
   fetchAnalyticsSummary,
   fetchFormDefinition,
   fetchFormDefinitions,
@@ -186,6 +187,20 @@ export function useAnalyticsSummary(from?: string, to?: string) {
   return useQuery({
     queryKey: queryKeys.analytics.summary(from, to),
     queryFn: () => fetchAnalyticsSummary(from, to),
+  });
+}
+
+/** Advanced dashboard aggregations (percentiles, rates, bottlenecks and trends). */
+export function useAnalyticsDashboard(
+  from?: string,
+  to?: string,
+  granularity?: "DAY" | "WEEK" | "MONTH",
+  groupBy?: "EVENT_TYPE" | "NODE" | "WORKFLOW",
+  limit?: number,
+) {
+  return useQuery({
+    queryKey: queryKeys.analytics.dashboard(from, to, granularity, groupBy, limit),
+    queryFn: () => fetchAnalyticsDashboard({ from, to, granularity, groupBy, limit }),
   });
 }
 

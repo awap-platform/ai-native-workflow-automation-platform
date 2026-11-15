@@ -9,6 +9,7 @@
 # The ArchUnit test fails when this list and the annotated domain classes differ.
 com.awap.ai.domain.AutomationAudit
 com.awap.analytics.domain.AnalyticsAggregate
+com.awap.analytics.domain.AnalyticsEventSample
 com.awap.document.domain.DocumentVersion
 com.awap.engine.domain.ExecutionContext
 com.awap.engine.domain.ExecutionLog

@@ -8,8 +8,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.awap.analytics.domain.AnalyticsAggregate;
+import com.awap.analytics.domain.AnalyticsEventSample;
 import com.awap.analytics.domain.AnalyticsEventType;
 import com.awap.analytics.infrastructure.AnalyticsAggregateRepository;
+import com.awap.analytics.infrastructure.AnalyticsEventSampleRepository;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.LocalDate;
 import java.util.Optional;
@@ -94,6 +96,39 @@ class AnalyticsServiceTest {
     assertThat(existing.getEventCount()).isEqualTo(2);
     assertThat(existing.getTotalDurationMs()).isEqualTo(500L);
     verify(repository).save(existing);
+  }
+
+  @Test
+  void persistsARawSampleAndAddsTheNodeIdToTheSinkDocument() {
+    AnalyticsAggregateRepository repository = mock(AnalyticsAggregateRepository.class);
+    AnalyticsEventSink sink = mock(AnalyticsEventSink.class);
+    AnalyticsEventSampleRepository samples = mock(AnalyticsEventSampleRepository.class);
+    when(repository.findByTenantIdAndDayAndEventType(
+            any(), any(LocalDate.class), eq("TASK_COMPLETED")))
+        .thenReturn(Optional.empty());
+    AnalyticsService service = new AnalyticsService(meterRegistry, repository, sink, samples);
+    UUID tenant = UUID.randomUUID();
+    UUID instance = UUID.randomUUID();
+    UUID task = UUID.randomUUID();
+
+    service.record(tenant, AnalyticsEventType.TASK_COMPLETED, instance, task, "approval", 250L);
+
+    verify(samples)
+        .save(
+            org.mockito.ArgumentMatchers.argThat(
+                (AnalyticsEventSample sample) ->
+                    sample.getTenantId().equals(tenant)
+                        && sample.getEventType().equals("TASK_COMPLETED")
+                        && sample.getWorkflowInstanceId().equals(instance)
+                        && sample.getTaskId().equals(task)
+                        && "approval".equals(sample.getNodeId())
+                        && sample.getDurationMs() == 250L));
+    verify(sink)
+        .write(
+            org.mockito.ArgumentMatchers.argThat(
+                map ->
+                    "TASK_COMPLETED".equals(map.get("eventType"))
+                        && "approval".equals(map.get("nodeId"))));
   }
 
   @Test

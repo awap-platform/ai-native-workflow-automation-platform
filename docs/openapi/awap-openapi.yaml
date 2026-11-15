@@ -2280,6 +2280,179 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AnalyticsAggregateResponse"
+        "400":
+          description: The date range is invalid.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/analytics/dashboard:
+    get:
+      operationId: getAnalyticsDashboard
+      summary: Get advanced analytics aggregations
+      description: >-
+        Returns authoritative daily totals plus exact duration percentiles, task cycle time,
+        approval latency, failure and SLA-breach rates, node bottleneck rankings, grouped
+        summaries and a trend comparison. Dates are interpreted in UTC and the window is bounded
+        to 366 days.
+      tags: [Analytics]
+      parameters:
+        - name: from
+          in: query
+          required: false
+          description: Inclusive start date (UTC). Defaults to six days before `to`.
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          description: Inclusive end date (UTC). Defaults to today.
+          schema:
+            type: string
+            format: date
+        - name: granularity
+          in: query
+          required: false
+          description: Time bucket size. WEEK starts on ISO Monday, MONTH on the first day.
+          schema:
+            type: string
+            enum: [DAY, WEEK, MONTH]
+            default: DAY
+        - name: groupBy
+          in: query
+          required: false
+          description: Dimension used for the grouped summary.
+          schema:
+            type: string
+            enum: [EVENT_TYPE, NODE, WORKFLOW]
+            default: EVENT_TYPE
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of group and bottleneck rows (1-50).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        "200":
+          description: Advanced dashboard aggregations.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - from
+                  - to
+                  - granularity
+                  - timezone
+                  - dataCompleteness
+                  - dailyTotals
+                  - timeBuckets
+                  - workflowDuration
+                  - taskCycleTime
+                  - approvalLatency
+                  - failureRate
+                  - slaBreachRate
+                  - bottlenecks
+                  - groups
+                  - trend
+                properties:
+                  from:
+                    type: string
+                    format: date
+                  to:
+                    type: string
+                    format: date
+                  granularity:
+                    type: string
+                    enum: [DAY, WEEK, MONTH]
+                  timezone:
+                    type: string
+                    example: UTC
+                  dataCompleteness:
+                    type: object
+                    required: [dailyTotalsAvailable, rawEventsAvailable, sampleCount]
+                    properties:
+                      dailyTotalsAvailable:
+                        type: boolean
+                      rawEventsAvailable:
+                        type: boolean
+                      sampleCount:
+                        type: integer
+                        format: int64
+                  dailyTotals:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AnalyticsAggregateResponse"
+                  timeBuckets:
+                    type: array
+                    items:
+                      type: object
+                      required: [bucket, total, counts]
+                      properties:
+                        bucket:
+                          type: string
+                        total:
+                          type: integer
+                          format: int64
+                        counts:
+                          type: object
+                          additionalProperties:
+                            type: integer
+                            format: int64
+                  workflowDuration:
+                    $ref: "#/components/schemas/AnalyticsPercentileSet"
+                  taskCycleTime:
+                    $ref: "#/components/schemas/AnalyticsPercentileSet"
+                  approvalLatency:
+                    $ref: "#/components/schemas/AnalyticsPercentileSet"
+                  failureRate:
+                    type: number
+                    format: double
+                  slaBreachRate:
+                    type: number
+                    format: double
+                  bottlenecks:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AnalyticsBottleneck"
+                  groups:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AnalyticsGroupSummary"
+                  trend:
+                    type: object
+                    required: [currentCount, previousCount, delta]
+                    properties:
+                      currentCount:
+                        type: integer
+                        format: int64
+                      previousCount:
+                        type: integer
+                        format: int64
+                      delta:
+                        type: integer
+                        format: int64
+        "400":
+          description: The range, granularity, groupBy or limit is invalid.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The caller does not hold INSTANCE_READ.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
 
   /api/v1/webhook-deliveries:
     get:
@@ -3721,6 +3894,62 @@ components:
           type: integer
           format: int64
         averageDurationMs:
+          type: integer
+          format: int64
+
+    AnalyticsPercentileSet:
+      type: object
+      required: [sampleCount]
+      properties:
+        p50:
+          type: integer
+          format: int64
+          nullable: true
+        p90:
+          type: integer
+          format: int64
+          nullable: true
+        p95:
+          type: integer
+          format: int64
+          nullable: true
+        p99:
+          type: integer
+          format: int64
+          nullable: true
+        sampleCount:
+          type: integer
+          format: int64
+
+    AnalyticsBottleneck:
+      type: object
+      required: [nodeId, count, averageDurationMs, p95DurationMs]
+      properties:
+        nodeId:
+          type: string
+        count:
+          type: integer
+          format: int64
+        averageDurationMs:
+          type: integer
+          format: int64
+        p95DurationMs:
+          type: integer
+          format: int64
+
+    AnalyticsGroupSummary:
+      type: object
+      required: [key, count, averageDurationMs, p95DurationMs]
+      properties:
+        key:
+          type: string
+        count:
+          type: integer
+          format: int64
+        averageDurationMs:
+          type: integer
+          format: int64
+        p95DurationMs:
           type: integer
           format: int64
 

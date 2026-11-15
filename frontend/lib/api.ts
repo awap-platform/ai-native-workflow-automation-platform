@@ -484,6 +484,92 @@ export function fetchAnalyticsSummary(
   return authFetch<AnalyticsAggregateDto[]>(`/api/v1/analytics/summary${query ? `?${query}` : ""}`);
 }
 
+export interface AnalyticsPercentileSetDto {
+  p50: number | null;
+  p90: number | null;
+  p95: number | null;
+  p99: number | null;
+  sampleCount: number;
+}
+
+export interface AnalyticsTimeBucketDto {
+  bucket: string;
+  total: number;
+  counts: Record<string, number>;
+}
+
+export interface AnalyticsBottleneckDto {
+  nodeId: string;
+  count: number;
+  averageDurationMs: number;
+  p95DurationMs: number;
+}
+
+export interface AnalyticsGroupSummaryDto {
+  key: string;
+  count: number;
+  averageDurationMs: number;
+  p95DurationMs: number;
+}
+
+export interface AnalyticsDashboardDto {
+  from: string;
+  to: string;
+  granularity: string;
+  timezone: string;
+  dataCompleteness: {
+    dailyTotalsAvailable: boolean;
+    rawEventsAvailable: boolean;
+    sampleCount: number;
+  };
+  dailyTotals: AnalyticsAggregateDto[];
+  timeBuckets: AnalyticsTimeBucketDto[];
+  workflowDuration: AnalyticsPercentileSetDto;
+  taskCycleTime: AnalyticsPercentileSetDto;
+  approvalLatency: AnalyticsPercentileSetDto;
+  failureRate: number;
+  slaBreachRate: number;
+  bottlenecks: AnalyticsBottleneckDto[];
+  groups: AnalyticsGroupSummaryDto[];
+  trend: {
+    currentCount: number;
+    previousCount: number;
+    delta: number;
+  };
+}
+
+export interface AnalyticsDashboardParams {
+  from?: string | undefined;
+  to?: string | undefined;
+  granularity?: "DAY" | "WEEK" | "MONTH" | undefined;
+  groupBy?: "EVENT_TYPE" | "NODE" | "WORKFLOW" | undefined;
+  limit?: number | undefined;
+}
+
+/** Advanced dashboard aggregations; every value comes from the backend contract. */
+export function fetchAnalyticsDashboard(
+  params: AnalyticsDashboardParams = {},
+): Promise<AnalyticsDashboardDto> {
+  const search = new URLSearchParams();
+  if (params.from) {
+    search.set("from", params.from);
+  }
+  if (params.to) {
+    search.set("to", params.to);
+  }
+  if (params.granularity) {
+    search.set("granularity", params.granularity);
+  }
+  if (params.groupBy) {
+    search.set("groupBy", params.groupBy);
+  }
+  if (params.limit !== undefined) {
+    search.set("limit", String(params.limit));
+  }
+  const query = search.toString();
+  return authFetch<AnalyticsDashboardDto>(`/api/v1/analytics/dashboard${query ? `?${query}` : ""}`);
+}
+
 export interface DocumentVersionDto {
   id: string;
   fileId: string;

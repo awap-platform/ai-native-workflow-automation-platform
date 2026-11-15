@@ -1,5 +1,8 @@
 package com.awap.analytics.interfaces.api;
 
+import com.awap.analytics.application.AnalyticsAggregationService;
+import com.awap.analytics.application.AnalyticsDashboard;
+import com.awap.analytics.application.AnalyticsDashboardQuery;
 import com.awap.analytics.application.AnalyticsService;
 import com.awap.analytics.domain.AnalyticsAggregate;
 import com.awap.common.api.AwapException;
@@ -23,9 +26,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class AnalyticsController {
 
   private final AnalyticsService analyticsService;
+  private final AnalyticsAggregationService aggregationService;
 
-  public AnalyticsController(AnalyticsService analyticsService) {
+  public AnalyticsController(
+      AnalyticsService analyticsService, AnalyticsAggregationService aggregationService) {
     this.analyticsService = analyticsService;
+    this.aggregationService = aggregationService;
   }
 
   @GetMapping("/summary")
@@ -39,17 +45,35 @@ public class AnalyticsController {
       throw new AwapException(
           ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "from must not be after to.");
     }
-    UUID tenantId =
-        TenantContext.current()
-            .map(TenantContext.Context::tenantId)
-            .orElseThrow(
-                () ->
-                    new AwapException(
-                        ErrorCode.UNAUTHORIZED,
-                        HttpStatus.UNAUTHORIZED,
-                        "Authentication is required."));
     return ResponseEntity.ok(
-        analyticsService.summary(tenantId, start, end).stream().map(this::toResponse).toList());
+        analyticsService.summary(requireTenantId(), start, end).stream()
+            .map(this::toResponse)
+            .toList());
+  }
+
+  /** Advanced aggregations (issue #285): percentiles, rates, bottlenecks and trend windows. */
+  @GetMapping("/dashboard")
+  @PreAuthorize("hasAuthority('INSTANCE_READ')")
+  public ResponseEntity<AnalyticsDashboard> dashboard(
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+      @RequestParam(required = false) String granularity,
+      @RequestParam(required = false) String groupBy,
+      @RequestParam(required = false) Integer limit) {
+    AnalyticsDashboardQuery query =
+        AnalyticsDashboardQuery.of(from, to, granularity, groupBy, limit);
+    return ResponseEntity.ok(aggregationService.dashboard(requireTenantId(), query));
+  }
+
+  private static UUID requireTenantId() {
+    return TenantContext.current()
+        .map(TenantContext.Context::tenantId)
+        .orElseThrow(
+            () ->
+                new AwapException(
+                    ErrorCode.UNAUTHORIZED,
+                    HttpStatus.UNAUTHORIZED,
+                    "Authentication is required."));
   }
 
   private AnalyticsAggregateResponse toResponse(AnalyticsAggregate aggregate) {

@@ -1,10 +1,13 @@
 package com.awap.analytics.application;
 
 import com.awap.analytics.domain.AnalyticsAggregate;
+import com.awap.analytics.domain.AnalyticsEventSample;
 import com.awap.analytics.domain.AnalyticsEventType;
 import com.awap.analytics.infrastructure.AnalyticsAggregateRepository;
+import com.awap.analytics.infrastructure.AnalyticsEventSampleRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
@@ -26,25 +29,36 @@ public class AnalyticsService {
   private final MeterRegistry meterRegistry;
   private final AnalyticsAggregateRepository aggregateRepository;
   private final AnalyticsEventSink eventSink;
+  private final AnalyticsEventSampleRepository sampleRepository;
 
   /** Backward-compatible test constructor. */
   AnalyticsService(MeterRegistry meterRegistry) {
-    this(meterRegistry, null, null);
+    this(meterRegistry, null, null, null);
+  }
+
+  /** Backward-compatible test constructor without the raw-event sample store. */
+  AnalyticsService(
+      MeterRegistry meterRegistry,
+      AnalyticsAggregateRepository aggregateRepository,
+      AnalyticsEventSink eventSink) {
+    this(meterRegistry, aggregateRepository, eventSink, null);
   }
 
   @Autowired
   public AnalyticsService(
       MeterRegistry meterRegistry,
       AnalyticsAggregateRepository aggregateRepository,
-      AnalyticsEventSink eventSink) {
+      AnalyticsEventSink eventSink,
+      AnalyticsEventSampleRepository sampleRepository) {
     this.meterRegistry = meterRegistry;
     this.aggregateRepository = aggregateRepository;
     this.eventSink = eventSink;
+    this.sampleRepository = sampleRepository;
   }
 
   public void record(
       UUID tenantId, AnalyticsEventType type, UUID workflowInstanceId, long durationMs) {
-    record(tenantId, type, workflowInstanceId, null, durationMs);
+    record(tenantId, type, workflowInstanceId, null, null, durationMs);
   }
 
   public void record(
@@ -52,6 +66,16 @@ public class AnalyticsService {
       AnalyticsEventType type,
       UUID workflowInstanceId,
       UUID taskId,
+      long durationMs) {
+    record(tenantId, type, workflowInstanceId, taskId, null, durationMs);
+  }
+
+  public void record(
+      UUID tenantId,
+      AnalyticsEventType type,
+      UUID workflowInstanceId,
+      UUID taskId,
+      String nodeId,
       long durationMs) {
     Timer timer =
         Timer.builder("awap.process.duration")
@@ -83,7 +107,8 @@ public class AnalyticsService {
     }
 
     upsertAggregate(tenantId, type, durationMs);
-    writeRaw(tenantId, type, workflowInstanceId, taskId, durationMs);
+    writeRaw(tenantId, type, workflowInstanceId, taskId, nodeId, durationMs);
+    persistSample(tenantId, type, workflowInstanceId, taskId, nodeId, durationMs);
   }
 
   public List<AnalyticsAggregate> summary(UUID tenantId, LocalDate from, LocalDate to) {
@@ -112,6 +137,7 @@ public class AnalyticsService {
       AnalyticsEventType type,
       UUID workflowInstanceId,
       UUID taskId,
+      String nodeId,
       long durationMs) {
     if (eventSink == null) {
       return;
@@ -122,8 +148,24 @@ public class AnalyticsService {
     document.put(
         "workflowInstanceId", workflowInstanceId == null ? null : workflowInstanceId.toString());
     document.put("taskId", taskId == null ? null : taskId.toString());
+    document.put("nodeId", nodeId);
     document.put("durationMs", durationMs);
-    document.put("timestamp", java.time.Instant.now().toString());
+    document.put("timestamp", Instant.now().toString());
     eventSink.write(document);
+  }
+
+  private void persistSample(
+      UUID tenantId,
+      AnalyticsEventType type,
+      UUID workflowInstanceId,
+      UUID taskId,
+      String nodeId,
+      long durationMs) {
+    if (sampleRepository == null) {
+      return;
+    }
+    sampleRepository.save(
+        AnalyticsEventSample.of(
+            tenantId, type, workflowInstanceId, taskId, nodeId, durationMs, Instant.now()));
   }
 }
