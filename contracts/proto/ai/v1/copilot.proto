@@ -1,0 +1,106 @@
+// Versioned backend <-> AI-layer contract (issue #291).
+//
+// Compatibility rules:
+//   * Never reuse a field number.
+//   * Never change a field number or its type.
+//   * Add new fields with new numbers; readers ignore unknown fields.
+//   * Remove a field only after every client has migrated, and record the removal in the baseline.
+// `scripts/check-proto-compatibility.mjs` enforces these rules against `ai/v1/baseline.json`.
+
+syntax = "proto3";
+
+package ai.v1;
+
+import "google/protobuf/struct.proto";
+
+option java_multiple_files = true;
+option java_package = "com.awap.ai.grpc.v1";
+option java_outer_classname = "CopilotProto";
+
+// Caller context forwarded by the backend. The AI layer never trusts a model to supply these.
+message SecurityContext {
+  string tenant_id = 1;
+  string user_id = 2;
+  string role = 3;
+  repeated string permissions = 4;
+  string correlation_id = 5;
+  string access_token = 6;
+}
+
+// One natural-language Copilot request. `deadline_ms` is advisory metadata in addition to the
+// gRPC deadline so the AI layer can report the caller's intent.
+message CopilotRequest {
+  string message = 1;
+  optional string action = 2;
+  google.protobuf.Struct context = 3;
+  optional string idempotency_key = 4;
+  bool confirm_high_risk = 5;
+  SecurityContext security = 6;
+  int64 deadline_ms = 7;
+}
+
+// A tool invocation and its result. `result` is a Value so lists and scalars survive the trip.
+message ToolCall {
+  string name = 1;
+  google.protobuf.Struct arguments = 2;
+  google.protobuf.Value result = 3;
+  bool ok = 4;
+  optional string error = 5;
+}
+
+// Stable response envelope; field names intentionally match the REST JSON contract.
+message CopilotResponse {
+  string answer = 1;
+  string action = 2;
+  double confidence = 3;
+  bool requires_human_approval = 4;
+  repeated ToolCall tool_calls = 5;
+  google.protobuf.Value data = 6;
+  optional string model = 7;
+  optional string model_tier = 8;
+  string prompt_key = 9;
+  string prompt_version = 10;
+  string prompt_hash = 11;
+  string correlation_id = 12;
+  optional string idempotency_key = 13;
+  bool cache_hit = 14;
+}
+
+// Typed error categories returned in gRPC trailing metadata (`ai-error-code`).
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  INVALID_ARGUMENT = 1;
+  UNAUTHENTICATED = 2;
+  FORBIDDEN = 3;
+  DEADLINE_EXCEEDED = 4;
+  UNAVAILABLE = 5;
+  INTERNAL = 6;
+}
+
+// Error payload; the enum is also mirrored into `ai-error-code` trailing metadata.
+message AiError {
+  ErrorCode code = 1;
+  string message = 2;
+  bool retryable = 3;
+}
+
+// Immutable audit record for one Copilot turn.
+message AuditEvent {
+  string action = 1;
+  double confidence = 2;
+  bool requires_human_approval = 3;
+  optional string model = 4;
+  optional string model_tier = 5;
+  string prompt_key = 6;
+  string prompt_version = 7;
+  string prompt_hash = 8;
+  repeated string tools = 9;
+  string outcome = 10;
+  string correlation_id = 11;
+  optional string idempotency_key = 12;
+}
+
+service CopilotService {
+  // Run one Copilot turn. The deadline and metadata carry the security context and correlation id.
+  rpc Chat(CopilotRequest) returns (CopilotResponse);
+}

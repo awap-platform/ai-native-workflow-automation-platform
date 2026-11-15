@@ -5,10 +5,12 @@ COPY backend/pom.xml pom.xml
 COPY backend/checkstyle.xml checkstyle.xml
 COPY backend/common/pom.xml common/pom.xml
 COPY backend/identity/pom.xml identity/pom.xml
+# Issue #291: the shared protobuf contract lives outside the Maven module tree.
+COPY contracts/proto contracts/proto
 RUN mvn -B -q -DskipTests dependency:go-offline
 COPY backend/common/src common/src
 COPY backend/identity/src identity/src
-RUN mvn -B -q -DskipTests package
+RUN mvn -B -q -DskipTests -Dproto.root=/app/contracts/proto package
 
 # Runtime stage
 FROM eclipse-temurin:25-jre

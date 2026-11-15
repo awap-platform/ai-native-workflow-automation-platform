@@ -3,6 +3,7 @@ package com.awap.ai.infrastructure;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -12,6 +13,7 @@ import com.awap.common.correlation.CorrelationId;
 import com.awap.identity.infrastructure.security.TenantContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.grpc.Status;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
@@ -27,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.ObjectProvider;
 
 /** Transport contract between the backend and the AI layer Copilot service. */
 class AiCopilotClientTest {
@@ -47,6 +50,17 @@ class AiCopilotClientTest {
         registry);
   }
 
+  private AiCopilotClient grpcClient(GrpcCopilotTransport transport) {
+    return new AiCopilotClient(
+        httpClient,
+        objectMapper,
+        "http://ai.local/",
+        "service-secret",
+        Duration.ofSeconds(2),
+        registry,
+        transport);
+  }
+
   @AfterEach
   void clearThreadLocals() {
     TenantContext.clear();
@@ -65,9 +79,12 @@ class AiCopilotClientTest {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
   void theAutowiredConstructorClampsTheTimeoutToASafeMinimum() {
+    ObjectProvider<GrpcCopilotTransport> transport = mock(ObjectProvider.class);
+    org.mockito.Mockito.when(transport.getIfAvailable()).thenReturn(null);
     AiCopilotClient real =
-        new AiCopilotClient("http://ai.local/", "token", 0L, objectMapper, registry);
+        new AiCopilotClient("http://ai.local/", "token", 0L, objectMapper, registry, transport);
 
     assertThat(real).isNotNull();
   }
@@ -243,6 +260,130 @@ class AiCopilotClientTest {
     assertThat(
             registry.get(AiLatencyMetrics.REQUEST_TIMER).tag("action", "unknown").timer().count())
         .isEqualTo(1);
+  }
+
+  @Test
+  void grpcChatReturnsTheEnvelopeWithoutCallingRest() throws Exception {
+    TenantContext.set(tenantId, userId, "TENANT_ADMIN");
+    GrpcCopilotTransport transport = mock(GrpcCopilotTransport.class);
+    JsonNode grpcResponse =
+        objectMapper.readTree(
+            "{\"answer\":\"grpc\",\"model_tier\":\"standard\",\"cache_hit\":true}");
+    doReturn(grpcResponse).when(transport).chat(any(), any(), any(), anyString(), any());
+
+    JsonNode result =
+        grpcClient(transport).forward("/api/v1/copilot/chat", objectMapper.createObjectNode());
+
+    assertThat(result).isEqualTo(grpcResponse);
+    org.mockito.Mockito.verifyNoInteractions(httpClient);
+    assertThat(
+            registry
+                .get(AiLatencyMetrics.REQUEST_TIMER)
+                .tags("tier", "standard", "action", "chat", "outcome", "SUCCESS", "cache", "hit")
+                .timer()
+                .count())
+        .isEqualTo(1);
+  }
+
+  @Test
+  void grpcUnavailableFallsBackToRest() throws Exception {
+    TenantContext.set(tenantId, userId, "TENANT_ADMIN");
+    GrpcCopilotTransport transport = mock(GrpcCopilotTransport.class);
+    doThrow(Status.UNAVAILABLE.asRuntimeException())
+        .when(transport)
+        .chat(any(), any(), any(), anyString(), any());
+    respond(200, "{\"answer\":\"rest\"}");
+
+    JsonNode result =
+        grpcClient(transport).forward("/api/v1/copilot/chat", objectMapper.createObjectNode());
+
+    assertThat(result.path("answer").asText()).isEqualTo("rest");
+    assertThat(
+            registry
+                .get("awap.ai.transport.fallback")
+                .tag("reason", "UNAVAILABLE")
+                .counter()
+                .count())
+        .isEqualTo(1.0);
+  }
+
+  @Test
+  void grpcIoFailureFallsBackToRest() throws Exception {
+    TenantContext.set(tenantId, userId, "TENANT_ADMIN");
+    GrpcCopilotTransport transport = mock(GrpcCopilotTransport.class);
+    doThrow(new IOException("socket"))
+        .when(transport)
+        .chat(any(), any(), any(), anyString(), any());
+    respond(200, "{\"answer\":\"rest\"}");
+
+    JsonNode result =
+        grpcClient(transport).forward("/api/v1/copilot/chat", objectMapper.createObjectNode());
+
+    assertThat(result.path("answer").asText()).isEqualTo("rest");
+    assertThat(registry.get("awap.ai.transport.fallback").tag("reason", "IO").counter().count())
+        .isEqualTo(1.0);
+  }
+
+  @Test
+  void grpcUnauthenticatedIsTerminalAndMapsTo401() throws Exception {
+    TenantContext.set(tenantId, userId, "TENANT_ADMIN");
+    GrpcCopilotTransport transport = mock(GrpcCopilotTransport.class);
+    doThrow(Status.UNAUTHENTICATED.asRuntimeException())
+        .when(transport)
+        .chat(any(), any(), any(), anyString(), any());
+
+    assertThatThrownBy(
+            () ->
+                grpcClient(transport)
+                    .forward("/api/v1/copilot/chat", objectMapper.createObjectNode()))
+        .isInstanceOf(AwapException.class)
+        .satisfies(ex -> assertThat(((AwapException) ex).status().value()).isEqualTo(401));
+    org.mockito.Mockito.verifyNoInteractions(httpClient);
+  }
+
+  @Test
+  void grpcPermissionDeniedIsTerminalAndMapsTo403() throws Exception {
+    TenantContext.set(tenantId, userId, "TENANT_ADMIN");
+    GrpcCopilotTransport transport = mock(GrpcCopilotTransport.class);
+    doThrow(Status.PERMISSION_DENIED.asRuntimeException())
+        .when(transport)
+        .chat(any(), any(), any(), anyString(), any());
+
+    assertThatThrownBy(
+            () ->
+                grpcClient(transport)
+                    .forward("/api/v1/copilot/chat", objectMapper.createObjectNode()))
+        .isInstanceOf(AwapException.class)
+        .satisfies(ex -> assertThat(((AwapException) ex).status().value()).isEqualTo(403));
+  }
+
+  @Test
+  void grpcInvalidArgumentIsTerminalAndMapsTo400() throws Exception {
+    TenantContext.set(tenantId, userId, "TENANT_ADMIN");
+    GrpcCopilotTransport transport = mock(GrpcCopilotTransport.class);
+    doThrow(Status.INVALID_ARGUMENT.asRuntimeException())
+        .when(transport)
+        .chat(any(), any(), any(), anyString(), any());
+
+    assertThatThrownBy(
+            () ->
+                grpcClient(transport)
+                    .forward("/api/v1/copilot/chat", objectMapper.createObjectNode()))
+        .isInstanceOf(AwapException.class)
+        .satisfies(ex -> assertThat(((AwapException) ex).status().value()).isEqualTo(400));
+  }
+
+  @Test
+  void nonChatPathsAndMissingBodiesStayOnRest() throws Exception {
+    TenantContext.set(tenantId, userId, "EMPLOYEE");
+    GrpcCopilotTransport transport = mock(GrpcCopilotTransport.class);
+    respond(200, "{}");
+
+    grpcClient(transport).forward("/api/v1/copilot/prompts", null);
+    grpcClient(transport).forward("/api/v1/copilot/chat", null);
+    grpcClient(transport).forward("/api/v1/copilot/chat", objectMapper.createArrayNode());
+
+    org.mockito.Mockito.verifyNoInteractions(transport);
   }
 
   @Test
