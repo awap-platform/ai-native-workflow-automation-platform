@@ -414,9 +414,10 @@ final class NodeExecutor {
               "AI node '" + node.getNodeId() + "' has an unsupported action.");
         }
         String prompt = configReader.readAiPrompt(node).orElse("");
+        String schema = configReader.readAiSchema(node).orElse(null);
         AiNodeService.AiNodeResult result =
             aiNodeService.evaluate(
-                instance.getTenantId(), instance.getId(), node.getNodeId(), action, prompt);
+                instance.getTenantId(), instance.getId(), node.getNodeId(), action, prompt, schema);
         if (result.requiresHumanApproval()) {
           UUID assigneeId = resolveAssignee(instance, node);
           taskService.createIfAbsentForNode(

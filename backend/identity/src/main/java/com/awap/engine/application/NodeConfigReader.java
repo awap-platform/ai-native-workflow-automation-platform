@@ -190,6 +190,15 @@ final class NodeConfigReader {
     return readText(node, "prompt");
   }
 
+  /** Reads the optional EXTRACT JSON schema as canonical JSON text (issue #287). */
+  Optional<String> readAiSchema(NodeDefinition node) {
+    JsonNode schema = readConfig(node).get("schema");
+    if (schema == null || schema.isNull()) {
+      return Optional.empty();
+    }
+    return Optional.of(schema.isTextual() ? schema.asText() : schema.toString());
+  }
+
   String readAiAction(NodeDefinition node) {
     return readText(node, "action")
         .map(value -> value.toUpperCase(java.util.Locale.ROOT))

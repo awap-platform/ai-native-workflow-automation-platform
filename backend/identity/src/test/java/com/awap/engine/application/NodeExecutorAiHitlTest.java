@@ -3,6 +3,7 @@ package com.awap.engine.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -92,7 +93,8 @@ class NodeExecutorAiHitlTest {
             eq(instance.getId()),
             eq("ai-1"),
             eq(AiNodeService.AiAction.CLASSIFY),
-            eq("classify the request")))
+            eq("classify the request"),
+            isNull()))
         .thenReturn(new AiNodeService.AiNodeResult("maybe finance", 0.35, true, false));
 
     executor.executeNode(instance, node);
@@ -111,5 +113,46 @@ class NodeExecutorAiHitlTest {
     assertThat(execution.getStatus()).isEqualTo(NodeExecutionStatus.WAITING);
     assertThat(instance.getState()).isEqualTo(WorkflowState.WAITING);
     verify(port).log(instance, "ai-1", NodeType.AI_TASK.name(), "AI_HITL_REQUIRED", null);
+  }
+
+  @Test
+  void extractNodesForwardTheSchemaToTheAiService() {
+    WorkflowInstance instance =
+        new WorkflowInstance(tenantId, UUID.randomUUID(), 1, WorkflowState.RUNNING, null, "{}");
+    String schema = "{\"required\":[\"vendor\"],\"properties\":{\"vendor\":{\"type\":\"string\"}}}";
+    NodeDefinition node =
+        new NodeDefinition(
+            tenantId,
+            UUID.randomUUID(),
+            "extract-1",
+            NodeType.AI_TASK,
+            "Extract invoice",
+            "{\"action\":\"EXTRACT\",\"prompt\":\"extract\",\"schema\":" + schema + "}",
+            0);
+    NodeExecution execution =
+        new NodeExecution(tenantId, instance.getId(), "extract-1", NodeType.AI_TASK.name());
+    when(nodeExecutionRepository.findByWorkflowInstanceIdAndNodeId(instance.getId(), "extract-1"))
+        .thenReturn(Optional.of(execution));
+    when(nodeExecutionRepository.save(any(NodeExecution.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(aiNodeService.evaluate(
+            eq(tenantId),
+            eq(instance.getId()),
+            eq("extract-1"),
+            eq(AiNodeService.AiAction.EXTRACT),
+            eq("extract"),
+            eq(schema)))
+        .thenReturn(new AiNodeService.AiNodeResult("{\"vendor\":\"Acme\"}", 0.95, false, false));
+
+    executor.executeNode(instance, node);
+
+    verify(aiNodeService)
+        .evaluate(
+            eq(tenantId),
+            eq(instance.getId()),
+            eq("extract-1"),
+            eq(AiNodeService.AiAction.EXTRACT),
+            eq("extract"),
+            eq(schema));
   }
 }

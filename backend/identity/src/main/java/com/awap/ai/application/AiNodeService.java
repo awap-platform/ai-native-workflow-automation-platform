@@ -1,6 +1,7 @@
 package com.awap.ai.application;
 
 import com.awap.ai.domain.AiConfidenceEstimator;
+import com.awap.ai.domain.AiExtractionSchema;
 import com.awap.ai.domain.AiGuardrailViolationException;
 import com.awap.ai.domain.AiGuardrails;
 import com.awap.ai.domain.AiModelRouter;
@@ -123,6 +124,17 @@ public class AiNodeService {
   /** Runs the AI action for a workflow node and returns the validated result. */
   public AiNodeResult evaluate(
       UUID tenantId, UUID instanceId, String nodeId, AiAction action, String input) {
+    return evaluate(tenantId, instanceId, nodeId, action, input, null);
+  }
+
+  /** Runs the action with the optional EXTRACT schema contract (issue #287). */
+  public AiNodeResult evaluate(
+      UUID tenantId,
+      UUID instanceId,
+      String nodeId,
+      AiAction action,
+      String input,
+      String schemaJson) {
     if (!enabled) {
       audit(
           tenantId,
@@ -162,7 +174,8 @@ public class AiNodeService {
     }
 
     // Tenant-scoped cache key: two tenants asking the same prompt must never share a completion.
-    String promptHash = hash(tenantId + ":" + prompt);
+    String promptHash =
+        hash(tenantId + ":" + prompt + ":" + (schemaJson == null ? "" : schemaJson));
     synchronized (cache) {
       AiNodeResult cached = cache.get(promptHash);
       if (cached != null) {
@@ -231,13 +244,20 @@ public class AiNodeService {
     }
 
     String rawOutput =
-        action == AiAction.SUMMARIZE
-            ? (modelRouter == null
-                ? agentService.summarize(input)
-                : agentService.summarize(input, route.model()))
-            : (modelRouter == null
-                ? agentService.classify(input)
-                : agentService.classify(input, route.model()));
+        switch (action) {
+          case SUMMARIZE ->
+              modelRouter == null
+                  ? agentService.summarize(input)
+                  : agentService.summarize(input, route.model());
+          case CLASSIFY ->
+              modelRouter == null
+                  ? agentService.classify(input)
+                  : agentService.classify(input, route.model());
+          case EXTRACT ->
+              modelRouter == null
+                  ? agentService.extract(input, schemaJson)
+                  : agentService.extract(input, schemaJson, route.model());
+        };
     String output;
     try {
       output = AiGuardrails.sanitizeOutput(rawOutput);
@@ -257,6 +277,32 @@ public class AiNodeService {
           route.model());
       throw new AwapException(
           ErrorCode.FORBIDDEN, HttpStatus.FORBIDDEN, "AI output rejected by guardrails.");
+    }
+    AiExtractionSchema.ExtractionResult extraction = null;
+    if (action == AiAction.EXTRACT) {
+      try {
+        extraction = AiExtractionSchema.parse(schemaJson).validateOutput(output);
+        output = extraction.json();
+        meterRegistry.counter("awap.ai.extractions", "outcome", "success").increment();
+      } catch (AiGuardrailViolationException ex) {
+        meterRegistry.counter("awap.ai.extractions", "outcome", "validation_failed").increment();
+        audit(
+            tenantId,
+            instanceId,
+            nodeId,
+            action,
+            promptHash,
+            null,
+            estimatedTokens,
+            0,
+            "VALIDATION_FAILED",
+            ex.getMessage(),
+            route.model());
+        throw new AwapException(
+            ErrorCode.VALIDATION_FAILED,
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            "AI extraction output did not match the schema: " + ex.getMessage());
+      }
     }
     double confidence = AiConfidenceEstimator.estimate(output);
     boolean requiresHumanApproval = confidence < confidenceThreshold;
@@ -280,6 +326,19 @@ public class AiNodeService {
           confidence,
           confidenceThreshold);
     }
+    String detail;
+    if (requiresHumanApproval) {
+      detail = "confidence below threshold";
+    } else if (extraction != null) {
+      detail =
+          "schema="
+              + extraction.schemaVersion()
+              + "; fields="
+              + extraction.fieldCount()
+              + "; validation=VALID";
+    } else {
+      detail = null;
+    }
     audit(
         tenantId,
         instanceId,
@@ -290,7 +349,7 @@ public class AiNodeService {
         estimatedTokens,
         costMicros,
         requiresHumanApproval ? "HITL" : "SUCCESS",
-        requiresHumanApproval ? "confidence below threshold" : null,
+        detail,
         route.model());
     return result;
   }
@@ -361,7 +420,8 @@ public class AiNodeService {
   /** Supported AI actions for a workflow node. */
   public enum AiAction {
     SUMMARIZE,
-    CLASSIFY
+    CLASSIFY,
+    EXTRACT
   }
 
   /** Result of an AI node evaluation. */

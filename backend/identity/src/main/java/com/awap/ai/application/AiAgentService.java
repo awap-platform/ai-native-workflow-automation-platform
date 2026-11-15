@@ -78,6 +78,16 @@ public class AiAgentService {
     return run("classify:" + input, 64, model);
   }
 
+  /** Extract schema-constrained JSON from the input (issue #287). */
+  public String extract(String input, String schemaJson) {
+    return run("extract:" + schemaJson + "\n" + input, 1_024);
+  }
+
+  /** Extract against the model selected by the routing policy. */
+  public String extract(String input, String schemaJson, String model) {
+    return run("extract:" + schemaJson + "\n" + input, 1_024, model);
+  }
+
   /**
    * Tenant-aware summarize: reserves one AI-call unit before the model is invoked, so a tenant at
    * its daily quota gets {@code 429} without spending tokens.

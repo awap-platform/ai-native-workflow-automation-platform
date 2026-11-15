@@ -122,6 +122,31 @@ class WorkflowDefinitionServiceNegativeTest {
   }
 
   @Test
+  void rejectsExtractWithoutASchema() {
+    assertInvalid(
+        "{\"nodes\":[{\"id\":\"a\",\"type\":\"AI_TASK\",\"config\":{\"action\":\"EXTRACT\"}}]}");
+  }
+
+  @Test
+  void rejectsAnInvalidExtractSchema() {
+    assertInvalid(
+        "{\"nodes\":[{\"id\":\"a\",\"type\":\"AI_TASK\",\"config\":{\"action\":\"EXTRACT\","
+            + "\"schema\":{\"properties\":{\"amount\":{\"type\":\"date\"}}}}}]}");
+  }
+
+  @Test
+  void acceptsAValidExtractSchema() {
+    service.create(
+        tenantId,
+        new WorkflowDefinitionRequest(
+            "W",
+            null,
+            "{\"nodes\":[{\"id\":\"a\",\"type\":\"AI_TASK\",\"config\":{\"action\":\"EXTRACT\","
+                + "\"schema\":{\"required\":[\"vendor\"],\"properties\":"
+                + "{\"vendor\":{\"type\":\"string\"}}}}}]}"));
+  }
+
+  @Test
   void acceptsABlankTransitionConditionAsUnconditional() {
     service.create(
         tenantId,
