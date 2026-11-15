@@ -11,6 +11,8 @@ RUN pip install --no-cache-dir uv && uv sync --locked --no-dev
 FROM python:3.15-slim
 COPY --from=builder /app/.venv /app/.venv
 COPY ai-layer/app /app/app
+# Issue #291: committed protobuf/gRPC stubs imported as `ai.v1`.
+COPY ai-layer/ai /app/ai
 WORKDIR /app
 ENV PATH=/app/.venv/bin:$PATH
 EXPOSE 8000
