@@ -165,6 +165,35 @@ class OpenSearchLogShipperTest {
   }
 
   @Test
+  void anEmptyFlushIsANoOp() {
+    RecordingLogTransport transport = new RecordingLogTransport();
+    OpenSearchLogShipper shipper = shipper(provider(transport), 10, 10, 1);
+
+    shipper.flush();
+
+    assertThat(transport.requests()).isEmpty();
+  }
+
+  @Test
+  void deadLetterWriteFailuresAreSwallowed() {
+    RecordingLogTransport io = new RecordingLogTransport();
+    io.respondWith(new OpenSearchResponse(400, "bad"));
+    io.failWith(new IOException("dlq down"));
+    OpenSearchLogShipper ioShipper = shipper(provider(io), 10, 10, 1);
+    ioShipper.ship(event("bad"));
+    ioShipper.flush();
+    assertThat(count("dlq")).isEqualTo(1);
+
+    RecordingLogTransport interrupted = new RecordingLogTransport();
+    interrupted.respondWith(new OpenSearchResponse(400, "bad"));
+    interrupted.failWith(new InterruptedException("stop"));
+    OpenSearchLogShipper interruptedShipper = shipper(provider(interrupted), 10, 10, 1);
+    interruptedShipper.ship(event("bad"));
+    interruptedShipper.flush();
+    assertThat(Thread.interrupted()).isTrue();
+  }
+
+  @Test
   void nullEventsAreIgnored() {
     OpenSearchLogShipper shipper = shipper(provider(new RecordingLogTransport()), 10, 10, 1);
 

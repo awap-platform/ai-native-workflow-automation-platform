@@ -66,6 +66,42 @@ class LogOpenSearchProvisionerTest {
   }
 
   @Test
+  void transportFailuresAreReportedWithoutBreakingProvisioning() {
+    RecordingLogTransport io = new RecordingLogTransport();
+    io.failWith(new java.io.IOException("down"));
+    assertThat(provisioner(provider(io)).provision()).isFalse();
+
+    RecordingLogTransport interrupted = new RecordingLogTransport();
+    interrupted.failWith(new InterruptedException("stop"));
+    assertThat(provisioner(provider(interrupted)).provision()).isFalse();
+    assertThat(Thread.interrupted()).isTrue();
+  }
+
+  @Test
+  void renderRejectsMissingAndMalformedResources() {
+    LogOpenSearchProvisioner provisioner = provisioner(provider(transport));
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> provisioner.render("missing.json", java.util.Map.of()))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Cannot load");
+
+    ObjectMapper malformed = mock(ObjectMapper.class);
+    try {
+      when(malformed.readTree(org.mockito.ArgumentMatchers.anyString()))
+          .thenThrow(mock(com.fasterxml.jackson.core.JsonProcessingException.class));
+    } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+      throw new IllegalStateException(ex);
+    }
+    LogOpenSearchProvisioner broken =
+        new LogOpenSearchProvisioner(provider(transport), malformed, meters, "awap-logs", 7, 90);
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> broken.render("awap-logs-index-template.json", java.util.Map.of()))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("not valid JSON");
+  }
+
+  @Test
   void reportsUnavailableWhenTheTransportIsMissing() {
     @SuppressWarnings("unchecked")
     ObjectProvider<OpenSearchTransport> empty = mock(ObjectProvider.class);

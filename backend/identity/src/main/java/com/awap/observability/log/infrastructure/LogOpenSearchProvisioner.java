@@ -119,7 +119,7 @@ public class LogOpenSearchProvisioner {
     }
   }
 
-  private String render(String resourceName, Map<String, String> replacements) {
+  String render(String resourceName, Map<String, String> replacements) {
     try {
       String body =
           new ClassPathResource("opensearch/" + resourceName)
