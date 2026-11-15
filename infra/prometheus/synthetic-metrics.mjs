@@ -49,6 +49,12 @@ const BACKEND_HISTOGRAMS = [
   ["awap_notification_retry_lag_seconds", { channel: "webhook" }, [0.1, 0.5, 1, 5]],
   ["awap_notification_dispatch_latency_seconds", { channel: "email" }, [0.1, 0.5, 1, 5]],
   ["awap_notification_dispatch_latency_seconds", { channel: "webhook" }, [0.1, 0.5, 1, 5]],
+  // Panels "AI request latency p50/p95/p99" and "AI error ratio" (issue #290). Two outcomes so
+  // the error-ratio numerator and denominator both resolve to a real series.
+  ["awap_ai_request_duration_seconds", { outcome: "SUCCESS" }, [0.05, 0.1, 0.5, 1, 5]],
+  ["awap_ai_request_duration_seconds", { outcome: "ERROR" }, [0.05, 0.1, 0.5, 1, 5]],
+  // Panel "Async Copilot job queue wait p95".
+  ["awap_ai_job_queue_wait_seconds", {}, [0.05, 0.5, 1, 5]],
 ];
 
 // Series used by `infra/prometheus/cdc-alert-rules.yml`.

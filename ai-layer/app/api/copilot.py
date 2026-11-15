@@ -7,9 +7,11 @@ import os
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from app.copilot.agent import CopilotAgent
+from app.copilot.jobs import JobQueueFull, JobStatus, JobStore, job_response
 from app.copilot.models import (
     ApprovalAssistanceRequest,
     CopilotAction,
+    CopilotJobResponse,
     CopilotRequest,
     CopilotResponse,
     KnowledgeSearchRequest,
@@ -21,6 +23,7 @@ from app.copilot.models import (
     WorkflowInitiationRequest,
 )
 from app.copilot.prompts import PROMPT_VERSION, describe_prompts, prompt_hash
+from app.copilot.runner import JobRunner
 
 router = APIRouter(prefix="/copilot", tags=["copilot"])
 
@@ -31,6 +34,26 @@ def get_agent(request: Request) -> CopilotAgent:
         agent = CopilotAgent()
         request.app.state.copilot_agent = agent
     return agent
+
+
+def get_job_store(request: Request) -> JobStore:
+    """Return the process-local bounded job store; retention is TTL and capacity bounded."""
+    store = getattr(request.app.state, "copilot_jobs", None)
+    if store is None:
+        store = JobStore(
+            max_jobs=int(os.getenv("AI_JOB_MAX_JOBS", "1000")),
+            ttl_seconds=float(os.getenv("AI_JOB_TTL_SECONDS", "3600")),
+        )
+        request.app.state.copilot_jobs = store
+    return store
+
+
+def get_job_runner(request: Request) -> JobRunner:
+    runner = getattr(request.app.state, "copilot_job_runner", None)
+    if runner is None:
+        runner = JobRunner()
+        request.app.state.copilot_job_runner = runner
+    return runner
 
 
 def security_context(
@@ -168,6 +191,61 @@ async def knowledge_search(
     )
 
 
+@router.post("/jobs", response_model=CopilotJobResponse, status_code=202)
+async def submit_job(
+    body: CopilotRequest,
+    request: Request,
+    agent: CopilotAgent = Depends(get_agent),
+    security: SecurityContext = Depends(security_context),
+) -> CopilotJobResponse:
+    """Accept long-running Copilot work and return immediately with a job handle.
+
+    A duplicate submission with the same tenant-scoped ``idempotency_key`` returns the original
+    job. A full queue is rejected with ``429`` so the caller can retry or use the sync path.
+    """
+    store = get_job_store(request)
+    try:
+        job = store.submit(body, security)
+    except JobQueueFull as ex:
+        agent.metrics.increment("copilot.job.rejected")
+        raise HTTPException(status_code=429, detail=str(ex)) from ex
+    runner = get_job_runner(request)
+    if job.status is JobStatus.QUEUED and not runner.running(job.id):
+        runner.submit(job.id, store, agent, agent.metrics)
+        agent.metrics.increment("copilot.job.submitted")
+    return job_response(job)
+
+
+@router.get("/jobs/{job_id}", response_model=CopilotJobResponse)
+async def job_status(
+    job_id: str,
+    request: Request,
+    security: SecurityContext = Depends(security_context),
+) -> CopilotJobResponse:
+    """Poll a job; another tenant's job is indistinguishable from a missing one."""
+    job = get_job_store(request).get(job_id, security.tenant_id, security.user_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    return job_response(job)
+
+
+@router.post("/jobs/{job_id}/cancel", response_model=CopilotJobResponse)
+async def cancel_job(
+    job_id: str,
+    request: Request,
+    agent: CopilotAgent = Depends(get_agent),
+    security: SecurityContext = Depends(security_context),
+) -> CopilotJobResponse:
+    """Cancel a queued or running job; cancellation of a provider call is best effort."""
+    job = get_job_store(request).cancel(job_id, security.tenant_id, security.user_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    get_job_runner(request).cancel(job_id)
+    if job.status is JobStatus.CANCELLED:
+        agent.metrics.increment("copilot.job.cancelled")
+    return job_response(job)
+
+
 @router.get("/prompts", response_model=list[PromptDescriptor])
 async def prompts(
     _security: SecurityContext = Depends(security_context),
@@ -185,4 +263,5 @@ async def metrics(
         counters=agent.metrics.snapshot(),
         prompt_version=PROMPT_VERSION,
         prompt_hashes={descriptor.key: prompt_hash(descriptor.key) for descriptor in prompts},
+        latencies=agent.metrics.latency_snapshot(),
     )

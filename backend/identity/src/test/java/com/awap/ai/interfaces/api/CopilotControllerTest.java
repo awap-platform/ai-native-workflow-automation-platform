@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,6 +18,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
 /** The SPA-facing proxy must forward to the AI layer without reshaping the payload. */
 class CopilotControllerTest {
@@ -69,6 +72,37 @@ class CopilotControllerTest {
     ArgumentCaptor<JsonNode> forwardedBody = ArgumentCaptor.forClass(JsonNode.class);
     verify(client).forward(anyString(), forwardedBody.capture(), any());
     assertThat(forwardedBody.getValue().path("idempotency_key").asText()).isEqualTo("body-key");
+  }
+
+  @Test
+  void submitJobReturnsAcceptedAndForwardsTheBody() throws Exception {
+    JsonNode body = objectMapper.readTree("{\"message\":\"summarise\"}");
+
+    ResponseEntity<JsonNode> result = controller.submitJob(body, null);
+
+    assertThat(result.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+    assertThat(result.getBody()).isEqualTo(response);
+    verify(client).forward("/api/v1/copilot/jobs", body, null);
+  }
+
+  @Test
+  void submitJobForwardsTheIdempotencyKey() throws Exception {
+    JsonNode body = objectMapper.readTree("{\"message\":\"summarise\"}");
+
+    controller.submitJob(body, "job-key");
+
+    ArgumentCaptor<JsonNode> forwarded = ArgumentCaptor.forClass(JsonNode.class);
+    verify(client).forward(anyString(), forwarded.capture(), any());
+    assertThat(forwarded.getValue().path("idempotency_key").asText()).isEqualTo("job-key");
+    verify(client).forward("/api/v1/copilot/jobs", forwarded.getValue(), "job-key");
+  }
+
+  @Test
+  void jobStatusAndCancelUseTheJobPaths() {
+    assertThat(controller.jobStatus("job-1").getBody()).isEqualTo(response);
+    assertThat(controller.cancelJob("job-1").getBody()).isEqualTo(response);
+    verify(client).forward("/api/v1/copilot/jobs/job-1", null);
+    verify(client).forward(eq("/api/v1/copilot/jobs/job-1/cancel"), any());
   }
 
   @Test

@@ -2746,16 +2746,111 @@ paths:
   /api/v1/copilot/metrics:
     get:
       operationId: copilotMetrics
-      summary: Read Copilot counters
-      description: Returns per-instance Copilot counters and the active prompt version.
+      summary: Read Copilot counters and latency percentiles
+      description: Returns per-instance Copilot counters, prompt hashes and p50/p95/p99 latency.
       tags: [Copilot]
       responses:
         "200":
-          description: Copilot counters and the active prompt version.
+          description: Copilot counters, prompt hashes and latency percentiles.
           content:
             application/json:
               schema:
                 type: object
+
+  /api/v1/copilot/jobs:
+    post:
+      operationId: copilotSubmitJob
+      summary: Submit a long-running Copilot job
+      description: >-
+        Accepts work that may exceed the synchronous budget and returns 202 with a job handle. A
+        duplicate submission with the same tenant-scoped Idempotency-Key returns the original job.
+      tags: [Copilot]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                  maxLength: 8000
+                action:
+                  type: string
+                context:
+                  type: object
+                idempotency_key:
+                  type: string
+                confirm_high_risk:
+                  type: boolean
+      responses:
+        "202":
+          description: Job accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotJobResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /api/v1/copilot/jobs/{jobId}:
+    get:
+      operationId: copilotJobStatus
+      summary: Poll an async Copilot job
+      description: Returns only the caller's own job; another tenant's job is a 404.
+      tags: [Copilot]
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job state and result when finished.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotJobResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/copilot/jobs/{jobId}/cancel:
+    post:
+      operationId: copilotCancelJob
+      summary: Cancel an async Copilot job
+      description: >-
+        Marks a queued or running job CANCELLED. Provider cancellation is best effort; the job state
+        never reverts to SUCCEEDED after cancellation.
+      tags: [Copilot]
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cancelled job state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotJobResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /internal/tools/find_workflow:
     post:
@@ -3101,6 +3196,35 @@ components:
             $ref: "#/components/schemas/ProblemDetails"
 
   schemas:
+    CopilotJobResponse:
+      type: object
+      description: Async Copilot job state; a result carries the prompt version and hash that produced it.
+      required: [id, status, prompt_version, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELLED]
+        result:
+          $ref: "#/components/schemas/CopilotResponse"
+        error:
+          type: string
+          nullable: true
+        prompt_version:
+          type: string
+          example: v1
+        prompt_hash:
+          type: string
+          nullable: true
+        queue_wait_ms:
+          type: number
+          nullable: true
+        created_at:
+          type: number
+        updated_at:
+          type: number
     CopilotResponse:
       type: object
       description: Stable response envelope returned by every Copilot endpoint.
@@ -3161,6 +3285,8 @@ components:
         idempotency_key:
           type: string
           nullable: true
+        cache_hit:
+          type: boolean
     ReplayReport:
       type: object
       description: Projection report of a deterministic log replay.

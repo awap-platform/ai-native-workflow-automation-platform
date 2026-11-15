@@ -4,6 +4,7 @@ import com.awap.ai.infrastructure.AiCopilotClient;
 import com.awap.common.api.AwapException;
 import com.awap.common.api.ErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Optional;
 import org.springframework.beans.factory.ObjectProvider;
@@ -79,6 +80,40 @@ public class CopilotController {
   @PostMapping(value = "/knowledge/search", produces = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<JsonNode> knowledgeSearch(@RequestBody JsonNode body) {
     return ResponseEntity.ok(client().forward("/api/v1/copilot/knowledge/search", body));
+  }
+
+  /**
+   * Accepts long-running Copilot work. The AI layer owns the job state machine; the proxy keeps the
+   * exact body and idempotency key and returns the AI layer's {@code 202} semantics.
+   */
+  @PostMapping(
+      value = "/jobs",
+      consumes = MediaType.APPLICATION_JSON_VALUE,
+      produces = MediaType.APPLICATION_JSON_VALUE)
+  public ResponseEntity<JsonNode> submitJob(
+      @RequestBody JsonNode body,
+      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+    return ResponseEntity.status(HttpStatus.ACCEPTED)
+        .body(
+            client()
+                .forward(
+                    "/api/v1/copilot/jobs",
+                    withIdempotencyKey(body, idempotencyKey),
+                    idempotencyKey));
+  }
+
+  @GetMapping(value = "/jobs/{jobId}", produces = MediaType.APPLICATION_JSON_VALUE)
+  public ResponseEntity<JsonNode> jobStatus(@PathVariable String jobId) {
+    return ResponseEntity.ok(client().forward("/api/v1/copilot/jobs/" + jobId, null));
+  }
+
+  @PostMapping(value = "/jobs/{jobId}/cancel", produces = MediaType.APPLICATION_JSON_VALUE)
+  public ResponseEntity<JsonNode> cancelJob(@PathVariable String jobId) {
+    return ResponseEntity.ok(
+        client()
+            .forward(
+                "/api/v1/copilot/jobs/" + jobId + "/cancel",
+                JsonNodeFactory.instance.objectNode()));
   }
 
   @GetMapping(value = "/prompts", produces = MediaType.APPLICATION_JSON_VALUE)

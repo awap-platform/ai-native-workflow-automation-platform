@@ -71,9 +71,10 @@ def test_prompt_route_lists_versioned_prompts() -> None:
         assert len(entry["sha256"]) == 64
 
 
-def test_metrics_route_exposes_prompt_hashes() -> None:
+def test_metrics_route_exposes_prompt_hashes_and_latencies() -> None:
     response = client().get("/api/v1/copilot/metrics", headers=HEADERS)
     assert response.status_code == 200
     body = response.json()
     assert body["prompt_hashes"]["chat"]
     assert len(body["prompt_hashes"]["chat"]) == 64
+    assert isinstance(body["latencies"], dict)
