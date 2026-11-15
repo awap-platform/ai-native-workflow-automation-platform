@@ -37,7 +37,12 @@ from app.copilot.models import (
     SecurityContext,
     ToolCall,
 )
-from app.copilot.prompts import PROMPT_VERSION, prompt_for_action
+from app.copilot.prompts import (
+    PROMPT_VERSION,
+    prompt_for_action,
+    prompt_hash,
+    prompt_key_for_action,
+)
 from app.copilot.routing import ModelRouter
 from app.copilot.tools import ToolRegistry
 
@@ -66,6 +71,8 @@ class AgentState(TypedDict, total=False):
     idempotency_key: str | None
     confirm_high_risk: bool
     prompt: str
+    prompt_key: str
+    prompt_hash: str
     route: dict[str, Any]
     tool_calls: list[dict[str, Any]]
     data: Any
@@ -178,6 +185,8 @@ class CopilotAgent:
             "idempotency_key": request.idempotency_key,
             "confirm_high_risk": request.confirm_high_risk,
             "tool_calls": [],
+            "prompt_key": "chat",
+            "prompt_hash": prompt_hash("chat"),
         }
         if request.action is not None:
             state["action"] = request.action
@@ -198,7 +207,9 @@ class CopilotAgent:
             data=final.get("data"),
             model=final.get("route", {}).get("model"),
             model_tier=final.get("route", {}).get("tier"),
+            prompt_key=final.get("prompt_key", "chat"),
             prompt_version=PROMPT_VERSION,
+            prompt_hash=final.get("prompt_hash", prompt_hash("chat")),
             correlation_id=security.correlation_id,
             idempotency_key=request.idempotency_key,
         )
@@ -255,6 +266,9 @@ class CopilotAgent:
             "complexity": decision.complexity,
             "reason": decision.reason,
         }
+        prompt_key = prompt_key_for_action(action.value)
+        state["prompt_key"] = prompt_key
+        state["prompt_hash"] = prompt_hash(prompt_key)
         state["prompt"] = prompt_for_action(action.value)
         self.metrics.increment(f"copilot.route.{decision.tier.value}")
         return state
@@ -309,7 +323,9 @@ class CopilotAgent:
             "requiresHumanApproval": state.get("requires_human_approval", False),
             "model": state.get("route", {}).get("model"),
             "modelTier": state.get("route", {}).get("tier"),
+            "promptKey": state.get("prompt_key", "chat"),
             "promptVersion": PROMPT_VERSION,
+            "promptHash": state.get("prompt_hash", prompt_hash("chat")),
             "tools": [call["name"] for call in state.get("tool_calls", [])],
             "outcome": outcome,
         }

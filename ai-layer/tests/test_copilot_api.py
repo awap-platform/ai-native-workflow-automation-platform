@@ -38,7 +38,9 @@ def test_chat_returns_the_versioned_copilot_envelope() -> None:
     response = client().post("/api/v1/copilot/chat", json={"message": "hello"}, headers=HEADERS)
     assert response.status_code == 200
     body = response.json()
+    assert body["prompt_key"] == "chat"
     assert body["prompt_version"] == "v1"
+    assert len(body["prompt_hash"]) == 64
     assert body["correlation_id"] == "corr-api"
     assert body["action"] == "chat"
 
@@ -57,9 +59,21 @@ def test_missing_security_context_is_rejected() -> None:
 def test_prompt_route_lists_versioned_prompts() -> None:
     response = client().get("/api/v1/copilot/prompts", headers=HEADERS)
     assert response.status_code == 200
-    assert {entry["key"] for entry in response.json()} >= {
+    entries = response.json()
+    assert {entry["key"] for entry in entries} >= {
         "chat",
         "workflow_discovery",
         "task_assistant",
         "knowledge_search",
     }
+    for entry in entries:
+        assert entry["version"] == "v1"
+        assert len(entry["sha256"]) == 64
+
+
+def test_metrics_route_exposes_prompt_hashes() -> None:
+    response = client().get("/api/v1/copilot/metrics", headers=HEADERS)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["prompt_hashes"]["chat"]
+    assert len(body["prompt_hashes"]["chat"]) == 64
