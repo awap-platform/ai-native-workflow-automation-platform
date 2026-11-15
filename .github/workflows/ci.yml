@@ -428,6 +428,9 @@ jobs:
         run: |
           node --test "scripts/test/check-proto-compatibility.test.mjs"
           node scripts/check-proto-compatibility.mjs
+      - name: Knowledge reindex plan tests
+        # Issue #293: the alias switch must stay after a successful reindex.
+        run: node --test "scripts/test/knowledge-reindex.test.mjs"
       - name: Regenerate Python protobuf stubs
         # Issue #291: committed stubs must match contracts/proto exactly.
         run: |
@@ -465,6 +468,14 @@ jobs:
         run: >-
           uv run python -m eval.retrieval
           --fixture eval/knowledge_retrieval.v1.json
+          --gate
+        working-directory: ai-layer
+      - name: Graded retrieval metrics gate
+        # Issue #293: Recall@k, Precision@k, MRR and nDCG@k on the graded hybrid fixture.
+        run: >-
+          uv run python -m eval.retrieval_metrics
+          --fixture eval/knowledge_retrieval_graded.v1.json
+          --k 2
           --gate
         working-directory: ai-layer
       - name: Upload golden-set result

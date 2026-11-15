@@ -1,0 +1,70 @@
+{
+  "index_patterns": ["awap-knowledge*"],
+  "priority": 200,
+  "_meta": {
+    "description": "AWAP knowledge chunks with hybrid lexical/vector fields (issue #293)",
+    "managed_by": "KnowledgeIndexProvisioner"
+  },
+  "template": {
+    "settings": {
+      "number_of_shards": __SHARDS__,
+      "number_of_replicas": __REPLICAS__,
+      "refresh_interval": "5s",
+      "analysis": {
+        "filter": {
+          "knowledge_stop": {
+            "type": "stop",
+            "stopwords": "_english_"
+          }
+        },
+        "analyzer": {
+          "knowledge_text": {
+            "type": "custom",
+            "tokenizer": "standard",
+            "filter": ["lowercase", "asciifolding", "knowledge_stop"]
+          },
+          "knowledge_search": {
+            "type": "custom",
+            "tokenizer": "standard",
+            "filter": ["lowercase", "asciifolding"]
+          }
+        }
+      }
+    },
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "tenantId": { "type": "keyword" },
+        "fileId": { "type": "keyword" },
+        "title": {
+          "type": "text",
+          "analyzer": "knowledge_text",
+          "search_analyzer": "knowledge_search",
+          "fields": {
+            "keyword": { "type": "keyword", "ignore_above": 512 }
+          }
+        },
+        "format": { "type": "keyword" },
+        "version": { "type": "integer" },
+        "chunkIndex": { "type": "integer" },
+        "content": {
+          "type": "text",
+          "analyzer": "knowledge_text",
+          "search_analyzer": "knowledge_search"
+        },
+        "embedding": {
+          "type": "knn_vector",
+          "dimension": __DIMENSIONS__,
+          "method": {
+            "name": "hnsw",
+            "space_type": "cosinesimil",
+            "engine": "lucene",
+            "parameters": { "ef_construction": 128, "m": 16 }
+          }
+        },
+        "embeddingModel": { "type": "keyword" },
+        "embeddingVersion": { "type": "keyword" }
+      }
+    }
+  }
+}

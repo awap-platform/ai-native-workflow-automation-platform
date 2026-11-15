@@ -1,0 +1,29 @@
+{
+  "policy": {
+    "description": "AWAP knowledge retention: delete chunks after 365 days (issue #293)",
+    "default_state": "hot",
+    "states": [
+      {
+        "name": "hot",
+        "actions": [],
+        "transitions": [
+          {
+            "state_name": "delete",
+            "conditions": { "min_index_age": "365d" }
+          }
+        ]
+      },
+      {
+        "name": "delete",
+        "actions": [{ "delete": {} }],
+        "transitions": []
+      }
+    ],
+    "ism_template": [
+      {
+        "index_patterns": ["awap-knowledge*"],
+        "priority": 200
+      }
+    ]
+  }
+}
