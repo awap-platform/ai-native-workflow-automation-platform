@@ -4,12 +4,14 @@ import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from app.api.copilot import router as copilot_router
 from app.api.health import router as health_router
 from app.config import SERVICE_VERSION
 from app.copilot.agent import build_default_agent
+from app.copilot.llm_gateway import LlmBudgetExceeded, LlmRateLimited, LlmUnavailable
 from app.grpc_server import build_server
 from app.observability import CorrelationIdMiddleware, configure_logging
 
@@ -51,3 +53,39 @@ app.state.copilot_agent = build_default_agent()
 app.add_middleware(CorrelationIdMiddleware)
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(copilot_router, prefix="/api/v1")
+
+
+@app.exception_handler(LlmBudgetExceeded)
+async def _llm_budget_exceeded(_request: Request, exc: LlmBudgetExceeded) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={
+            "detail": str(exc),
+            "code": "AI_BUDGET_EXCEEDED",
+        },
+        headers={"Retry-After": str(exc.retry_after_seconds)},
+    )
+
+
+@app.exception_handler(LlmRateLimited)
+async def _llm_rate_limited(_request: Request, exc: LlmRateLimited) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={
+            "detail": str(exc),
+            "code": "AI_RATE_LIMITED",
+        },
+        headers={"Retry-After": str(exc.retry_after_seconds)},
+    )
+
+
+@app.exception_handler(LlmUnavailable)
+async def _llm_unavailable(_request: Request, exc: LlmUnavailable) -> JSONResponse:
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": str(exc),
+            "code": "AI_UNAVAILABLE",
+        },
+        headers={"Retry-After": str(max(1, exc.retry_after_seconds))},
+    )

@@ -354,6 +354,12 @@ components:
           type: string
         cache_hit:
           type: boolean
+        provider:
+          type: string
+          nullable: true
+        fallback_reason:
+          type: string
+          nullable: true
     HealthResponse:
       type: object
       additionalProperties: false
