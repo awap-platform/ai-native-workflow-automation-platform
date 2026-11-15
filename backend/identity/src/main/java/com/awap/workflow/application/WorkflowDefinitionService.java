@@ -1,5 +1,7 @@
 package com.awap.workflow.application;
 
+import com.awap.ai.domain.AiExtractionSchema;
+import com.awap.ai.domain.AiGuardrailViolationException;
 import com.awap.common.api.AwapException;
 import com.awap.common.api.ErrorCode;
 import com.awap.identity.application.QuotaService;
@@ -25,6 +27,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -300,6 +303,7 @@ public class WorkflowDefinitionService {
                 "Node '" + nodeId + "' has an invalid retryPolicy: " + retryPolicyError);
           }
         }
+        validateExtractionSchema(node, nodeId);
       }
 
       JsonNode transitions = root.get("transitions");
@@ -324,6 +328,29 @@ public class WorkflowDefinitionService {
       }
     } catch (JsonProcessingException ex) {
       throw invalidDefinition();
+    }
+  }
+
+  /** Issue #287: an EXTRACT node must carry a valid schema before it can be published. */
+  private void validateExtractionSchema(JsonNode node, String nodeId) {
+    String action = node.path("config").path("action").asText("SUMMARIZE").toUpperCase(Locale.ROOT);
+    if (!"EXTRACT".equals(action)) {
+      return;
+    }
+    JsonNode schema = node.path("config").path("schema");
+    if (schema.isMissingNode() || schema.isNull()) {
+      throw new AwapException(
+          ErrorCode.VALIDATION_FAILED,
+          HttpStatus.BAD_REQUEST,
+          "Node '" + nodeId + "' uses EXTRACT but has no schema.");
+    }
+    try {
+      AiExtractionSchema.parse(schema.isTextual() ? schema.asText() : schema.toString());
+    } catch (AiGuardrailViolationException ex) {
+      throw new AwapException(
+          ErrorCode.VALIDATION_FAILED,
+          HttpStatus.BAD_REQUEST,
+          "Node '" + nodeId + "' has an invalid extraction schema: " + ex.getMessage());
     }
   }
 

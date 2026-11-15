@@ -133,6 +133,19 @@ class NodeConfigReaderTest {
   }
 
   @Test
+  void readAiSchemaReturnsTextualOrObjectSchemasAndEmptyWhenMissing() {
+    assertThat(reader.readAiSchema(node("{}"))).isEmpty();
+    assertThat(reader.readAiSchema(node("{\"schema\":null}"))).isEmpty();
+    assertThat(reader.readAiSchema(node("{\"schema\":\"{\\\"type\\\":\\\"object\\\"}\"}")))
+        .contains("{\"type\":\"object\"}");
+    assertThat(
+            reader.readAiSchema(
+                node("{\"schema\":{\"properties\":{\"vendor\":{\"type\":\"string\"}}}}}")))
+        .hasValueSatisfying(
+            value -> assertThat(value).contains("\"vendor\":{\"type\":\"string\"}"));
+  }
+
+  @Test
   void readSubProcessVersionRejectsNonPositiveValues() {
     assertInvalidVersion("{\"version\":0}", "0");
     assertInvalidVersion("{\"version\":-1}", "-1");

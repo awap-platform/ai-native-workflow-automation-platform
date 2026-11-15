@@ -47,6 +47,35 @@ class AiAgentServiceTest {
   }
 
   @Test
+  void extractOverloadsSendTheSchemaAndSelectedModel() {
+    java.util.List<String> prompts = new java.util.ArrayList<>();
+    java.util.List<String> models = new java.util.ArrayList<>();
+    AiBackendClient recording =
+        new AiBackendClient() {
+          @Override
+          public String complete(String prompt, int maxTokens) {
+            prompts.add(prompt);
+            return "{\"ok\":true}";
+          }
+
+          @Override
+          public String complete(String prompt, int maxTokens, String model) {
+            models.add(model);
+            return complete(prompt, maxTokens);
+          }
+        };
+    AiAgentService agent =
+        new AiAgentService(recording, 1000, 1_000, executor, usageMeteringService);
+
+    assertThat(agent.extract("invoice text", "{\"type\":\"object\"}")).contains("ok");
+    assertThat(agent.extract("invoice text", "{\"type\":\"object\"}", "extract-model"))
+        .contains("ok");
+
+    assertThat(prompts.getFirst()).startsWith("extract:{\"type\":\"object\"}\n");
+    assertThat(models).containsExactly(null, "extract-model");
+  }
+
+  @Test
   void routedOverloadsForwardTheSelectedModel() {
     AtomicInteger modelAwareCalls = new AtomicInteger();
     java.util.List<String> models = new java.util.ArrayList<>();

@@ -28,6 +28,10 @@ class AiNodeServiceTest {
   private final UUID tenantId = UUID.randomUUID();
   private final UUID instanceId = UUID.randomUUID();
 
+  private static final String EXTRACT_SCHEMA =
+      "{\"version\":\"v1\",\"required\":[\"vendor\",\"amount\"],"
+          + "\"properties\":{\"vendor\":{\"type\":\"string\"},\"amount\":{\"type\":\"number\"}}}";
+
   private AiNodeService service(boolean enabled, long budget) {
     return new AiNodeService(
         agentService, auditRepository, new AiBudgetGuard(budget), registry, enabled, 0.7, 2);
@@ -202,6 +206,95 @@ class AiNodeServiceTest {
         .satisfies(ex -> assertThat(((AwapException) ex).status().value()).isEqualTo(429));
     assertThat(lastAudit().getOutcome()).isEqualTo("RATE_LIMITED");
     verify(agentService, times(1)).summarize(anyString(), anyString());
+  }
+
+  @Test
+  void extractionWithoutASchemaFailsClosed() {
+    when(agentService.extract(any(), any())).thenReturn("{}");
+    AiNodeService service = service(true, 1_000);
+
+    assertThatThrownBy(
+            () ->
+                service.evaluate(
+                    tenantId, instanceId, "ai-1", AiNodeService.AiAction.EXTRACT, "text", null))
+        .isInstanceOf(AwapException.class)
+        .satisfies(ex -> assertThat(((AwapException) ex).status().value()).isEqualTo(422));
+    assertThat(lastAudit().getOutcome()).isEqualTo("VALIDATION_FAILED");
+  }
+
+  @Test
+  void extractionValidatesTheSchemaAndAuditsTheMetadata() {
+    when(agentService.extract(any(), any())).thenReturn("{\"vendor\":\"Acme\",\"amount\":12.5}");
+    AiNodeService service = service(true, 1_000);
+
+    AiNodeService.AiNodeResult result =
+        service.evaluate(
+            tenantId,
+            instanceId,
+            "ai-1",
+            AiNodeService.AiAction.EXTRACT,
+            "vendor: Acme amount: 12.5",
+            EXTRACT_SCHEMA);
+
+    assertThat(result.output()).contains("\"vendor\":\"Acme\"");
+    assertThat(lastAudit().getOutcome()).isEqualTo("SUCCESS");
+    assertThat(lastAudit().getDetail())
+        .contains("schema=v1")
+        .contains("fields=2")
+        .contains("validation=VALID");
+    assertThat(registry.get("awap.ai.extractions").tag("outcome", "success").counter().count())
+        .isEqualTo(1.0);
+  }
+
+  @Test
+  void malformedExtractionOutputFailsClosed() {
+    when(agentService.extract(any(), any())).thenReturn("not-json");
+    AiNodeService service = service(true, 1_000);
+
+    assertThatThrownBy(
+            () ->
+                service.evaluate(
+                    tenantId,
+                    instanceId,
+                    "ai-1",
+                    AiNodeService.AiAction.EXTRACT,
+                    "text",
+                    EXTRACT_SCHEMA))
+        .isInstanceOf(AwapException.class)
+        .satisfies(ex -> assertThat(((AwapException) ex).status().value()).isEqualTo(422));
+    assertThat(
+            registry
+                .get("awap.ai.extractions")
+                .tag("outcome", "validation_failed")
+                .counter()
+                .count())
+        .isEqualTo(1.0);
+  }
+
+  @Test
+  void lowConfidenceExtractionRoutesToHitl() {
+    when(agentService.extract(any(), any())).thenReturn("{\"vendor\":\"maybe\",\"amount\":1}");
+    AiNodeService service = service(true, 1_000);
+
+    AiNodeService.AiNodeResult result =
+        service.evaluate(
+            tenantId, instanceId, "ai-1", AiNodeService.AiAction.EXTRACT, "text", EXTRACT_SCHEMA);
+
+    assertThat(result.requiresHumanApproval()).isTrue();
+    assertThat(lastAudit().getDetail()).contains("confidence below threshold");
+  }
+
+  @Test
+  void routedExtractionUsesTheSelectedModel() {
+    when(agentService.extract(anyString(), anyString(), anyString()))
+        .thenReturn("{\"vendor\":\"Acme\",\"amount\":1}");
+    AiNodeService service = routedService(1_000, new AiRateLimiter(10));
+
+    service.evaluate(
+        tenantId, instanceId, "ai-1", AiNodeService.AiAction.EXTRACT, "short", EXTRACT_SCHEMA);
+
+    assertThat(lastAudit().getModel()).isEqualTo("cheap-model");
+    verify(agentService).extract(anyString(), anyString(), anyString());
   }
 
   @Test
