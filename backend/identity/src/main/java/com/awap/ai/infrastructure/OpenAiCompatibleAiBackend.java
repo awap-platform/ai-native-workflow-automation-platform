@@ -31,6 +31,10 @@ import org.springframework.stereotype.Component;
 @Component
 @Primary
 @ConditionalOnProperty(name = "awap.ai.provider", havingValue = "openai")
+@ConditionalOnProperty(
+    name = "awap.ai.gateway.enabled",
+    havingValue = "false",
+    matchIfMissing = true)
 public class OpenAiCompatibleAiBackend implements AiBackendClient {
 
   private final HttpClient httpClient;
