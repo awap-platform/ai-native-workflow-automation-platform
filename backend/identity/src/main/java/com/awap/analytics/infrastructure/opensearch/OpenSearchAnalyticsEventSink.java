@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
 /**
@@ -47,6 +48,7 @@ import org.springframework.stereotype.Component;
  * remain the authoritative analytics source; this sink is a best-effort raw-event mirror.
  */
 @Component
+@Primary
 @ConditionalOnProperty(name = "awap.analytics.opensearch.enabled", havingValue = "true")
 public class OpenSearchAnalyticsEventSink implements AnalyticsEventSink, AutoCloseable {
 

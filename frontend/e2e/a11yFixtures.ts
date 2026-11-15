@@ -83,6 +83,49 @@ export const analyticsFixture = [
   },
 ];
 
+const emptyPercentiles = { p50: null, p90: null, p95: null, p99: null, sampleCount: 0 };
+
+/** Advanced dashboard contract used by the analytics accessibility screen. */
+export function analyticsDashboardFixture(populated: boolean) {
+  return {
+    from: "2026-11-02",
+    to: "2026-11-08",
+    granularity: "DAY",
+    timezone: "UTC",
+    dataCompleteness: {
+      dailyTotalsAvailable: true,
+      rawEventsAvailable: populated,
+      sampleCount: populated ? 44 : 0,
+    },
+    dailyTotals: populated ? analyticsFixture : [],
+    timeBuckets: populated
+      ? [{ bucket: "2026-11-08", total: 44, counts: { WORKFLOW_COMPLETED: 12 } }]
+      : [],
+    workflowDuration: populated
+      ? { p50: 1800, p90: 2400, p95: 2500, p99: 2600, sampleCount: 12 }
+      : emptyPercentiles,
+    taskCycleTime: populated
+      ? { p50: 900, p90: 1100, p95: 1200, p99: 1300, sampleCount: 30 }
+      : emptyPercentiles,
+    approvalLatency: populated
+      ? { p50: 400, p90: 500, p95: 550, p99: 600, sampleCount: 2 }
+      : emptyPercentiles,
+    failureRate: populated ? 0.1429 : 0,
+    slaBreachRate: populated ? 0.05 : 0,
+    bottlenecks: populated
+      ? [{ nodeId: "approval", count: 2, averageDurationMs: 400, p95DurationMs: 500 }]
+      : [],
+    groups: populated
+      ? [{ key: "WORKFLOW_COMPLETED", count: 12, averageDurationMs: 2000, p95DurationMs: 2400 }]
+      : [],
+    trend: {
+      currentCount: populated ? 44 : 0,
+      previousCount: populated ? 10 : 0,
+      delta: populated ? 34 : 0,
+    },
+  };
+}
+
 export const documentFixture = {
   id: "version-1",
   fileId: "file-1",
@@ -173,6 +216,9 @@ export function responseFor(pathname: string, populated: boolean): unknown {
   if (pathname.endsWith("/api/v1/forms")) {
     return populated ? [formFixture] : [];
   }
+  if (pathname.endsWith("/api/v1/analytics/dashboard")) {
+    return analyticsDashboardFixture(populated);
+  }
   if (pathname.endsWith("/api/v1/analytics/summary")) {
     return populated ? analyticsFixture : [];
   }
@@ -258,9 +304,27 @@ export const SCREENS: ScreenDefinition[] = [
     sessionOnly: true,
     states: ["populated"],
   },
-  { name: "dashboard", path: "/dashboard", heading: "Dashboard", protected: true, states: ["empty", "populated"] },
-  { name: "tasks", path: "/tasks", heading: "Tasks", protected: true, states: ["empty", "populated"] },
-  { name: "workflows", path: "/workflows", heading: "Workflows", protected: true, states: ["empty", "populated"] },
+  {
+    name: "dashboard",
+    path: "/dashboard",
+    heading: "Dashboard",
+    protected: true,
+    states: ["empty", "populated"],
+  },
+  {
+    name: "tasks",
+    path: "/tasks",
+    heading: "Tasks",
+    protected: true,
+    states: ["empty", "populated"],
+  },
+  {
+    name: "workflows",
+    path: "/workflows",
+    heading: "Workflows",
+    protected: true,
+    states: ["empty", "populated"],
+  },
   {
     name: "workflow-designer",
     path: "/workflows/designer",
@@ -282,7 +346,13 @@ export const SCREENS: ScreenDefinition[] = [
     protected: true,
     states: ["empty", "populated"],
   },
-  { name: "documents", path: "/documents", heading: "Documents", protected: true, states: ["empty", "populated"] },
+  {
+    name: "documents",
+    path: "/documents",
+    heading: "Documents",
+    protected: true,
+    states: ["empty", "populated"],
+  },
   {
     name: "notifications",
     path: "/notifications",
@@ -297,7 +367,13 @@ export const SCREENS: ScreenDefinition[] = [
     protected: true,
     states: ["empty", "populated"],
   },
-  { name: "analytics", path: "/analytics", heading: "Analytics", protected: true, states: ["empty", "populated"] },
+  {
+    name: "analytics",
+    path: "/analytics",
+    heading: "Analytics",
+    protected: true,
+    states: ["empty", "populated"],
+  },
   {
     name: "instances",
     path: "/instances",
