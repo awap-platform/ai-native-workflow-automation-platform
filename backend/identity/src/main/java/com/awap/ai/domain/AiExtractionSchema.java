@@ -160,7 +160,8 @@ public final class AiExtractionSchema {
         }
         limit = maxLength.asInt();
       }
-      return new Property(name, type, Set.copyOf(allowed), limit);
+      return new Property(
+          name, type, java.util.Collections.unmodifiableSet(new LinkedHashSet<>(allowed)), limit);
     }
 
     void validate(String field, JsonNode value) {
