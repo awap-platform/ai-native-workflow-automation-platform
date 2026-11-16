@@ -104,19 +104,33 @@ def test_confirmed_task_decision_forwards_the_idempotency_key() -> None:
 
 def test_confirmed_approval_forwards_the_idempotency_key() -> None:
     client = FakeClient()
-    run(
-        CopilotRequest(
-            message="create an approval",
-            action=CopilotAction.APPROVAL_ASSISTANCE,
-            context={"workflowInstanceId": "instance-1", "title": "Approve leave"},
-            confirm_high_risk=True,
-            idempotency_key="approval-key-1",
-        ),
-        client=client,
+    copilot = agent(client)
+    request = CopilotRequest(
+        message="create an approval",
+        action=CopilotAction.APPROVAL_ASSISTANCE,
+        context={"workflowInstanceId": "instance-1", "title": "Approve leave"},
+        confirm_high_risk=False,
+        idempotency_key="approval-key-1",
     )
+    proposal = asyncio.run(copilot.run(request, security()))
+    assert proposal.requires_human_approval is True
+    assert not any(name == "create_approval" for name, _ in client.calls)
+
+    confirmed = request.model_copy(
+        update={
+            "confirm_high_risk": True,
+            "context": {
+                **request.context,
+                "proposalId": proposal.data["proposalId"],
+                "proposalHash": proposal.data["proposalHash"],
+            },
+        }
+    )
+    asyncio.run(copilot.run(confirmed, security()))
     payload = next(payload for name, payload in client.calls if name == "create_approval")
-    assert payload["idempotencyKey"] == "approval-key-1"
-    assert ("create_approval", "approval-key-1") in client.keys
+    # The proposal id becomes the idempotency key so a replayed confirmation cannot create twice.
+    assert payload["idempotencyKey"] == proposal.data["proposalId"]
+    assert ("create_approval", proposal.data["proposalId"]) in client.keys
 
 
 def test_knowledge_search_returns_tenant_documents() -> None:

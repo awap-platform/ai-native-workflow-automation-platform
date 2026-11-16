@@ -2670,8 +2670,12 @@ paths:
   /api/v1/copilot/approvals:
     post:
       operationId: copilotApprovalAssistance
-      summary: Prepare an approval task through the Copilot
-      description: Creates a tenant-scoped approval task linked to the workflow instance.
+      summary: Propose then confirm an approval task through the Copilot
+      description: >-
+        Two-step HITL contract. The first call creates no task and returns a tenant-scoped
+        proposal_id and proposal_hash with requires_human_approval=true. Only a second call with
+        confirm=true and the matching proposal binds the payload to the proposal and creates exactly
+        one approval task. The endpoint never sets confirmation itself.
       tags: [Copilot]
       requestBody:
         required: true
@@ -2691,6 +2695,18 @@ paths:
                 assignee_id:
                   type: string
                   format: uuid
+                confirm:
+                  type: boolean
+                  default: false
+                  description: Explicit human confirmation for the second call.
+                proposal_id:
+                  type: string
+                  description: Proposal id returned by the first call.
+                proposal_hash:
+                  type: string
+                  description: SHA-256 of the proposed payload returned by the first call.
+                idempotency_key:
+                  type: string
       responses:
         "200":
           description: Copilot response envelope.

@@ -45,6 +45,12 @@ from app.copilot.prompts import (
     prompt_hash,
     prompt_key_for_action,
 )
+from app.copilot.proposals import (
+    CONFIRMED,
+    PROPOSED,
+    ApprovalProposalStore,
+    payload_hash,
+)
 from app.copilot.response_cache import ResponseCache
 from app.copilot.routing import ModelRouter
 from app.copilot.tools import ToolRegistry
@@ -75,6 +81,7 @@ class AgentState(TypedDict, total=False):
     security: SecurityContext
     idempotency_key: str | None
     confirm_high_risk: bool
+    proposal: dict[str, Any]
     prompt: str
     prompt_key: str
     prompt_hash: str
@@ -146,11 +153,20 @@ class CopilotAgent:
         knowledge_min_hits: int | None = None,
         response_cache: ResponseCache | None = None,
         llm_gateway: LlmGateway | None = None,
+        approval_proposals: ApprovalProposalStore | None = None,
     ) -> None:
         self.tools = tools or ToolRegistry()
         self.router = router or ModelRouter()
         self.llm = llm or LlmClient()
         self.metrics = metrics or CopilotMetrics()
+        self.approval_proposals = (
+            approval_proposals
+            if approval_proposals is not None
+            else ApprovalProposalStore(
+                ttl_seconds=float(os.getenv("AI_APPROVAL_PROPOSAL_TTL_SECONDS", "900")),
+                max_entries=int(os.getenv("AI_APPROVAL_PROPOSAL_MAX_ENTRIES", "1000")),
+            )
+        )
         self.llm_gateway = llm_gateway or LlmGateway(
             primary=self.llm,
             metrics=self.metrics,
@@ -389,6 +405,7 @@ class CopilotAgent:
         outcome = state.get("outcome") or (
             "HITL" if state.get("requires_human_approval") else "SUCCESS"
         )
+        proposal = state.get("proposal") or {}
         audit_payload = {
             "action": action.value,
             "confidence": round(state["confidence"], 4),
@@ -405,6 +422,9 @@ class CopilotAgent:
             "llmCostMicros": _llm_cost(state),
             "cacheHit": _llm_cached(state),
             "outcome": outcome,
+            "proposalId": proposal.get("proposalId"),
+            "proposalHash": proposal.get("proposalHash"),
+            "decision": proposal.get("decision"),
         }
         audit = await self.tools.invoke("audit_decision", audit_payload, security)
         state.setdefault("tool_calls", []).append(audit.model_dump())
@@ -518,6 +538,12 @@ class CopilotAgent:
         return self._record(state, call, answer, data=call.result)
 
     async def _approval_assistance(self, state: AgentState) -> AgentState:
+        """Two-step, hash-bound approval creation (issue #296).
+
+        The first call only proposes. No domain tool runs until a second, explicitly confirmed call
+        presents the proposal id and payload hash issued by the first response. A mismatched,
+        expired, foreign-tenant or previously confirmed proposal never creates a second task.
+        """
         context = state.get("context", {})
         workflow_instance_id = context.get("workflowInstanceId")
         if not workflow_instance_id:
@@ -526,32 +552,112 @@ class CopilotAgent:
                 ToolCall(name="create_approval", ok=False, error="workflowInstanceId is required"),
                 "Open a workflow instance first so I can prepare an approval task.",
             )
+
+        approval_payload = {
+            "workflowInstanceId": str(workflow_instance_id),
+            "title": context.get("title") or "Copilot approval request",
+            "description": context.get("description") or state["message"],
+            "assigneeId": context.get("assigneeId"),
+        }
+        security = state["security"]
+
         if not state.get("confirm_high_risk"):
-            state["requires_human_approval"] = True
-            state["confidence"] = 0.8
-            state["data"] = {"workflowInstanceId": workflow_instance_id}
-            state["answer"] = (
-                "I can create an approval task for this instance. Confirm the title and assignee."
+            proposal = self.approval_proposals.propose(
+                security, approval_payload, state.get("idempotency_key")
             )
+            state["proposal"] = proposal.audit_record(PROPOSED)
+            state["outcome"] = PROPOSED
+            state["requires_human_approval"] = True
+            state["confidence"] = 0.82
+            state["data"] = {
+                "workflowInstanceId": workflow_instance_id,
+                "proposedAction": "create_approval",
+                "proposalId": proposal.proposal_id,
+                "proposalHash": proposal.proposal_hash,
+                "expiresAt": proposal.expires_at,
+            }
+            state["answer"] = (
+                "I can create this approval task, but a high-risk action is never auto-confirmed. "
+                "Review the title, description and assignee, then confirm with the proposal id "
+                "and hash below. Nothing has been created yet."
+            )
+            self.metrics.increment("copilot.hitl.proposed")
             return state
+
+        proposal_id = context.get("proposalId")
+        supplied_hash = context.get("proposalHash")
+        if not proposal_id or not supplied_hash:
+            return self._reject_proposal(
+                state,
+                "PROPOSAL_REQUIRED",
+                "Confirmation requires the proposal id and payload hash issued by the proposal "
+                "step. No approval task was created.",
+            )
+        proposal = self.approval_proposals.get(
+            str(proposal_id), security.tenant_id, security.user_id
+        )
+        if proposal is None:
+            return self._reject_proposal(
+                state,
+                "PROPOSAL_UNKNOWN_OR_EXPIRED",
+                "That approval proposal is unknown, belongs to another caller, or has expired. "
+                "No approval task was created; propose the approval again.",
+            )
+        expected_hash = payload_hash(approval_payload)
+        if supplied_hash != proposal.proposal_hash or expected_hash != proposal.proposal_hash:
+            return self._reject_proposal(
+                state,
+                "PROPOSAL_PAYLOAD_MISMATCH",
+                "The confirmation does not match the proposed payload. No approval task was "
+                "created; propose the approval again.",
+            )
+
+        state["proposal"] = proposal.audit_record(CONFIRMED)
+        if proposal.status == CONFIRMED:
+            state["outcome"] = CONFIRMED
+            state["data"] = proposal.result
+            state["confidence"] = 0.95
+            state["answer"] = (
+                "This approval was already confirmed for this proposal; the existing approval "
+                "task is reused and no duplicate was created."
+            )
+            self.metrics.increment("copilot.hitl.confirmed_duplicate")
+            return state
+
         call = await self.tools.invoke(
             "create_approval",
             {
-                "workflowInstanceId": workflow_instance_id,
-                "title": context.get("title", "Copilot approval request"),
-                "description": context.get("description", state["message"]),
-                "assigneeId": context.get("assigneeId"),
-                "idempotencyKey": state.get("idempotency_key"),
+                **approval_payload,
+                # The proposal id is the idempotency key: a replayed confirmation can never
+                # create a second approval task in the backend.
+                "idempotencyKey": proposal.proposal_id,
             },
-            state["security"],
-            state.get("idempotency_key"),
+            security,
+            proposal.proposal_id,
         )
-        answer = (
-            "The approval task was created."
-            if call.ok
-            else f"The approval task could not be created: {call.error}"
-        )
+        if call.ok:
+            self.approval_proposals.mark_confirmed(proposal, call.result)
+            state["outcome"] = CONFIRMED
+            state["confidence"] = 0.95
+            answer = "The approval task was created after explicit confirmation."
+        else:
+            state["outcome"] = "CONFIRM_FAILED"
+            state["requires_human_approval"] = True
+            answer = f"The approval task could not be created: {call.error}"
+        self.metrics.increment("copilot.hitl.confirmed")
         return self._record(state, call, answer, data=call.result)
+
+    def _reject_proposal(
+        self, state: AgentState, code: str, message: str
+    ) -> AgentState:
+        """Fail closed without calling any state-changing tool."""
+        state["requires_human_approval"] = True
+        state["confidence"] = 0.0
+        state["outcome"] = code
+        state["data"] = {"errorCode": code}
+        state["answer"] = message
+        self.metrics.increment(f"copilot.hitl.rejected.{code.lower()}")
+        return state
 
     async def _knowledge_search(self, state: AgentState) -> AgentState:
         call = await self.tools.invoke(
