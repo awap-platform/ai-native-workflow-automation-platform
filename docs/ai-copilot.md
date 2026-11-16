@@ -69,6 +69,15 @@ fails this suite.
 The AI layer also performs a local permission check before calling the backend; the backend check is
 authoritative.
 
+Cross-tenant authorization matrix (issue #305): every internal tool is driven with a caller from
+tenant A and a forged tenant id in the body. The controller always uses the authenticated tenant from
+the service headers, so the forged body tenant has no effect; each tool is verified against the
+tenant-A service call and the tenant-B variant is asserted never to be invoked. The service token and
+role are re-verified on every call, and a forged `X-User-Permissions` header is ignored because the
+backend derives permissions from the verified role. Tests:
+`InternalAiToolControllerTest.everyToolUsesTheAuthenticatedTenantAndIgnoresAForgedBodyTenant` and
+`InternalAiToolAuthTest.ignoresAForgedPermissionsHeaderAndUsesTheVerifiedRole`.
+
 ## HTTP surfaces
 
 ### SPA-facing backend proxy

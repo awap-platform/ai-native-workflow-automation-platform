@@ -41,6 +41,16 @@ class InternalAiToolAuthTest {
   }
 
   @Test
+  void ignoresAForgedPermissionsHeaderAndUsesTheVerifiedRole() {
+    HttpServletRequest request = request("service-secret", "EMPLOYEE");
+    when(request.getHeader("X-User-Permissions")).thenReturn("INSTANCE_MANAGE,TENANT_MANAGE");
+
+    assertThatThrownBy(() -> auth.authenticate(request, Permission.INSTANCE_MANAGE))
+        .isInstanceOf(AwapException.class)
+        .satisfies(ex -> assertThat(((AwapException) ex).status().value()).isEqualTo(403));
+  }
+
+  @Test
   void returnsTheCallerWhenCredentialAndRoleAreValid() {
     HttpServletRequest request = request("service-secret", "TENANT_ADMIN");
 

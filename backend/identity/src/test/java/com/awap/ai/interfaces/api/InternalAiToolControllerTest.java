@@ -3,6 +3,7 @@ package com.awap.ai.interfaces.api;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -395,6 +396,75 @@ class InternalAiToolControllerTest {
     assertThatThrownBy(() -> controller.createApproval(body, request))
         .isInstanceOf(AwapException.class)
         .hasMessageContaining("assigneeId must be a UUID");
+  }
+
+  @Test
+  void everyToolUsesTheAuthenticatedTenantAndIgnoresAForgedBodyTenant() throws Exception {
+    UUID tenantB = UUID.randomUUID();
+    String forged = "\"tenantId\":\"" + tenantB + "\",";
+    User ada = new User(tenantId, "ada@example.com", "hash", "Ada", Role.EMPLOYEE);
+    UUID taskId = UUID.randomUUID();
+    UUID instanceId = UUID.randomUUID();
+    when(definitions.list(tenantId)).thenReturn(List.of());
+    when(engine.start(eq(tenantId), any(StartWorkflowRequest.class)))
+        .thenReturn(
+            new WorkflowInstanceResponse(
+                instanceId, tenantId, UUID.randomUUID(), 1, "RUNNING", "{}", null, null));
+    when(tasks.listMine(tenantId, userId)).thenReturn(List.of());
+    when(tasks.complete(tenantId, taskId)).thenReturn(task());
+    when(tasks.assign(eq(tenantId), eq(taskId), any(TaskAssignRequest.class))).thenReturn(task());
+    when(tasks.create(eq(tenantId), any(TaskRequest.class))).thenReturn(task());
+    when(knowledge.search(tenantId, "policy", 5)).thenReturn(List.of());
+    when(knowledge.indexDocument(any(), any(), any(), any(), any(), anyInt())).thenReturn(1);
+    when(users.findByIdAndTenantId(userId, tenantId)).thenReturn(Optional.of(ada));
+    when(users.searchByTenantId(tenantId, "Ada")).thenReturn(List.of(ada));
+
+    controller.findWorkflow(json("{" + forged + "\"query\":\"leave\"}"), request);
+    controller.createWorkflowInstance(
+        json("{" + forged + "\"workflowId\":\"" + UUID.randomUUID() + "\"}"), request);
+    controller.queryTasks(json("{" + forged + "\"mine\":true}"), request);
+    controller.completeTask(
+        json("{" + forged + "\"taskId\":\"" + taskId + "\",\"decision\":\"complete\"}"), request);
+    controller.assignTask(
+        json(
+            "{"
+                + forged
+                + "\"taskId\":\""
+                + taskId
+                + "\",\"assigneeId\":\""
+                + UUID.randomUUID()
+                + "\"}"),
+        request);
+    controller.createApproval(
+        json("{" + forged + "\"workflowInstanceId\":\"" + instanceId + "\"}"), request);
+    controller.sendNotification(json("{" + forged + "\"recipient\":\"ada@example.com\"}"), request);
+    controller.searchDocuments(json("{" + forged + "\"query\":\"policy\",\"limit\":5}"), request);
+    controller.indexDocument(
+        json(
+            "{"
+                + forged
+                + "\"fileId\":\""
+                + UUID.randomUUID()
+                + "\",\"title\":\"t\",\"content\":\"c\"}"),
+        request);
+    controller.getUser(json("{\"tenantId\":\"" + tenantB + "\"}"), request);
+    controller.findUser(json("{" + forged + "\"query\":\"Ada\"}"), request);
+    controller.auditDecision(json("{" + forged + "\"action\":\"chat\"}"), request);
+
+    verify(definitions).list(tenantId);
+    verify(engine).start(eq(tenantId), any(StartWorkflowRequest.class));
+    verify(tasks).listMine(tenantId, userId);
+    verify(tasks).complete(tenantId, taskId);
+    verify(tasks).assign(eq(tenantId), eq(taskId), any(TaskAssignRequest.class));
+    verify(tasks).create(eq(tenantId), any(TaskRequest.class));
+    verify(outbox).publish(eq(tenantId), eq("NOTIFICATION"), any(), any(), any());
+    verify(knowledge).search(tenantId, "policy", 5);
+    verify(knowledge).indexDocument(eq(tenantId), any(), any(), any(), any(), anyInt());
+    verify(users).findByIdAndTenantId(userId, tenantId);
+    verify(users).searchByTenantId(tenantId, "Ada");
+    verify(audits).save(any(AutomationAudit.class));
+    verify(definitions, never()).list(tenantB);
+    verify(tasks, never()).listMine(tenantB, userId);
   }
 
   @Test
