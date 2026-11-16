@@ -101,9 +101,7 @@ class ApprovalProposalStore:
         self._proposals[proposal.proposal_id] = proposal
         return proposal
 
-    def get(
-        self, proposal_id: str, tenant_id: str, user_id: str
-    ) -> ApprovalProposal | None:
+    def get(self, proposal_id: str, tenant_id: str, user_id: str) -> ApprovalProposal | None:
         proposal = self._proposals.get(proposal_id)
         if proposal is None:
             return None

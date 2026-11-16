@@ -62,9 +62,7 @@ def build_agent(
         tools=ToolRegistry(client),  # type: ignore[arg-type]
         llm=LlmClient(base_url="", api_key=""),
         confidence_threshold=0.7,
-        approval_proposals=ApprovalProposalStore(
-            ttl_seconds=ttl_seconds, now=clock or Clock()
-        ),
+        approval_proposals=ApprovalProposalStore(ttl_seconds=ttl_seconds, now=clock or Clock()),
     )
 
 

@@ -647,9 +647,7 @@ class CopilotAgent:
         self.metrics.increment("copilot.hitl.confirmed")
         return self._record(state, call, answer, data=call.result)
 
-    def _reject_proposal(
-        self, state: AgentState, code: str, message: str
-    ) -> AgentState:
+    def _reject_proposal(self, state: AgentState, code: str, message: str) -> AgentState:
         """Fail closed without calling any state-changing tool."""
         state["requires_human_approval"] = True
         state["confidence"] = 0.0
