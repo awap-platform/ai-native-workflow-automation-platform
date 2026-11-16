@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0](https://github.com/koraysrn/ai-native-workflow-automation-platform/compare/v1.3.0...v1.4.0) (2026-11-15)
+
+
+### Features
+
+* **ai:** add a multi-provider AI gateway with routing and fallback ([#324](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/324)) ([414933b](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/414933b032945561eb4c6e56f9ca0afd95163947))
+* **ai:** add a versioned gRPC/protobuf contract with REST fallback ([#323](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/323)) ([34fe32d](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/34fe32d3c73768a529efa4f6cbef17c65dc41b1a))
+* **ai:** add AI response latency metrics and an async Copilot job path ([#322](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/322)) ([58497a8](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/58497a8c3516875f0adde3bc513a77dbf7e9a014))
+* **ai:** add golden-set precision/recall evaluation harness ([#279](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/279)) ([#310](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/310)) ([64b6deb](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/64b6debaeedcbd269351a69b6837b2457f9a1421))
+* **ai:** add no-answer and low-confidence knowledge guard ([#281](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/281)) ([#313](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/313)) ([6696d27](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/6696d2706c766e859cbb807747ed05ae07e933c3))
+* **ai:** add schema-validated EXTRACT action to AI_TASK ([#287](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/287)) ([#319](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/319)) ([d767364](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/d767364a24c29bedacfed4521b9cc320599cb38b))
+* **ai:** enforce Copilot LLM budget, cache, rate limits and fallback ([#294](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/294)) ([#326](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/326)) ([45a85fe](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/45a85fe2e8e43de729af2f97a884be551a87ea3c))
+* **ai:** enforce prompt versioning and record prompt hashes ([#289](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/289)) ([#321](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/321)) ([9c0b794](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/9c0b79420d868a8d6dd84f206035d6498e376c72))
+* **analytics:** implement advanced dashboard aggregations ([#285](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/285)) ([#317](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/317)) ([856fc74](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/856fc744f1a77628c8c700308dec1fcc35b6ea5e))
+* **copilot:** enforce end-to-end idempotency for duplicate requests ([#283](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/283)) ([#315](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/315)) ([97b5f1c](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/97b5f1c69a3d9522f93914f90b20afef6746072a))
+* **knowledge:** add embeddings, hybrid retrieval and graded evaluation ([#325](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/325)) ([8d6e278](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/8d6e2788bb879f4f5aa9a7cb749ad802cf36106e))
+* **observability:** add OpenSearch log analysis and correlation search ([#286](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/286)) ([#318](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/318)) ([5924bee](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/5924bee1ef39616abaed7fa7eb1d49b6f36bdd8d))
+* **task:** bind AI HITL handover to a real APPROVAL task ([#288](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/288)) ([#320](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/320)) ([0ac0222](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/0ac02226aa34fdb331cae764b7b6d5856f636431))
+
 ## [1.3.0](https://github.com/koraysrn/ai-native-workflow-automation-platform/compare/v1.2.0...v1.3.0) (2026-11-14)
 
 
