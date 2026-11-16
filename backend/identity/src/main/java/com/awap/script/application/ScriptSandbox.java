@@ -63,6 +63,7 @@ public class ScriptSandbox {
     if (script.length() > MAX_SCRIPT_CHARS) {
       throw new ScriptSandboxException("Script exceeds " + MAX_SCRIPT_CHARS + " characters.");
     }
+    validateContext(context);
     Future<Object> future =
         executor.submit(
             () -> {
@@ -73,6 +74,13 @@ public class ScriptSandbox {
             });
     try {
       Object value = future.get(timeoutMs, TimeUnit.MILLISECONDS);
+      if (!(value == null
+          || value instanceof String
+          || value instanceof Number
+          || value instanceof Boolean)) {
+        throw new ScriptSandboxException(
+            "Script result must be a JSON primitive, not " + value.getClass().getName() + ".");
+      }
       String rendered = String.valueOf(value);
       if (rendered.length() > maxOutputChars) {
         throw new ScriptSandboxException(
@@ -93,6 +101,39 @@ public class ScriptSandbox {
           "Script failed: "
               + (ex.getCause() == null ? ex.getMessage() : ex.getCause().getMessage()));
     }
+  }
+
+  /**
+   * The context may only carry JSON primitives, maps and lists. A callable, proxy or host object is
+   * rejected before the parser runs so a script can never invoke or leak it (issue #306).
+   */
+  private static void validateContext(Map<String, Object> context) {
+    for (Map.Entry<String, Object> entry : context.entrySet()) {
+      validateContextValue(entry.getKey(), entry.getValue());
+    }
+  }
+
+  private static void validateContextValue(String path, Object value) {
+    if (value == null
+        || value instanceof String
+        || value instanceof Number
+        || value instanceof Boolean) {
+      return;
+    }
+    if (value instanceof Map<?, ?> map) {
+      for (Map.Entry<?, ?> entry : map.entrySet()) {
+        validateContextValue(path + "." + entry.getKey(), entry.getValue());
+      }
+      return;
+    }
+    if (value instanceof List<?> list) {
+      for (int index = 0; index < list.size(); index++) {
+        validateContextValue(path + "[" + index + "]", list.get(index));
+      }
+      return;
+    }
+    throw new ScriptSandboxException(
+        "Context value at '" + path + "' is not a JSON primitive: " + value.getClass().getName());
   }
 
   /** Sandboxed value plus its string rendering. */

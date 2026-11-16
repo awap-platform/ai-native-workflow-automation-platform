@@ -78,6 +78,12 @@ The same suite runs a deterministic 2 000-input fuzz loop (`Random(20261116L)`) 
 bounded expression, proving arbitrary input either evaluates inside the grammar or raises
 `ScriptSandboxException`; it never reaches host code.
 
+`ScriptSandboxNetworkTest` (issue #306) adds explicit coverage for URL/HTTP/socket/DNS/file-URL/JDBC/
+LDAP/SSRF payloads, host classes, reflection, imports and method calls. The context is validated
+before parsing: only JSON primitives, maps and lists are accepted, so a callable or dynamic proxy is
+rejected before the parser runs, and the result must also be a JSON primitive. A 1 000-input
+network-focused fuzz loop and the timeout path prove there is no host-side effect.
+
 ## Threat-model notes
 
 - **Prompt injection** — blocked before the provider; a bypass still cannot exceed the tenant's
