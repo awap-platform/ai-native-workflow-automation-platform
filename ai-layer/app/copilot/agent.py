@@ -296,6 +296,9 @@ class CopilotAgent:
             data=final.get("data"),
             model=final.get("route", {}).get("model"),
             model_tier=final.get("route", {}).get("tier"),
+            routing_reason=final.get("route", {}).get("routingReason"),
+            routing_policy=final.get("route", {}).get("routingPolicy"),
+            estimated_cost_micros=final.get("route", {}).get("estimatedCostMicros"),
             prompt_key=final.get("prompt_key", "chat"),
             prompt_version=PROMPT_VERSION,
             prompt_hash=final.get("prompt_hash", prompt_hash("chat")),
@@ -409,12 +412,22 @@ class CopilotAgent:
             return state
 
         action = state.get("action", CopilotAction.CHAT)
-        decision = self.router.route(state["message"], action)
+        security = state["security"]
+        decision = self.router.route(
+            state["message"],
+            action,
+            latency_budget_ms=(
+                security.latency_budget_ms if security.latency_budget_ms is not None else 10_000
+            ),
+            remaining_budget_tokens=security.remaining_budget_tokens,
+            risk=security.task_risk,
+        )
         state["route"] = {
             "tier": decision.tier.value,
             "model": decision.model,
             "complexity": decision.complexity,
             "reason": decision.reason,
+            **decision.as_audit(),
         }
         prompt_key = prompt_key_for_action(action.value)
         state["prompt_key"] = prompt_key
@@ -509,12 +522,18 @@ class CopilotAgent:
             "HITL" if state.get("requires_human_approval") else "SUCCESS"
         )
         proposal = state.get("proposal") or {}
+        route = state.get("route", {})
         audit_payload = {
             "action": action.value,
             "confidence": round(state["confidence"], 4),
             "requiresHumanApproval": state.get("requires_human_approval", False),
-            "model": state.get("route", {}).get("model"),
-            "modelTier": state.get("route", {}).get("tier"),
+            "model": route.get("model"),
+            "modelTier": route.get("tier"),
+            "routingPolicy": route.get("routingPolicy"),
+            "routingReason": route.get("routingReason"),
+            "estimatedCostMicros": route.get("estimatedCostMicros"),
+            "remainingBudgetTokens": route.get("remainingBudgetTokens"),
+            "latencyBudgetMs": route.get("latencyBudgetMs"),
             "promptKey": state.get("prompt_key", "chat"),
             "promptVersion": PROMPT_VERSION,
             "promptHash": state.get("prompt_hash", prompt_hash("chat")),

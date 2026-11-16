@@ -44,7 +44,7 @@ fails this suite.
 | Input guardrails | The legacy marker layer still rejects known injection markers, zero-width obfuscation and oversized input |
 | Output guardrails | System-prompt leakage, harmful content and PII are blocked/redacted, and oversized completions are blocked |
 | HITL | Starting a workflow, task decisions and approvals require explicit confirmation; an AI workflow node below the confidence threshold creates a node-linked approval task |
-| Model routing | Deterministic cheap/standard/complex routing by complexity, action and latency |
+| Model routing | Deterministic cheap/standard/complex routing by complexity, action risk, remaining tenant budget, estimated token cost and latency |
 | Cost controls | Monthly token budget, per-tenant rate limit, cache and provider fallback |
 | Prompt versioning | Prompts live under `ai-layer/app/prompts/*-v1.md`; every response reports `v1` |
 | Knowledge chunking | Sentence-aware chunks with overlap, indexed in OpenSearch and filtered by tenant |
@@ -149,6 +149,33 @@ run with `eval/baseline.v1.json`.
   instead of scoring it as zero.
 - The full protocol, including how to add entries and approve a new baseline, is in
   `ai-layer/eval/README.md`.
+
+## Budget-aware routing (issue #300)
+
+`ModelRouter` is a versioned policy table (`v1`). It receives server-derived routing metadata from
+the backend-to-AI-layer security context — `remaining_budget_tokens`, `latency_budget_ms` and
+`task_risk` — never from the SPA request body. The policy selects the tier in this order:
+
+| Condition | Result |
+|---|---|
+| Complexity ≥ 0.65 | complex tier |
+| 0.30 ≤ complexity < 0.65 | standard tier |
+| Complexity < 0.30 | cheap tier |
+| High-risk action, budget healthy | at least standard |
+| Latency < 2 000 ms | complex → standard |
+| Latency < 500 ms | standard → cheap |
+| Remaining budget = 0 | cheapest tier |
+| Remaining < estimated cost × 5 | downgrade one tier (high-risk floors at standard) |
+
+The response exposes `routing_reason`, `routing_policy` and `estimated_cost_micros`; the audit row
+also records `remainingBudgetTokens`, `latencyBudgetMs`, the complexity and whether a downgrade
+happened. A policy exception falls back to the cheapest safe tier and is audited. Malformed latency
+metadata uses the documented default, negative budget is treated as exhausted, and a client-supplied
+budget field in the request body is ignored.
+
+Tests: `ai-layer/tests/test_copilot_routing.py` covers every boundary, costs, the exception fallback,
+an exhaustive policy-combination property test and an integration test that the agent passes budget
+and latency into `ModelRouter.route` and the audit row.
 
 ## Semantic guardrails (issue #299)
 

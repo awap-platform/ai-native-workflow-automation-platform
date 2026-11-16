@@ -341,6 +341,15 @@ components:
         model_tier:
           type: string
           nullable: true
+        routing_reason:
+          type: string
+          nullable: true
+        routing_policy:
+          type: string
+          nullable: true
+        estimated_cost_micros:
+          type: integer
+          nullable: true
         prompt_version:
           type: string
         correlation_id:
