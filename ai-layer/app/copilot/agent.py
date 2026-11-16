@@ -28,6 +28,7 @@ from app.copilot.knowledge import (
     SEARCH_UNAVAILABLE,
     SUCCESS,
     assess_hits,
+    summarize_hits,
     unavailable,
 )
 from app.copilot.llm_gateway import LlmGateway, LlmUnavailable
@@ -103,6 +104,7 @@ class AgentState(TypedDict, total=False):
     confirm_high_risk: bool
     proposal: dict[str, Any]
     guardrail: dict[str, Any]
+    retrieved: dict[str, Any]
     prompt: str
     prompt_key: str
     prompt_hash: str
@@ -523,6 +525,7 @@ class CopilotAgent:
         )
         proposal = state.get("proposal") or {}
         route = state.get("route", {})
+        retrieved = state.get("retrieved") or {}
         audit_payload = {
             "action": action.value,
             "confidence": round(state["confidence"], 4),
@@ -548,6 +551,11 @@ class CopilotAgent:
             "proposalId": proposal.get("proposalId"),
             "proposalHash": proposal.get("proposalHash"),
             "decision": proposal.get("decision"),
+            "retrievedDocumentIds": retrieved.get("documentIds"),
+            "retrievedChunkRefs": retrieved.get("chunkRefs"),
+            "knowledgePromptKey": retrieved.get("promptKey"),
+            "knowledgePromptVersion": retrieved.get("promptVersion"),
+            "summaryTruncated": retrieved.get("truncated"),
         }
         audit = await self.tools.invoke("audit_decision", audit_payload, security)
         state.setdefault("tool_calls", []).append(audit.model_dump())
@@ -992,7 +1000,23 @@ class CopilotAgent:
                 requires_human_approval=True,
             )
 
-        hits = call.result
+        # The backend is tenant-scoped; this is a defensive check so a misbehaving adapter cannot
+        # inject another tenant's document into the prompt or the summary.
+        tenant_id = state["security"].tenant_id
+        hits = [
+            hit
+            for hit in call.result
+            if isinstance(hit, dict)
+            and (not hit.get("tenantId") or str(hit.get("tenantId")) == tenant_id)
+        ]
+        summary = summarize_hits(hits, state["message"])
+        state["retrieved"] = {
+            "documentIds": summary.document_ids,
+            "chunkRefs": summary.chunk_refs,
+            "truncated": summary.truncated,
+            "promptKey": "knowledge_search",
+            "promptVersion": PROMPT_VERSION,
+        }
         assessment = assess_hits(
             hits,
             state["message"],
@@ -1038,16 +1062,10 @@ class CopilotAgent:
                 requires_human_approval=True,
             )
 
-        lines = []
-        for hit in hits[:5]:
-            if isinstance(hit, dict):
-                title = hit.get("title") or hit.get("fileId", "document")
-                snippet = (hit.get("snippet") or "")[:300]
-                lines.append(f"- {title}: {snippet}")
         return self._record(
             state,
             call,
-            "Relevant tenant documents:\n" + "\n".join(lines),
+            summary.answer,
             data=hits,
             confidence=assessment.confidence,
             outcome=SUCCESS,
