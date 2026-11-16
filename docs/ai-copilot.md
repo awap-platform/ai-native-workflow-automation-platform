@@ -45,7 +45,7 @@ fails this suite.
 | Output guardrails | System-prompt leakage, harmful content and PII are blocked/redacted, and oversized completions are blocked |
 | HITL | Starting a workflow, task decisions and approvals require explicit confirmation; an AI workflow node below the confidence threshold creates a node-linked approval task |
 | Model routing | Deterministic cheap/standard/complex routing by complexity, action risk, remaining tenant budget, estimated token cost and latency |
-| Cost controls | Monthly token budget, per-tenant rate limit, cache and provider fallback |
+| Cost controls | Durable UTC-month token ledger with atomic reserve/refund, reconciliation, per-tenant rate limit, cache and provider fallback |
 | Prompt versioning | Prompts live under `ai-layer/app/prompts/*-v1.md`; every response reports `v1` |
 | Knowledge chunking | Sentence-aware chunks with overlap, indexed in OpenSearch and filtered by tenant |
 | Automatic indexing | The `document.events` consumer indexes each registered/created version best-effort; OpenSearch failures never fail the document consumer |
@@ -149,6 +149,27 @@ run with `eval/baseline.v1.json`.
   instead of scoring it as zero.
 - The full protocol, including how to add entries and approve a new baseline, is in
   `ai-layer/eval/README.md`.
+
+## Durable monthly AI budget (issue #301)
+
+`AiBudgetGuard` now reads and mutates the PostgreSQL ledger in `ai_budget_usage` through the atomic
+`awap_ai_budget_*` functions. The budget window is the **UTC calendar month** (the period is the first
+day of the month), so a new month starts a new ledger row and no timezone ambiguity exists.
+
+- `reserve` is a single conditional UPDATE keyed by `(tenant, period)` plus an idempotency event row;
+  concurrent replicas serialize on the row and cannot over-admit the cap. A replayed event key is
+  idempotent.
+- `refund` returns a failed provider call's reservation; `commit` reconciles the pre-call estimate
+  with the provider's actual token count.
+- A missing/unavailable ledger is **fail-closed** for quota-enforcing calls (`503`).
+- Every reservation/refund/reconciliation updates Micrometer counters, and crossing 80%/100% emits
+  `awap.ai.budget.utilization{state=near_limit|exhausted}` and a warning log.
+- `GET /api/v1/ai/budget` returns the caller tenant's period, budget, used, reserved, remaining,
+  utilization and `OK`/`NEAR_LIMIT`/`EXHAUSTED` warning.
+
+Tests: `AiBudgetGuardDurabilityTest` (shared ledger across replicas, restart, UTC month boundary,
+duplicate key, concurrency, refund/reconcile, fail-closed, snapshot) and
+`AiBudgetPostgresTest` (real PostgreSQL atomic boundary, duplicate/refund/reconcile, RLS).
 
 ## Budget-aware routing (issue #300)
 

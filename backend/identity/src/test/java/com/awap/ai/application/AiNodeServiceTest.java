@@ -104,6 +104,26 @@ class AiNodeServiceTest {
   }
 
   @Test
+  void providerFailureRefundsTheReservedBudget() {
+    when(agentService.summarize(any()))
+        .thenThrow(
+            new AwapException(
+                com.awap.common.api.ErrorCode.GENERIC_INTERNAL_ERROR,
+                org.springframework.http.HttpStatus.BAD_GATEWAY,
+                "provider failed"));
+    AiBudgetGuard budget = new AiBudgetGuard(1_000);
+    AiNodeService service =
+        new AiNodeService(agentService, auditRepository, budget, registry, true, 0.7, 2);
+
+    assertThatThrownBy(
+            () ->
+                service.evaluate(
+                    tenantId, instanceId, "ai-1", AiNodeService.AiAction.SUMMARIZE, "text"))
+        .isInstanceOf(AwapException.class);
+    assertThat(budget.used(tenantId)).isZero();
+  }
+
+  @Test
   void repeatedPromptIsServedFromCache() {
     when(agentService.classify(any())).thenReturn("invoice category finance and accounting");
     AiNodeService service = service(true, 1_000);

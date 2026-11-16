@@ -47,6 +47,8 @@ tags:
     description: Durable webhook delivery queue and dead-letter inspection.
   - name: Copilot
     description: Authenticated SPA proxy to the AI Copilot.
+  - name: AI
+    description: Tenant AI budget and usage visibility.
   - name: AI Tools
     description: Machine-to-machine tools used by the AI layer with a re-verified user context.
 
@@ -2867,6 +2869,63 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  /api/v1/ai/budget:
+    get:
+      operationId: getAiBudget
+      summary: Current tenant AI token budget
+      description: >-
+        Returns the durable monthly AI budget ledger for the caller's tenant. The period is the first
+        day of the current UTC month. Warning is OK, NEAR_LIMIT (>= 80%) or EXHAUSTED.
+      tags: [AI]
+      responses:
+        "200":
+          description: Current AI budget snapshot.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - tenantId
+                  - period
+                  - budgetTokens
+                  - usedTokens
+                  - reservedTokens
+                  - remainingTokens
+                  - utilization
+                  - warning
+                properties:
+                  tenantId:
+                    type: string
+                    format: uuid
+                  period:
+                    type: string
+                    format: date
+                  budgetTokens:
+                    type: integer
+                    format: int64
+                  usedTokens:
+                    type: integer
+                    format: int64
+                  reservedTokens:
+                    type: integer
+                    format: int64
+                  remainingTokens:
+                    type: integer
+                    format: int64
+                  utilization:
+                    type: number
+                  warning:
+                    type: string
+                    enum: [OK, NEAR_LIMIT, EXHAUSTED]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          description: The durable AI budget ledger is unavailable.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
 
   /internal/tools/find_workflow:
     post:
