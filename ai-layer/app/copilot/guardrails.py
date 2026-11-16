@@ -84,6 +84,12 @@ def estimate_confidence(text: str, action: str) -> float:
             confidence -= 0.25
     if len(normalized) < 12:
         confidence -= 0.2
-    if action in {"start_workflow", "complete_task", "approval_assistance"}:
+    if action in {
+        "start_workflow",
+        "complete_task",
+        "assign_task",
+        "send_notification",
+        "approval_assistance",
+    }:
         confidence -= 0.05
     return max(0.0, min(1.0, confidence))

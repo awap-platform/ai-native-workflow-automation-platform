@@ -70,8 +70,27 @@ CACHEABLE_ACTIONS = {CopilotAction.CHAT}
 HIGH_RISK_ACTIONS = {
     CopilotAction.START_WORKFLOW,
     CopilotAction.COMPLETE_TASK,
+    CopilotAction.ASSIGN_TASK,
+    CopilotAction.SEND_NOTIFICATION,
     CopilotAction.APPROVAL_ASSISTANCE,
 }
+
+NOTIFICATION_CHANNELS = {"EMAIL", "SMS", "PUSH", "WEB", "WEBHOOK"}
+NOTIFICATION_TEMPLATES = {
+    "notification",
+    "welcome",
+    "task-assigned",
+    "task-approved",
+    "task-rejected",
+    "task-completed",
+    "task-escalated",
+    "workflow-started",
+    "workflow-completed",
+    "workflow-failed",
+    "workflow-paused",
+    "workflow-resumed",
+}
+NOTIFICATION_LOCALES = {"en", "tr"}
 
 
 class AgentState(TypedDict, total=False):
@@ -312,6 +331,23 @@ class CopilotAgent:
             for word in ("başlat", "start", "initiate", "izin talebi", "leave request")
         ):
             action = CopilotAction.START_WORKFLOW
+        # Assignment and notification are matched before the generic task/approval words:
+        # "notify the approver" must never be mistaken for an approval decision.
+        elif any(word in message for word in ("assign", "görevlendir", "devret", "ata")):
+            action = CopilotAction.ASSIGN_TASK
+        elif any(
+            word in message
+            for word in (
+                "notify",
+                "notification",
+                "bildir",
+                "bildirim",
+                "haber ver",
+                "hatırlat",
+                "remind",
+            )
+        ):
+            action = CopilotAction.SEND_NOTIFICATION
         elif any(
             word in message
             for word in ("onayla", "approve", "reddet", "reject", "tamamla", "complete task")
@@ -374,6 +410,10 @@ class CopilotAgent:
                 return await self._query_tasks(state)
             if action == CopilotAction.COMPLETE_TASK:
                 return await self._complete_task(state)
+            if action == CopilotAction.ASSIGN_TASK:
+                return await self._assign_task(state)
+            if action == CopilotAction.SEND_NOTIFICATION:
+                return await self._send_notification(state)
             if action == CopilotAction.APPROVAL_ASSISTANCE:
                 return await self._approval_assistance(state)
             if action == CopilotAction.KNOWLEDGE_SEARCH:
@@ -536,6 +576,183 @@ class CopilotAgent:
             else f"The task decision failed: {call.error}"
         )
         return self._record(state, call, answer, data=call.result)
+
+    async def _assign_task(self, state: AgentState) -> AgentState:
+        """Resolve one tenant user, then assign only after explicit confirmation (issue #297)."""
+        context = state.get("context", {})
+        task_id = context.get("taskId")
+        if not task_id:
+            return self._invalid_action(
+                state,
+                "assign_task",
+                "taskId is required",
+                "Tell me which task to assign, or open it from the task list first.",
+            )
+        security = state["security"]
+        assignee_id = context.get("assigneeId")
+        resolved: dict[str, Any] | None = None
+        if not assignee_id:
+            query = (
+                context.get("assigneeEmail")
+                or context.get("assigneeName")
+                or context.get("assignee")
+            )
+            if not query:
+                state["requires_human_approval"] = True
+                state["confidence"] = 0.4
+                state["answer"] = (
+                    "Who should the task be assigned to? Give an explicit user id, email or name "
+                    "inside your tenant."
+                )
+                return state
+            lookup = await self.tools.invoke(
+                "find_user", {"query": str(query)}, security, state.get("idempotency_key")
+            )
+            state.setdefault("tool_calls", []).append(lookup.model_dump())
+            if not lookup.ok:
+                return self._record(
+                    state,
+                    lookup,
+                    f"I could not resolve that assignee: {lookup.error}",
+                )
+            matches = lookup.result if isinstance(lookup.result, list) else []
+            if len(matches) != 1 or not isinstance(matches[0], dict):
+                state["requires_human_approval"] = True
+                state["confidence"] = 0.3
+                state["data"] = matches
+                state["answer"] = (
+                    "I found no unique user in your tenant for that assignee. I will not assign "
+                    "the task without an explicit user id."
+                    if not matches
+                    else "More than one user matches that assignee. Give me the exact user id "
+                    "so I do not assign the task to the wrong person."
+                )
+                return state
+            resolved = matches[0]
+            assignee_id = resolved.get("id")
+
+        if not state.get("confirm_high_risk"):
+            state["requires_human_approval"] = True
+            state["confidence"] = 0.8
+            state["data"] = {
+                "taskId": task_id,
+                "assigneeId": assignee_id,
+                "assignee": resolved,
+                "proposedAction": "assign_task",
+            }
+            state["answer"] = (
+                "Assigning a task changes business state. Confirm that this is the right task and "
+                "assignee; I will assign it only after your confirmation."
+            )
+            return state
+
+        call = await self.tools.invoke(
+            "assign_task",
+            {
+                "taskId": task_id,
+                "assigneeId": assignee_id,
+                "idempotencyKey": state.get("idempotency_key"),
+            },
+            security,
+            state.get("idempotency_key"),
+        )
+        assignee_label = (
+            resolved.get("fullName") or resolved.get("email")
+            if isinstance(resolved, dict)
+            else assignee_id
+        )
+        answer = (
+            f"The task was assigned to {assignee_label}."
+            if call.ok
+            else f"The task could not be assigned: {call.error}"
+        )
+        return self._record(state, call, answer, data=call.result)
+
+    async def _send_notification(self, state: AgentState) -> AgentState:
+        """Validate, dedupe and confirm a notification before sending it (issue #297)."""
+        context = state.get("context", {})
+        recipient = (
+            context.get("recipient") or context.get("recipientEmail") or context.get("recipientId")
+        )
+        if not recipient:
+            return self._invalid_action(
+                state,
+                "send_notification",
+                "recipient is required",
+                "Who should receive the notification? Give an explicit tenant user or address.",
+            )
+        channel = str(context.get("channel") or "EMAIL").upper()
+        if channel not in NOTIFICATION_CHANNELS:
+            return self._invalid_action(
+                state,
+                "send_notification",
+                f"unknown channel: {channel}",
+                "That notification channel is not supported. Use EMAIL, SMS, PUSH, WEB or WEBHOOK.",
+            )
+        template_key = str(context.get("templateKey") or "notification")
+        if template_key not in NOTIFICATION_TEMPLATES:
+            return self._invalid_action(
+                state,
+                "send_notification",
+                f"unknown templateKey: {template_key}",
+                "That notification template is not registered. Pick a known template before "
+                "I send.",
+            )
+        locale = str(context.get("locale") or "en").lower()
+        if locale not in NOTIFICATION_LOCALES:
+            return self._invalid_action(
+                state,
+                "send_notification",
+                f"unsupported locale: {locale}",
+                "That notification locale is not supported. Use en or tr.",
+            )
+
+        payload = {
+            "recipient": str(recipient),
+            "channel": channel,
+            "templateKey": template_key,
+            "locale": locale,
+            "variables": context.get("variables") or {},
+            "businessKey": context.get("businessKey"),
+            # The idempotency key also dedupes the durable notification delivery.
+            "dedupeKey": context.get("dedupeKey") or state.get("idempotency_key"),
+        }
+        if not state.get("confirm_high_risk"):
+            state["requires_human_approval"] = True
+            state["confidence"] = 0.8
+            state["data"] = {**payload, "proposedAction": "send_notification"}
+            state["answer"] = (
+                "Sending a notification changes external state. Confirm the recipient, channel, "
+                "template and locale; I will send it only after your confirmation."
+            )
+            return state
+
+        call = await self.tools.invoke(
+            "send_notification",
+            {**payload, "idempotencyKey": state.get("idempotency_key")},
+            state["security"],
+            state.get("idempotency_key"),
+        )
+        answer = (
+            "The notification was queued for delivery."
+            if call.ok
+            else f"The notification could not be sent: {call.error}"
+        )
+        return self._record(state, call, answer, data=call.result)
+
+    def _invalid_action(
+        self, state: AgentState, tool_name: str, error: str, message: str
+    ) -> AgentState:
+        """Surface a validation failure without invoking a state-changing tool."""
+        state["requires_human_approval"] = True
+        state["confidence"] = 0.0
+        state["data"] = {"errorCode": "VALIDATION_FAILED", "detail": error}
+        state["answer"] = message
+        state.setdefault("tool_calls", []).append(
+            ToolCall(name=tool_name, ok=False, error=error).model_dump()
+        )
+        self.metrics.increment(f"copilot.tool.validation_failed.{tool_name}")
+        return state
 
     async def _approval_assistance(self, state: AgentState) -> AgentState:
         """Two-step, hash-bound approval creation (issue #296).

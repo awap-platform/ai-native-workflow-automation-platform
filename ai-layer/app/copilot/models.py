@@ -16,6 +16,8 @@ class CopilotAction(StrEnum):
     START_WORKFLOW = "start_workflow"
     QUERY_TASKS = "query_tasks"
     COMPLETE_TASK = "complete_task"
+    ASSIGN_TASK = "assign_task"
+    SEND_NOTIFICATION = "send_notification"
     APPROVAL_ASSISTANCE = "approval_assistance"
     KNOWLEDGE_SEARCH = "knowledge_search"
 

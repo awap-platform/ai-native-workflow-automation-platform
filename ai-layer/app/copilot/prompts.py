@@ -20,6 +20,8 @@ PROMPTS: dict[str, str] = {
     "chat": "chat-v1.md",
     "workflow_discovery": "workflow-discovery-v1.md",
     "task_assistant": "task-assistant-v1.md",
+    "assign_task": "assign-task-v1.md",
+    "send_notification": "send-notification-v1.md",
     "approval_assistance": "approval-assistance-v1.md",
     "knowledge_search": "knowledge-search-v1.md",
 }
@@ -45,6 +47,10 @@ def prompt_key_for_action(action: str) -> str:
         return "workflow_discovery"
     if action in {"query_tasks", "complete_task"}:
         return "task_assistant"
+    if action == "assign_task":
+        return "assign_task"
+    if action == "send_notification":
+        return "send_notification"
     if action == "approval_assistance":
         return "approval_assistance"
     if action == "knowledge_search":

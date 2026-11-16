@@ -2887,6 +2887,25 @@ paths:
                 items:
                   type: object
 
+  /internal/tools/find_user:
+    post:
+      operationId: aiToolFindUser
+      summary: Resolve a tenant user for the AI assign action
+      description: Internal machine-to-machine tool; requires TASK_MANAGE and only searches the caller's tenant.
+      tags: [AI Tools]
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/AiToolContext"
+      responses:
+        "200":
+          description: Up to five tenant-scoped user matches.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
   /internal/tools/create_workflow_instance:
     post:
       operationId: aiToolCreateWorkflowInstance
@@ -3263,6 +3282,8 @@ components:
             - start_workflow
             - query_tasks
             - complete_task
+            - assign_task
+            - send_notification
             - approval_assistance
             - knowledge_search
         confidence:

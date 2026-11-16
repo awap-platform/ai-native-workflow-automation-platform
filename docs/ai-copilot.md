@@ -34,8 +34,9 @@ fails this suite.
 | Workflow initiation | `create_workflow_instance` uses the existing engine and `Idempotency-Key` |
 | Task query | `query_tasks` lists the caller's tasks |
 | Task completion | `complete_task` supports approve, reject and complete |
+| Task assignment | `ASSIGN_TASK` resolves one tenant user through `find_user`, requires confirmation and calls `assign_task` with the caller context |
 | Approval assistance | Two-step propose/confirm: the first call creates nothing, the second must present the proposal id and payload hash before `create_approval` runs |
-| Notification | `send_notification` uses the durable notification delivery path |
+| Notification | `SEND_NOTIFICATION` validates the channel/template/locale, requires confirmation, derives a dedupe key and calls the durable notification delivery path |
 | Knowledge search | `search_documents` queries the tenant-filtered OpenSearch knowledge index |
 | Audit | `audit_decision` writes an immutable `automation_audit_records` row |
 | Prompt injection | Input guardrails reject injection markers, zero-width obfuscation and oversized input |
@@ -55,7 +56,8 @@ fails this suite.
 | `create_workflow_instance` | `INSTANCE_MANAGE` |
 | `query_tasks` | `TASK_MANAGE` |
 | `complete_task` | `TASK_MANAGE` (and the task service's decision right) |
-| `assign_task` | `TASK_MANAGE` |
+| `assign_task` | `TASK_MANAGE` (tenant-scoped `find_user` resolution first) |
+| `find_user` | `TASK_MANAGE` |
 | `create_approval` | `TASK_MANAGE` |
 | `send_notification` | `INSTANCE_MANAGE` |
 | `search_documents` | `INSTANCE_READ` |
@@ -84,7 +86,7 @@ The same paths under the AI layer's `/api/v1` prefix, plus `workflows/discover` 
 
 ### Internal tool API
 
-`/internal/tools/{find_workflow,create_workflow_instance,query_tasks,complete_task,assign_task,create_approval,send_notification,search_documents,index_document,get_user,audit_decision}`
+`/internal/tools/{find_workflow,create_workflow_instance,query_tasks,complete_task,assign_task,find_user,create_approval,send_notification,search_documents,index_document,get_user,audit_decision}`
 
 ## Configuration
 

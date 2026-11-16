@@ -34,6 +34,8 @@ def test_action_mapping_selects_the_expected_prompt() -> None:
     assert prompt_key_for_action("discover_workflow") == "workflow_discovery"
     assert prompt_key_for_action("query_tasks") == "task_assistant"
     assert prompt_key_for_action("complete_task") == "task_assistant"
+    assert prompt_key_for_action("assign_task") == "assign_task"
+    assert prompt_key_for_action("send_notification") == "send_notification"
     assert prompt_key_for_action("approval_assistance") == "approval_assistance"
     assert prompt_key_for_action("knowledge_search") == "knowledge_search"
     assert prompt_key_for_action("chat") == "chat"

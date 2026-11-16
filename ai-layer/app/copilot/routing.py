@@ -46,6 +46,8 @@ class ModelRouter:
         if action in {
             CopilotAction.START_WORKFLOW,
             CopilotAction.COMPLETE_TASK,
+            CopilotAction.ASSIGN_TASK,
+            CopilotAction.SEND_NOTIFICATION,
             CopilotAction.APPROVAL_ASSISTANCE,
         }:
             score += 0.35

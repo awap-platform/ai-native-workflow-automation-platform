@@ -40,9 +40,9 @@ export default function CopilotPage() {
     <div data-testid="copilot-page">
       <h1 style={{ fontSize: 24, fontWeight: 700 }}>AI Copilot</h1>
       <p style={{ color: "#475569", maxWidth: 760 }}>
-        Ask in natural language to discover or start a workflow, query and complete tasks, prepare
-        an approval, or search your tenant documents. High-risk actions require explicit
-        confirmation and are audited.
+        Ask in natural language to discover or start a workflow, query, complete or assign tasks,
+        send a notification, prepare an approval, or search your tenant documents. High-risk
+        actions require explicit confirmation and are audited.
       </p>
 
       <section

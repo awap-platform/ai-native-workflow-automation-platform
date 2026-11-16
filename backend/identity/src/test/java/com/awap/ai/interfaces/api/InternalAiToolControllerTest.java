@@ -202,6 +202,33 @@ class InternalAiToolControllerTest {
   }
 
   @Test
+  void findUserReturnsOnlyTenantScopedMatches() throws Exception {
+    User ada = new User(tenantId, "ada@example.com", "hash", "Ada Lovelace", Role.EMPLOYEE);
+    when(users.searchByTenantId(tenantId, "Ada")).thenReturn(List.of(ada));
+
+    List<Map<String, Object>> result = controller.findUser(json("{\"query\":\"Ada\"}"), request);
+
+    assertThat(result)
+        .hasSize(1)
+        .first()
+        .satisfies(
+            user ->
+                assertThat(user)
+                    .containsEntry("email", "ada@example.com")
+                    .containsEntry("fullName", "Ada Lovelace")
+                    .containsEntry("role", "EMPLOYEE"));
+    verify(users).searchByTenantId(tenantId, "Ada");
+  }
+
+  @Test
+  void findUserRejectsABlankQueryBeforeSearching() throws Exception {
+    assertThatThrownBy(() -> controller.findUser(json("{\"query\":\"  \"}"), request))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("query is required");
+    verify(users, never()).searchByTenantId(any(), any());
+  }
+
+  @Test
   void createApprovalFallsBackToADefaultTitle() throws Exception {
     UUID instanceId = UUID.randomUUID();
     when(tasks.create(eq(tenantId), any(TaskRequest.class))).thenReturn(task());
