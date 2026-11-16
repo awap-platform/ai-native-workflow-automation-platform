@@ -214,7 +214,10 @@ budget field in the request body is ignored.
 
 Tests: `ai-layer/tests/test_copilot_routing.py` covers every boundary, costs, the exception fallback,
 an exhaustive policy-combination property test and an integration test that the agent passes budget
-and latency into `ModelRouter.route` and the audit row.
+and latency into `ModelRouter.route` and the audit row. On the backend,
+`AiRoutingFallbackE2ETest` drives the real AI node + agent + provider gateway: cheap/complex model
+selection, token/cost metrics, 429/timeout fallback with a fallback counter, all-provider failure as a
+typed 502, and budget exhaustion returning 429 with zero provider calls.
 
 ## Semantic guardrails (issue #299)
 
