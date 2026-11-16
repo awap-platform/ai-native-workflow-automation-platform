@@ -133,6 +133,15 @@ The guard is enforced after retrieval, so a model cannot ignore it. Every outcom
 `copilot.knowledge.<outcome>` and is written to the audit row. The retrieval fixture at
 `ai-layer/eval/knowledge_retrieval.v1.json` gates answer and document Precision/Recall at 0.85 in CI.
 
+### Grounded find-and-summarize (issue #303)
+
+On `SUCCESS`, `summarize_hits` builds a deterministic, bounded summary from the tenant-filtered
+chunks. Each source is cited with its title, file id and chunk index, snippets are truncated to 320
+characters and instruction-like sentences inside retrieved text are neutralized as untrusted data.
+The audit row records `retrievedDocumentIds`, `retrievedChunkRefs`, `knowledgePromptKey`,
+`knowledgePromptVersion` and `summaryTruncated`. A hit that carries a different `tenantId` is dropped
+at the AI-layer boundary as a defensive check. Tests: `ai-layer/tests/test_copilot_knowledge_summary.py`.
+
 ## Golden-set evaluation (issue #279)
 
 Workflow-matching accuracy is measured on the versioned dataset at
