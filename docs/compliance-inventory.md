@@ -13,6 +13,7 @@ implements in code and configuration, with a focus on retention and right-to-era
 | Observability / tracing | CC4.1 | A.12.4 | Art. 30 (logging) | Micrometer Tracing + OTLP; one `traceId` spans HTTP → service → outbox → Kafka. See O2 in [`operations-runbook.md`](../docs/operations-runbook.md). |
 | Retention | CC6.1 | A.8.2 | Art. 5(1)(e) / KVKK Art. 7 | `awap.outbox.retention-days` (default 7) governs outbox purge; purge archives to JSONL before delete (see [`OutboxPurgeScheduler.java`](../backend/identity/src/main/java/com/awap/engine/application/OutboxPurgeScheduler.java)). |
 | Right to erasure | CC6.1 | A.8.2 | GDPR Art. 17 / KVKK Art. 7 | Erasure path deletes/anonymises tenant data within the SLA; retention windows are pinned so deleted data is not kept indefinitely. |
+| SCRIPT sandbox | CC6.1 / CC7.1 | A.12.1 / A.14.2 | Art. 32 | Deny-by-construction expression grammar with no imports, libraries, method calls, file or network access. The approved deviation from the whitelist-library wording, allowed grammar, limits and residual parser risk are recorded in [ADR-0010](adr/0010-script-sandbox-deny-all-over-whitelist-libraries.md) and proven by `ScriptSandboxSecurityMatrixTest`. |
 
 ## Retention schedule
 
@@ -44,4 +45,5 @@ implemented by:
   cleanly on corrupt backups. Automated weekly by `.github/workflows/restore-drill.yml`.
 - `scripts/verify-tracing.sh` — asserts the backend OTLP config aligns with the collector
   receiver so a single `traceId` spans HTTP → service → outbox → Kafka.
+- `ScriptSandboxSecurityMatrixTest` — allowed/denied construct matrix plus a deterministic fuzz loop.
 - `scripts/check-compliance.sh` — fails when a file referenced by this inventory is missing.

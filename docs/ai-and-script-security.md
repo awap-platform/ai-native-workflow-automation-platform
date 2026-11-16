@@ -52,6 +52,32 @@ cannot be rewritten after the fact. Read it per tenant/instance via
 | `awap.ai.tokens` / `awap.ai.cost.micros` | – | Spend tracking |
 | `awap.script.executions` | `outcome` (`success`/`failed`/`timeout`) | Sandbox health |
 
+## Whitelist-library requirement vs deny-by-construction decision (issue #298)
+
+The plan's wording ("SCRIPT limited to whitelisted libraries") and the implementation (a
+deny-by-construction expression grammar with no imports, libraries or method calls) are reconciled
+in [ADR-0010](adr/0010-script-sandbox-deny-all-over-whitelist-libraries.md). The decision is to keep
+the stronger deny-all sandbox as the default and fail closed; it is not weakened to accept a
+library runtime. A future need for loops or libraries requires a separate worker-container/WASM
+sandbox with its own ADR, resource limits and library allowlist.
+
+### Security test matrix
+
+`ScriptSandboxSecurityMatrixTest` enumerates every allowed construct and every denied construct:
+
+| Allowed | Denied |
+|---|---|
+| Numbers, strings, booleans, `null` | Imports, classes, reflection, `Runtime`, `System`, process execution |
+| `ctx.field` map reads (no calls, no indexing) | Method calls, `getClass`, indexing, assignment, loops, lambdas |
+| `+ - * / %`, comparisons, `and`/`or`/`not`, parentheses, unary minus | Environment variables, system properties, Spring beans |
+| `len`, `upper`, `lower`, `coalesce`, `abs` | URL/socket/HTTP/DNS/file-URL constructs, file and process access |
+| String concatenation | Statement separators, collections, comments, unknown identifiers/functions |
+| Bounded literal/expression sizes | Zero-width/unicode obfuscation and malformed input |
+
+The same suite runs a deterministic 2 000-input fuzz loop (`Random(20261116L)`) and a deeply nested
+bounded expression, proving arbitrary input either evaluates inside the grammar or raises
+`ScriptSandboxException`; it never reaches host code.
+
 ## Threat-model notes
 
 - **Prompt injection** — blocked before the provider; a bypass still cannot exceed the tenant's
