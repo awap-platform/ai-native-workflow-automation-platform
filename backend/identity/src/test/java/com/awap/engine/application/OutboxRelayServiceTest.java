@@ -101,6 +101,28 @@ class OutboxRelayServiceTest {
   }
 
   @Test
+  void nodeRejectedEventGoesToItsDedicatedTopic() {
+    when(kafkaTemplateProvider.getIfAvailable()).thenReturn(kafkaTemplate);
+    UUID aggregateId = UUID.randomUUID();
+    UUID token = UUID.randomUUID();
+    OutboxClaimStore.ClaimedOutboxEvent event =
+        claimed("NODE_REJECTED", "{\"reason\":\"no\"}", aggregateId, token);
+    when(claimStore.claimBatch(100, LEASE, MAX_ATTEMPTS)).thenReturn(List.of(event));
+    when(kafkaTemplate.send(
+            org.mockito.ArgumentMatchers
+                .<org.apache.kafka.clients.producer.ProducerRecord<String, String>>any()))
+        .thenReturn(sent());
+    when(claimStore.markPublished(event.id(), token)).thenReturn(true);
+
+    service.relayEvents();
+
+    ArgumentCaptor<ProducerRecord<String, String>> captor =
+        ArgumentCaptor.forClass(ProducerRecord.class);
+    verify(kafkaTemplate).send(captor.capture());
+    assertThat(captor.getValue().topic()).isEqualTo("workflow.task.rejected.events");
+  }
+
+  @Test
   void sagaCompensationDlqEventGoesToItsPerTopicDeadLetterTopic() {
     when(kafkaTemplateProvider.getIfAvailable()).thenReturn(kafkaTemplate);
     UUID aggregateId = UUID.randomUUID();

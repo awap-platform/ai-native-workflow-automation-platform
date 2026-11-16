@@ -439,8 +439,35 @@ public class WorkflowEngineService implements WorkflowEnginePort {
       mergeOutputIntoContext(instance, nodeId, outputJson);
       log(instance, nodeId, execution.getNodeType(), "NODE_COMPLETED", outputJson);
     }
+    // Completing the node that put the instance into WAITING (AI HITL) resumes the instance before
+    // its outgoing transitions are evaluated (issue #304).
+    if (instance.getState() == WorkflowState.WAITING) {
+      instance.transitionTo(WorkflowState.RUNNING);
+    }
     transitionResolver.advanceFrom(instance, nodeId);
     return engineMapper.toResponse(instance);
+  }
+
+  /**
+   * Rejection path for an AI HITL approval task (issue #304). A rejected node is failed and the
+   * instance reaches a deterministic FAILED terminal state; it is never resumed as a completion.
+   */
+  @Transactional
+  public void rejectNode(NodeRejectedEvent event) {
+    WorkflowInstance instance = find(event.tenantId(), event.workflowInstanceId());
+    NodeExecution execution =
+        nodeExecutionRepository.findById(event.nodeExecutionId()).orElse(null);
+    if (execution == null
+        || execution.getStatus() == NodeExecutionStatus.COMPLETED
+        || execution.getStatus() == NodeExecutionStatus.FAILED) {
+      return;
+    }
+    execution.fail(event.reason());
+    nodeExecutionRepository.save(execution);
+    log(instance, execution.getNodeId(), execution.getNodeType(), "NODE_REJECTED", event.reason());
+    if (instance.getState() != WorkflowState.FAILED) {
+      transition(instance, WorkflowState.FAILED, "AI_HITL_REJECTED");
+    }
   }
 
   @EventListener

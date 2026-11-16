@@ -10,8 +10,25 @@ task. It creates a real APPROVAL task with the APPROVAL node semantics:
 | Approvers | `config.approvers` is required for `APPROVAL`, `AI` and `AI_TASK` nodes; publishing without one fails with `400`. The first resolvable `role:` approver becomes the assignee. |
 | SLA | `config.approvalSlaMinutes` (default 60, bounded to one week) becomes `tasks.escalate_at`. The existing escalation scheduler consumes it. |
 | Idempotency | The task is reused when the same node execution is evaluated again; no duplicate task rows. |
-| Decision | `approve` publishes `{"decision":"APPROVED"}`; `reject` publishes `{"decision":"REJECTED"}`. Graph conditions can route the rejection branch. Wrong approvers are rejected by the existing decision-rights check. |
-| Duplicate decision | A second decision is rejected deterministically with `409` by the Task state machine. |
+| Decision | `approve` publishes `TASK_COMPLETED` with a `NodeCompletedEvent`, which completes the linked node and advances the workflow. `reject` publishes `NODE_REJECTED`; the engine fails the node and instance deterministically and never resumes the node. Wrong approvers are rejected by the decision-rights check. |
+| Duplicate decision | A second decision is rejected deterministically with `409` by the Task state machine and publishes no second completion. |
+
+## Approval/resume contract (issue #304)
+
+- `TASK_COMPLETED` is the only event that resumes a linked AI node. The consumer calls
+  `WorkflowEngineService.onNodeCompleted`, which completes the `WAITING` node, moves a `WAITING`
+  instance back to `RUNNING`, and evaluates outgoing transitions.
+- Replaying the completion event is idempotent: an already-`COMPLETED` execution is not saved or
+  advanced twice, which also makes an engine restart after approval safe.
+- `NODE_REJECTED` is a separate topic (`workflow.task.rejected.events`) and handler. It fails the
+  node and transitions the instance to `FAILED` (`AI_HITL_REJECTED`); it can never be parsed as a
+  completion.
+- Missing approver configuration fails at publish time; a wrong approver is rejected before any
+  decision is persisted. Concurrent/duplicate decisions are serialized by the task state machine.
+
+Tests: `WorkflowEngineServiceTest` (resume exactly once, rejection terminal path, idempotent
+rejection) and `TaskServiceTest` (one completion on approve, rejection event, duplicate approval,
+wrong approver).
 
 ## Node configuration
 
