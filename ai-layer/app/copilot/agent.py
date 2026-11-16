@@ -53,6 +53,7 @@ from app.copilot.proposals import (
 )
 from app.copilot.response_cache import ResponseCache
 from app.copilot.routing import ModelRouter
+from app.copilot.semantic_guardrails import SemanticGuardrailLayer
 from app.copilot.tools import ToolRegistry
 
 try:  # pragma: no cover - exercised only when the pinned dependency is installed
@@ -101,6 +102,7 @@ class AgentState(TypedDict, total=False):
     idempotency_key: str | None
     confirm_high_risk: bool
     proposal: dict[str, Any]
+    guardrail: dict[str, Any]
     prompt: str
     prompt_key: str
     prompt_hash: str
@@ -173,11 +175,13 @@ class CopilotAgent:
         response_cache: ResponseCache | None = None,
         llm_gateway: LlmGateway | None = None,
         approval_proposals: ApprovalProposalStore | None = None,
+        semantic_guardrails: SemanticGuardrailLayer | None = None,
     ) -> None:
         self.tools = tools or ToolRegistry()
         self.router = router or ModelRouter()
         self.llm = llm or LlmClient()
         self.metrics = metrics or CopilotMetrics()
+        self.semantic_guardrails = semantic_guardrails or SemanticGuardrailLayer()
         self.approval_proposals = (
             approval_proposals
             if approval_proposals is not None
@@ -369,6 +373,28 @@ class CopilotAgent:
         return state
 
     async def _plan(self, state: AgentState) -> AgentState:
+        action = state.get("action", CopilotAction.CHAT)
+        high_risk = action in HIGH_RISK_ACTIONS
+        report = self.semantic_guardrails.screen_input(state["message"], action.value, high_risk)
+        state["guardrail"] = report.audit_fields()
+        if report.blocked:
+            top = report.top
+            state["answer"] = (
+                "I cannot process this request because it violates the configured safety policy "
+                "(prompt-injection or guardrail block). No tool was called."
+            )
+            state["confidence"] = 0.0
+            state["requires_human_approval"] = False
+            state["outcome"] = "GUARDRAIL_BLOCKED"
+            state["data"] = {
+                "errorCode": "GUARDRAIL_BLOCKED",
+                "policy": top.policy.value if top else None,
+            }
+            self.metrics.increment("copilot.guardrail.semantic_input_blocked")
+            return state
+        if report.redacted and report.redacted_text is not None:
+            state["message"] = report.redacted_text
+            self.metrics.increment("copilot.guardrail.semantic_input_redacted")
         try:
             sanitized = sanitize_input(state["message"])
             state["message"] = sanitized.text
@@ -401,6 +427,26 @@ class CopilotAgent:
         if state.get("answer"):
             return state
         action = state.get("action", CopilotAction.CHAT)
+        high_risk = action in HIGH_RISK_ACTIONS
+        tool_report = self.semantic_guardrails.screen_tool_intent(
+            state["message"], action.value, high_risk
+        )
+        state["guardrail"] = tool_report.audit_fields()
+        if tool_report.blocked:
+            top = tool_report.top
+            state["answer"] = (
+                "I cannot perform that tool action because it violates the tool-use policy. "
+                "No domain tool was called."
+            )
+            state["confidence"] = 0.0
+            state["requires_human_approval"] = False
+            state["outcome"] = "GUARDRAIL_TOOL_BLOCKED"
+            state["data"] = {
+                "errorCode": "GUARDRAIL_TOOL_BLOCKED",
+                "policy": top.policy.value if top else None,
+            }
+            self.metrics.increment("copilot.guardrail.semantic_tool_blocked")
+            return state
         try:
             if action == CopilotAction.START_WORKFLOW:
                 return await self._start_workflow(state)
@@ -429,6 +475,23 @@ class CopilotAgent:
     async def _finalize(self, state: AgentState) -> AgentState:
         answer = state.get("answer") or "I could not complete that request."
         action = state.get("action", CopilotAction.CHAT)
+        high_risk = action in HIGH_RISK_ACTIONS
+        output_report = self.semantic_guardrails.screen_output(answer, action.value, high_risk)
+        # Preserve the input/tool block in the audit row instead of replacing it with the
+        # (harmless) canned response's output assessment.
+        if state.get("outcome") not in {"GUARDRAIL_BLOCKED", "GUARDRAIL_TOOL_BLOCKED"}:
+            state["guardrail"] = output_report.audit_fields()
+        if output_report.blocked:
+            answer = (
+                "The response was blocked by the semantic guardrails because it violated a "
+                "configured policy."
+            )
+            state["requires_human_approval"] = True
+            state["outcome"] = "GUARDRAIL_OUTPUT_BLOCKED"
+            self.metrics.increment("copilot.guardrail.semantic_output_blocked")
+        elif output_report.redacted and output_report.redacted_text is not None:
+            answer = output_report.redacted_text
+            self.metrics.increment("copilot.guardrail.semantic_output_redacted")
         try:
             answer = sanitize_output(answer)
         except GuardrailViolation as ex:
@@ -462,6 +525,7 @@ class CopilotAgent:
             "llmCostMicros": _llm_cost(state),
             "cacheHit": _llm_cached(state),
             "outcome": outcome,
+            **state.get("guardrail", {}),
             "proposalId": proposal.get("proposalId"),
             "proposalHash": proposal.get("proposalHash"),
             "decision": proposal.get("decision"),

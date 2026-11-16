@@ -39,8 +39,10 @@ fails this suite.
 | Notification | `SEND_NOTIFICATION` validates the channel/template/locale, requires confirmation, derives a dedupe key and calls the durable notification delivery path |
 | Knowledge search | `search_documents` queries the tenant-filtered OpenSearch knowledge index |
 | Audit | `audit_decision` writes an immutable `automation_audit_records` row |
-| Prompt injection | Input guardrails reject injection markers, zero-width obfuscation and oversized input |
-| Output guardrails | System-prompt leakage and oversized completions are blocked |
+| Semantic guardrails | Provider-neutral policies run before and after every LLM call and before state-changing tools: prompt injection, jailbreak, system-prompt leakage, harmful content, PII and tool misuse |
+| Guardrail resilience | High-risk actions fail closed when the configured classifier is unavailable; every decision records policy, decision, score and policy version |
+| Input guardrails | The legacy marker layer still rejects known injection markers, zero-width obfuscation and oversized input |
+| Output guardrails | System-prompt leakage, harmful content and PII are blocked/redacted, and oversized completions are blocked |
 | HITL | Starting a workflow, task decisions and approvals require explicit confirmation; an AI workflow node below the confidence threshold creates a node-linked approval task |
 | Model routing | Deterministic cheap/standard/complex routing by complexity, action and latency |
 | Cost controls | Monthly token budget, per-tenant rate limit, cache and provider fallback |
@@ -108,6 +110,10 @@ The same paths under the AI layer's `/api/v1` prefix, plus `workflows/discover` 
 | `AI_LAYER_SERVICE_TOKEN` | empty | AI layer's expected service token |
 | `AI_APPROVAL_PROPOSAL_TTL_SECONDS` | `900` | Lifetime of an unconfirmed approval proposal |
 | `AI_APPROVAL_PROPOSAL_MAX_ENTRIES` | `1000` | Bounded proposal store capacity per agent process |
+| `AI_GUARDRAIL_PROVIDER` | `heuristic` | Semantic classifier: `heuristic` or `nemo` |
+| `NEMO_GUARDRAILS_URL` | empty | Optional NeMo Guardrails HTTP endpoint (`provider=nemo`) |
+| `AI_GUARDRAIL_FAIL_CLOSED` | `true` | Block high-risk actions when the classifier is unavailable |
+| `AI_GUARDRAIL_THRESHOLD_<POLICY>` | `0.6` | Per-policy score threshold (for example `..._PROMPT_INJECTION`) |
 
 Production must supply `AI_INTERNAL_TOKEN` from Vault/External Secrets, never from a committed file.
 
@@ -143,6 +149,26 @@ run with `eval/baseline.v1.json`.
   instead of scoring it as zero.
 - The full protocol, including how to add entries and approve a new baseline, is in
   `ai-layer/eval/README.md`.
+
+## Semantic guardrails (issue #299)
+
+`app/copilot/semantic_guardrails.py` is a provider-neutral guardrail stage around every LLM call:
+
+- **Input policies** (before the model): prompt injection, jailbreak, system-prompt leakage request,
+  harmful content and PII. **Output policies** (after the model): system-prompt leakage, harmful
+  content and PII. **Tool policy** (before a state-changing tool): tool misuse.
+- The default `HeuristicSemanticClassifier` normalizes Unicode (NFKC), strips zero-width characters,
+  decodes base64 payloads and combines phrase families with token co-occurrence, so paraphrased,
+  encoded and obfuscated attacks are detected without an exact marker. The optional
+  `NemoGuardrailsClassifier` calls a configured NeMo Guardrails HTTP endpoint.
+- A policy score at or above its threshold blocks the request (or redacts PII). A classifier outage
+  fails **closed** for high-risk actions (`start_workflow`, `complete_task`, `assign_task`,
+  `send_notification`, `approval_assistance`) and is recorded as `guardrailUnavailable`.
+- Every decision is written to the audit row with `guardrailPolicy`, `guardrailDecision`,
+  `guardrailScore` and `guardrailVersion`.
+- The versioned red-team dataset at `ai-layer/eval/red_team_guardrails.v1.jsonl` is evaluated by
+  `ai-layer/eval/guardrail_eval.py`; PR CI enforces precision ≥ 0.90, recall ≥ 0.90 and a
+  false-positive rate ≤ 0.10 through `test_copilot_semantic_guardrails.py`.
 
 ## Approval HITL two-step contract (issue #296)
 
