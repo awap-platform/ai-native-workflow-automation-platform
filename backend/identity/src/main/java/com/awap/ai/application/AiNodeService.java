@@ -243,21 +243,29 @@ public class AiNodeService {
           "AI token budget exhausted for this tenant.");
     }
 
-    String rawOutput =
-        switch (action) {
-          case SUMMARIZE ->
-              modelRouter == null
-                  ? agentService.summarize(input)
-                  : agentService.summarize(input, route.model());
-          case CLASSIFY ->
-              modelRouter == null
-                  ? agentService.classify(input)
-                  : agentService.classify(input, route.model());
-          case EXTRACT ->
-              modelRouter == null
-                  ? agentService.extract(input, schemaJson)
-                  : agentService.extract(input, schemaJson, route.model());
-        };
+    String rawOutput;
+    try {
+      rawOutput =
+          switch (action) {
+            case SUMMARIZE ->
+                modelRouter == null
+                    ? agentService.summarize(input)
+                    : agentService.summarize(input, route.model());
+            case CLASSIFY ->
+                modelRouter == null
+                    ? agentService.classify(input)
+                    : agentService.classify(input, route.model());
+            case EXTRACT ->
+                modelRouter == null
+                    ? agentService.extract(input, schemaJson)
+                    : agentService.extract(input, schemaJson, route.model());
+          };
+    } catch (RuntimeException ex) {
+      // Policy: a failed provider call does not consume the tenant's budget. The deterministic
+      // refund key makes a retried failure idempotent.
+      budgetGuard.refund(tenantId, estimatedTokens, "ai-refund:" + promptHash);
+      throw ex;
+    }
     String output;
     try {
       output = AiGuardrails.sanitizeOutput(rawOutput);
@@ -304,6 +312,10 @@ public class AiNodeService {
             "AI extraction output did not match the schema: " + ex.getMessage());
       }
     }
+    int actualTokens = Math.max(1, output.length() / 4);
+    // Reconcile the pre-call estimate with the actual output size; the provider count is
+    // authoritative for the period and the adjustment is idempotent.
+    budgetGuard.commit(tenantId, estimatedTokens, actualTokens);
     double confidence = AiConfidenceEstimator.estimate(output);
     boolean requiresHumanApproval = confidence < confidenceThreshold;
     long tierMultiplier = route.tier() == AiModelRouter.Tier.COMPLEX ? 2L : 1L;
