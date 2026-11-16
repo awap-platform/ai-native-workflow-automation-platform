@@ -173,6 +173,31 @@
           "name": "cache_hit",
           "type": "bool",
           "label": "singular"
+        },
+        "15": {
+          "name": "provider",
+          "type": "string",
+          "label": "optional"
+        },
+        "16": {
+          "name": "fallback_reason",
+          "type": "string",
+          "label": "optional"
+        },
+        "17": {
+          "name": "routing_reason",
+          "type": "string",
+          "label": "optional"
+        },
+        "18": {
+          "name": "routing_policy",
+          "type": "string",
+          "label": "optional"
+        },
+        "19": {
+          "name": "estimated_cost_micros",
+          "type": "int64",
+          "label": "optional"
         }
       }
     },

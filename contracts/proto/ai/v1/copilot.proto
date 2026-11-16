@@ -66,6 +66,11 @@ message CopilotResponse {
   bool cache_hit = 14;
   optional string provider = 15;
   optional string fallback_reason = 16;
+  // Routing decision metadata (issue #300). Additive fields; readers ignore them while old
+  // clients migrate.
+  optional string routing_reason = 17;
+  optional string routing_policy = 18;
+  optional int64 estimated_cost_micros = 19;
 }
 
 // Typed error categories returned in gRPC trailing metadata (`ai-error-code`).

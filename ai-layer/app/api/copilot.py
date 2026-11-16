@@ -64,6 +64,9 @@ def security_context(
     x_ai_service_token: str = Header(default=""),
     x_correlation_id: str = Header(default=""),
     authorization: str = Header(default=""),
+    x_ai_remaining_budget_tokens: str = Header(default=""),
+    x_ai_latency_budget_ms: str = Header(default=""),
+    x_ai_task_risk: str = Header(default=""),
 ) -> SecurityContext:
     """Build the caller context and verify the backend service credential.
 
@@ -85,7 +88,20 @@ def security_context(
         ],
         correlation_id=x_correlation_id,
         access_token=access_token,
+        # Routing metadata is server-derived: the backend sets these headers from its authoritative
+        # budget service. The SPA request body cannot influence them (issue #300).
+        remaining_budget_tokens=_optional_int(x_ai_remaining_budget_tokens),
+        latency_budget_ms=_optional_int(x_ai_latency_budget_ms),
+        task_risk=x_ai_task_risk or None,
     )
+
+
+def _optional_int(value: str) -> int | None:
+    """Malformed routing metadata is ignored and the router uses its documented default."""
+    try:
+        return int(value) if value.strip() else None
+    except ValueError:
+        return None
 
 
 @router.post("/chat", response_model=CopilotResponse)

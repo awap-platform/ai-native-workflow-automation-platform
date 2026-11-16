@@ -23,7 +23,11 @@ class CopilotAction(StrEnum):
 
 
 class SecurityContext(BaseModel):
-    """Caller context carried from the backend to every tool invocation."""
+    """Caller context carried from the backend to every tool invocation.
+
+    The routing fields are server-derived budget/latency metadata set by the backend from its
+    authoritative budget service; they are never read from the SPA request body.
+    """
 
     tenant_id: str
     user_id: str
@@ -31,6 +35,9 @@ class SecurityContext(BaseModel):
     permissions: list[str] = Field(default_factory=list)
     correlation_id: str = ""
     access_token: str | None = None
+    remaining_budget_tokens: int | None = None
+    latency_budget_ms: int | None = None
+    task_risk: str | None = None
 
 
 class CopilotRequest(BaseModel):
@@ -64,6 +71,9 @@ class CopilotResponse(BaseModel):
     data: Any = None
     model: str | None = None
     model_tier: str | None = None
+    routing_reason: str | None = None
+    routing_policy: str | None = None
+    estimated_cost_micros: int | None = None
     prompt_key: str
     prompt_version: str
     prompt_hash: str
