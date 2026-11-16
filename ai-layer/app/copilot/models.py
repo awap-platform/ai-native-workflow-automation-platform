@@ -91,10 +91,21 @@ class TaskCompletionRequest(BaseModel):
 
 
 class ApprovalAssistanceRequest(BaseModel):
+    """Two-step approval request (issue #296).
+
+    The first call proposes an approval and returns a tenant-scoped ``proposal_id`` plus a payload
+    hash. Nothing is created until a second call sets ``confirm`` and presents the same proposal id
+    and hash with an identical payload.
+    """
+
     workflow_instance_id: str
     title: str = Field(min_length=1, max_length=255)
     description: str = ""
     assignee_id: str | None = None
+    confirm: bool = False
+    proposal_id: str | None = Field(default=None, max_length=128)
+    proposal_hash: str | None = Field(default=None, max_length=64)
+    idempotency_key: str | None = Field(default=None, max_length=255)
 
 
 class KnowledgeSearchRequest(BaseModel):

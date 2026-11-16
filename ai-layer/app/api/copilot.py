@@ -164,6 +164,11 @@ async def approval_assistance(
     agent: CopilotAgent = Depends(get_agent),
     security: SecurityContext = Depends(security_context),
 ) -> CopilotResponse:
+    """Propose an approval, then create it only after an explicit, bound confirmation.
+
+    The transport layer never sets the confirmation flag: ``confirm`` must come from the caller and
+    the second request must carry the proposal id/hash issued by the first response (issue #296).
+    """
     return await agent.run(
         CopilotRequest(
             message=body.description or body.title,
@@ -173,8 +178,11 @@ async def approval_assistance(
                 "title": body.title,
                 "description": body.description,
                 "assigneeId": body.assignee_id,
+                "proposalId": body.proposal_id,
+                "proposalHash": body.proposal_hash,
             },
-            confirm_high_risk=True,
+            idempotency_key=body.idempotency_key,
+            confirm_high_risk=body.confirm,
         ),
         security,
     )

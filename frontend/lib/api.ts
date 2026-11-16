@@ -770,6 +770,19 @@ export interface CopilotChatPayload {
   confirm_high_risk?: boolean;
 }
 
+export interface CopilotApprovalPayload {
+  workflow_instance_id: string;
+  title: string;
+  description?: string;
+  assignee_id?: string;
+  /** Explicit human confirmation for the second call; never set by the transport. */
+  confirm?: boolean;
+  /** Proposal id and payload hash returned by the proposal step (issue #296). */
+  proposal_id?: string;
+  proposal_hash?: string;
+  idempotency_key?: string;
+}
+
 export function copilotChat(payload: CopilotChatPayload): Promise<CopilotResponseDto> {
   return authPostWithHeaders<CopilotResponseDto>(
     "/api/v1/copilot/chat",
@@ -784,6 +797,22 @@ function idempotencyHeader(key?: string): Record<string, string> | undefined {
 
 export function copilotTasks(): Promise<CopilotResponseDto> {
   return authFetch<CopilotResponseDto>("/api/v1/copilot/tasks");
+}
+
+/**
+ * Propose (confirm=false) or confirm (confirm=true) an approval task.
+ *
+ * The first call creates nothing and returns a proposal id/hash; the caller must echo both on the
+ * confirmed second call. The UI never sends `confirm: true` without a proposal.
+ */
+export function copilotApprovalAssistance(
+  payload: CopilotApprovalPayload,
+): Promise<CopilotResponseDto> {
+  return authPostWithHeaders<CopilotResponseDto>(
+    "/api/v1/copilot/approvals",
+    payload,
+    idempotencyHeader(payload.idempotency_key),
+  );
 }
 
 export function copilotTaskDecision(

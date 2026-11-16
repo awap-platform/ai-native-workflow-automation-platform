@@ -3,9 +3,11 @@
 import { useMutation } from "@tanstack/react-query";
 
 import {
+  copilotApprovalAssistance,
   copilotChat,
   copilotKnowledgeSearch,
   copilotTaskDecision,
+  type CopilotApprovalPayload,
   type CopilotChatPayload,
   type CopilotResponseDto,
 } from "../api";
@@ -28,6 +30,14 @@ export function useCopilotTaskDecision() {
     mutationKey: queryKeys.copilot.decision(),
     mutationFn: ({ taskId, decision, comment }) =>
       copilotTaskDecision(taskId, decision, comment, true),
+  });
+}
+
+/** Two-step approval: call once to propose, then again with the proposal id/hash and confirm. */
+export function useCopilotApproval() {
+  return useMutation<CopilotResponseDto, Error, CopilotApprovalPayload>({
+    mutationKey: queryKeys.copilot.approval(),
+    mutationFn: copilotApprovalAssistance,
   });
 }
 

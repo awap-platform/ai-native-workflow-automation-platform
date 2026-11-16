@@ -70,6 +70,7 @@ export const queryKeys = {
     all: ["copilot"] as const,
     chat: () => ["copilot", "chat"] as const,
     decision: () => ["copilot", "decision"] as const,
+    approval: () => ["copilot", "approval"] as const,
     knowledge: () => ["copilot", "knowledge"] as const,
   },
 } as const;

@@ -34,7 +34,7 @@ fails this suite.
 | Workflow initiation | `create_workflow_instance` uses the existing engine and `Idempotency-Key` |
 | Task query | `query_tasks` lists the caller's tasks |
 | Task completion | `complete_task` supports approve, reject and complete |
-| Approval assistance | `create_approval` creates a tenant-scoped approval task |
+| Approval assistance | Two-step propose/confirm: the first call creates nothing, the second must present the proposal id and payload hash before `create_approval` runs |
 | Notification | `send_notification` uses the durable notification delivery path |
 | Knowledge search | `search_documents` queries the tenant-filtered OpenSearch knowledge index |
 | Audit | `audit_decision` writes an immutable `automation_audit_records` row |
@@ -104,6 +104,8 @@ The same paths under the AI layer's `/api/v1` prefix, plus `workflows/discover` 
 | `AI_COPILOT_LLM_API_KEY` | empty | Optional provider key |
 | `KNOWLEDGE_INDEX` | `awap-knowledge` | OpenSearch knowledge index name |
 | `AI_LAYER_SERVICE_TOKEN` | empty | AI layer's expected service token |
+| `AI_APPROVAL_PROPOSAL_TTL_SECONDS` | `900` | Lifetime of an unconfirmed approval proposal |
+| `AI_APPROVAL_PROPOSAL_MAX_ENTRIES` | `1000` | Bounded proposal store capacity per agent process |
 
 Production must supply `AI_INTERNAL_TOKEN` from Vault/External Secrets, never from a committed file.
 
@@ -139,6 +141,32 @@ run with `eval/baseline.v1.json`.
   instead of scoring it as zero.
 - The full protocol, including how to add entries and approve a new baseline, is in
   `ai-layer/eval/README.md`.
+
+## Approval HITL two-step contract (issue #296)
+
+`POST /api/v1/copilot/approvals` never sets `confirm_high_risk` on the caller's behalf. The request
+must carry an explicit `confirm` flag, and confirmation is bound to the proposal it proposes:
+
+1. **Propose.** With `confirm=false` (the default) the agent creates a tenant- and user-scoped
+   proposal, returns `requires_human_approval=true`, and returns `proposalId`, `proposalHash` and
+   `expiresAt` in `data`. It records an audit row with `outcome=PROPOSED` and calls no domain tool,
+   so no approval task exists after this call.
+2. **Confirm.** With `confirm=true` the caller must send the same payload plus `proposal_id` and
+   `proposal_hash`. The agent verifies the tenant/user scope, expiry, supplied hash and recomputed
+   payload hash before calling `create_approval`. The proposal id is used as the tool's
+   `Idempotency-Key`, so a replayed confirmation returns the existing task instead of creating a
+   second one and records an audit row with `outcome=CONFIRMED`.
+
+A missing proposal, an expired proposal, a payload change, a different user/tenant or a malformed
+hash fails closed: no tool is called, no task is created, and the response carries
+`requires_human_approval=true` plus a stable `data.errorCode`
+(`PROPOSAL_REQUIRED`, `PROPOSAL_UNKNOWN_OR_EXPIRED`, `PROPOSAL_PAYLOAD_MISMATCH`). Proposal TTL is
+`AI_APPROVAL_PROPOSAL_TTL_SECONDS` (default 900 seconds). The SPA sends the proposal fields only on
+the confirmed second click; the transport never fabricates them.
+
+Tests: `ai-layer/tests/test_copilot_approval_flow.py` (proposal-only first call, exactly one task on
+confirmation, duplicate idempotency, expiry, tenant isolation, payload binding and audit outcomes)
+and `ai-layer/tests/test_copilot_api.py` (the HTTP contract).
 
 ## End-to-end idempotency (issue #283)
 
