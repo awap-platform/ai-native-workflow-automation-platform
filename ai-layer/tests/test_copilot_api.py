@@ -78,6 +78,8 @@ def test_prompt_route_lists_versioned_prompts() -> None:
         "chat",
         "workflow_discovery",
         "task_assistant",
+        "assign_task",
+        "send_notification",
         "knowledge_search",
     }
     for entry in entries:

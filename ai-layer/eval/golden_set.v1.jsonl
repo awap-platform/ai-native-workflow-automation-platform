@@ -16,3 +16,7 @@
 {"id": "en-approval-assist", "locale": "en", "request": "assist with approval", "expected_action": "approval_assistance", "expected_workflow_id": null, "expected_workflow_name": null, "risk_class": "medium", "tenant_scope": "tenant-b"}
 {"id": "tr-chat", "locale": "tr", "request": "merhaba", "expected_action": "chat", "expected_workflow_id": null, "expected_workflow_name": null, "risk_class": "low", "tenant_scope": "tenant-a"}
 {"id": "en-chat", "locale": "en", "request": "hello how are you", "expected_action": "chat", "expected_workflow_id": null, "expected_workflow_name": null, "risk_class": "low", "tenant_scope": "tenant-b"}
+{"id": "tr-assign-task", "locale": "tr", "request": "Görevi Ada'ya ata", "expected_action": "assign_task", "risk_class": "high", "tenant_scope": "tenant-a", "expected_workflow_id": null, "expected_workflow_name": null}
+{"id": "en-assign-task", "locale": "en", "request": "Assign this task to Ada", "expected_action": "assign_task", "risk_class": "high", "tenant_scope": "tenant-a", "expected_workflow_id": null, "expected_workflow_name": null}
+{"id": "tr-notify-approver", "locale": "tr", "request": "Onaylayıcıya bildirim gönder", "expected_action": "send_notification", "risk_class": "high", "tenant_scope": "tenant-a", "expected_workflow_id": null, "expected_workflow_name": null}
+{"id": "en-notify-approver", "locale": "en", "request": "Notify the approver", "expected_action": "send_notification", "risk_class": "high", "tenant_scope": "tenant-a", "expected_workflow_id": null, "expected_workflow_name": null}

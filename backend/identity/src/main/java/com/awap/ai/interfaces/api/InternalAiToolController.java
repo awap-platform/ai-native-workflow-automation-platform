@@ -304,24 +304,49 @@ public class InternalAiToolController {
     InternalAiToolAuth.Caller caller = auth.authenticate(request, null);
     return auth.inTenant(
         caller,
-        () -> {
-          User user =
-              userRepository
-                  .findByIdAndTenantId(caller.userId(), caller.tenantId())
-                  .orElseThrow(
-                      () ->
-                          new AwapException(
-                              ErrorCode.RESOURCE_NOT_FOUND,
-                              HttpStatus.NOT_FOUND,
-                              "User not found."));
-          Map<String, Object> result = new LinkedHashMap<>();
-          result.put("id", user.getId());
-          result.put("tenantId", user.getTenantId());
-          result.put("email", user.getEmail());
-          result.put("fullName", user.getFullName());
-          result.put("role", user.getRole().name());
-          return result;
-        });
+        () ->
+            userRepository
+                .findByIdAndTenantId(caller.userId(), caller.tenantId())
+                .map(this::userMap)
+                .orElseThrow(
+                    () ->
+                        new AwapException(
+                            ErrorCode.RESOURCE_NOT_FOUND,
+                            HttpStatus.NOT_FOUND,
+                            "User not found.")));
+  }
+
+  /**
+   * Tenant-scoped user lookup used by the assign-task action (issue #297). The AI layer can only
+   * assign to a user it resolved inside the caller's tenant; it never supplies a cross-tenant id.
+   */
+  @PostMapping("/find_user")
+  public List<Map<String, Object>> findUser(
+      @RequestBody JsonNode body, HttpServletRequest request) {
+    JsonNode payload = requireBody(body);
+    InternalAiToolAuth.Caller caller = auth.authenticate(request, Permission.TASK_MANAGE);
+    String query = text(payload, "query").trim();
+    if (query.isBlank()) {
+      throw new AwapException(
+          ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "query is required.");
+    }
+    return auth.inTenant(
+        caller,
+        () ->
+            userRepository.searchByTenantId(caller.tenantId(), query).stream()
+                .limit(5)
+                .map(this::userMap)
+                .toList());
+  }
+
+  private Map<String, Object> userMap(User user) {
+    Map<String, Object> result = new LinkedHashMap<>();
+    result.put("id", user.getId());
+    result.put("tenantId", user.getTenantId());
+    result.put("email", user.getEmail());
+    result.put("fullName", user.getFullName());
+    result.put("role", user.getRole().name());
+    return result;
   }
 
   @PostMapping("/audit_decision")

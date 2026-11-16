@@ -55,6 +55,7 @@ TOOL_PERMISSIONS: dict[str, str | None] = {
     "query_tasks": "TASK_MANAGE",
     "complete_task": "TASK_MANAGE",
     "assign_task": "TASK_MANAGE",
+    "find_user": "TASK_MANAGE",
     "create_approval": "TASK_MANAGE",
     "send_notification": "INSTANCE_MANAGE",
     "search_documents": "INSTANCE_READ",
