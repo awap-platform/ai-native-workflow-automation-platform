@@ -158,6 +158,7 @@ async def complete_task(
     body: TaskCompletionRequest,
     agent: CopilotAgent = Depends(get_agent),
     security: SecurityContext = Depends(security_context),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> CopilotResponse:
     return await agent.run(
         CopilotRequest(
@@ -168,6 +169,7 @@ async def complete_task(
                 "decision": body.decision,
                 "comment": body.comment,
             },
+            idempotency_key=idempotency_key,
             confirm_high_risk=body.confirm_high_risk,
         ),
         security,

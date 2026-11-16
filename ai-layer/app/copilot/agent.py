@@ -628,10 +628,18 @@ class CopilotAgent:
         task_id = state.get("context", {}).get("taskId")
         decision = state.get("context", {}).get("decision", "complete")
         if not task_id:
-            return self._record(
+            return self._invalid_action(
                 state,
-                ToolCall(name="complete_task", ok=False, error="taskId is required"),
+                "complete_task",
+                "taskId is required",
                 "Tell me which task to complete, or open it from the task list first.",
+            )
+        if decision not in {"approve", "reject", "complete"}:
+            return self._invalid_action(
+                state,
+                "complete_task",
+                f"unknown decision: {decision}",
+                "That task decision is not supported. Use approve, reject or complete.",
             )
         if not state.get("confirm_high_risk"):
             state["requires_human_approval"] = True
@@ -658,7 +666,13 @@ class CopilotAgent:
             if call.ok
             else f"The task decision failed: {call.error}"
         )
-        return self._record(state, call, answer, data=call.result)
+        return self._record(
+            state,
+            call,
+            answer,
+            data=call.result,
+            outcome=None if call.ok else "TOOL_FAILED",
+        )
 
     async def _assign_task(self, state: AgentState) -> AgentState:
         """Resolve one tenant user, then assign only after explicit confirmation (issue #297)."""
