@@ -96,7 +96,8 @@ class WorkflowInitiationRequest(BaseModel):
 
 
 class TaskCompletionRequest(BaseModel):
-    task_id: str
+    # The path parameter is authoritative; the body field is optional for backward compatibility.
+    task_id: str | None = None
     decision: Literal["approve", "reject", "complete"] = "complete"
     comment: str | None = Field(default=None, max_length=2_000)
     confirm_high_risk: bool = False
