@@ -2,12 +2,17 @@ package com.awap.task.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.awap.common.api.AwapException;
+import com.awap.engine.application.NodeCompletedEvent;
+import com.awap.engine.application.NodeRejectedEvent;
 import com.awap.engine.application.OutboxEventPublisher;
 import com.awap.task.domain.Task;
 import com.awap.task.domain.TaskStatus;
@@ -32,6 +37,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -279,5 +285,93 @@ class TaskServiceTest {
 
     assertThat(response.status()).isEqualTo(TaskStatus.APPROVED.name());
     assertThat(response.decisionComment()).isEqualTo("Looks good");
+  }
+
+  @Test
+  void approvingAnAiHitlTaskPublishesExactlyOneNodeCompletion() {
+    UUID tenantId = UUID.randomUUID();
+    UUID assigneeId = UUID.randomUUID();
+    Task task = aiApprovalTask(tenantId, assigneeId);
+    when(taskRepository.findByIdAndTenantIdAndDeletedFalse(task.getId(), tenantId))
+        .thenReturn(Optional.of(task));
+
+    service.approve(tenantId, task.getId(), assigneeId, "TENANT_ADMIN", "approved");
+
+    ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+    verify(outboxEventPublisher)
+        .publish(
+            eq(tenantId), eq("TASK"), eq(task.getId()), eq("TASK_COMPLETED"), payload.capture());
+    assertThat(payload.getValue()).isInstanceOf(NodeCompletedEvent.class);
+    NodeCompletedEvent event = (NodeCompletedEvent) payload.getValue();
+    assertThat(event.workflowInstanceId()).isEqualTo(task.getWorkflowInstanceId());
+    assertThat(event.nodeExecutionId()).isEqualTo(task.getNodeExecutionId());
+  }
+
+  @Test
+  void rejectingAnAiHitlTaskPublishesRejectionAndNeverResumes() {
+    UUID tenantId = UUID.randomUUID();
+    UUID assigneeId = UUID.randomUUID();
+    Task task = aiApprovalTask(tenantId, assigneeId);
+    when(taskRepository.findByIdAndTenantIdAndDeletedFalse(task.getId(), tenantId))
+        .thenReturn(Optional.of(task));
+
+    service.reject(tenantId, task.getId(), assigneeId, "TENANT_ADMIN", "not acceptable");
+
+    ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+    verify(outboxEventPublisher)
+        .publish(
+            eq(tenantId), eq("TASK"), eq(task.getId()), eq("NODE_REJECTED"), payload.capture());
+    assertThat(payload.getValue()).isInstanceOf(NodeRejectedEvent.class);
+    verify(outboxEventPublisher, times(0))
+        .publish(eq(tenantId), eq("TASK"), eq(task.getId()), eq("TASK_COMPLETED"), any());
+  }
+
+  @Test
+  void aSecondApprovalCannotPublishASecondCompletion() {
+    UUID tenantId = UUID.randomUUID();
+    UUID assigneeId = UUID.randomUUID();
+    Task task = aiApprovalTask(tenantId, assigneeId);
+    when(taskRepository.findByIdAndTenantIdAndDeletedFalse(task.getId(), tenantId))
+        .thenReturn(Optional.of(task));
+
+    service.approve(tenantId, task.getId(), assigneeId, "TENANT_ADMIN", "first");
+    assertThatThrownBy(
+            () -> service.approve(tenantId, task.getId(), assigneeId, "TENANT_ADMIN", "second"))
+        .isInstanceOf(AwapException.class)
+        .satisfies(ex -> assertThat(((AwapException) ex).status().value()).isEqualTo(409));
+
+    verify(outboxEventPublisher, times(1))
+        .publish(eq(tenantId), eq("TASK"), eq(task.getId()), eq("TASK_COMPLETED"), any());
+  }
+
+  @Test
+  void anUnrelatedUserCannotApproveTheAiHitlTask() {
+    UUID tenantId = UUID.randomUUID();
+    UUID assigneeId = UUID.randomUUID();
+    Task task = aiApprovalTask(tenantId, assigneeId);
+    when(taskRepository.findByIdAndTenantIdAndDeletedFalse(task.getId(), tenantId))
+        .thenReturn(Optional.of(task));
+
+    assertThatThrownBy(
+            () -> service.approve(tenantId, task.getId(), UUID.randomUUID(), "EMPLOYEE", "nope"))
+        .isInstanceOf(AwapException.class)
+        .satisfies(ex -> assertThat(((AwapException) ex).status().value()).isEqualTo(403));
+    verify(outboxEventPublisher, times(0))
+        .publish(eq(tenantId), eq("TASK"), eq(task.getId()), eq("TASK_COMPLETED"), any());
+  }
+
+  private static Task aiApprovalTask(UUID tenantId, UUID assigneeId) {
+    Task task =
+        new Task(
+            tenantId,
+            UUID.randomUUID(),
+            UUID.randomUUID(),
+            "AI approval required",
+            "low confidence",
+            assigneeId,
+            TaskType.APPROVAL,
+            Instant.now().plusSeconds(3_600));
+    task.claim(assigneeId);
+    return task;
   }
 }

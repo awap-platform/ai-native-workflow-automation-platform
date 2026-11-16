@@ -3,6 +3,7 @@ package com.awap.task.application;
 import com.awap.common.api.AwapException;
 import com.awap.common.api.ErrorCode;
 import com.awap.engine.application.NodeCompletedEvent;
+import com.awap.engine.application.NodeRejectedEvent;
 import com.awap.engine.application.OutboxEventPublisher;
 import com.awap.task.domain.Task;
 import com.awap.task.domain.TaskType;
@@ -181,7 +182,9 @@ public class TaskService {
     Task task = find(tenantId, id);
     requireDecisionRight(task, actorId, actorRole);
     runGuarded(() -> task.reject(comment));
-    publishCompleted(task, "{\"decision\":\"REJECTED\"}");
+    // A rejection must never resume the linked AI node (issue #304). It publishes a dedicated
+    // event that fails the node/instance deterministically instead of reusing the completion path.
+    publishRejected(task, comment);
     publishAnalytics(task, "APPROVAL_COMPLETED");
     publishLifecycle(task, "TASK_REJECTED", actorId);
     recordDecision("REJECTED");
@@ -253,6 +256,21 @@ public class TaskService {
     payload.put("timestamp", Instant.now().toEpochMilli());
     outboxEventPublisher.publish(
         task.getTenantId(), "TASK", task.getId(), "ANALYTICS_EVENT", payload);
+  }
+
+  private void publishRejected(Task task, String reason) {
+    if (task.getWorkflowInstanceId() != null && task.getNodeExecutionId() != null) {
+      outboxEventPublisher.publish(
+          task.getTenantId(),
+          "TASK",
+          task.getId(),
+          "NODE_REJECTED",
+          new NodeRejectedEvent(
+              task.getTenantId(),
+              task.getWorkflowInstanceId(),
+              task.getNodeExecutionId(),
+              reason == null ? "AI HITL approval rejected" : reason));
+    }
   }
 
   private void publishCompleted(Task task, String outputJson) {

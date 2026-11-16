@@ -263,6 +263,8 @@ public class OutboxRelayService {
   private String topicFor(String eventType) {
     return switch (eventType) {
       case "TASK_COMPLETED" -> "workflow.task.events";
+      // Issue #304: rejection must not be parsed as a node completion; it has its own consumer.
+      case "NODE_REJECTED" -> "workflow.task.rejected.events";
       // Issue #207: escalation facts have their own consumer. Routing them to
       // workflow.task.events made NodeCompletedEventListener parse them as node completions.
       case "TASK_ESCALATION_DUE" -> "task.escalation.events";

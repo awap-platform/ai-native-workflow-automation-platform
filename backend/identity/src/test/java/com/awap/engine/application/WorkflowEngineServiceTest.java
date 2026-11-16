@@ -336,6 +336,58 @@ class WorkflowEngineServiceTest {
   }
 
   @Test
+  void onNodeCompletedResumesAWaitingAiNodeExactlyOnce() {
+    WorkflowInstance instance = instance(WorkflowState.WAITING);
+    NodeExecution execution = new NodeExecution(tenantId, instance.getId(), "ai-1", "AI_TASK");
+    execution.waitForExternal();
+    stubFoundInstance(instance);
+    when(nodeExecutionRepository.findByWorkflowInstanceIdAndNodeId(instance.getId(), "ai-1"))
+        .thenReturn(Optional.of(execution));
+    when(nodeExecutionRepository.findById(execution.getId())).thenReturn(Optional.of(execution));
+    when(workflowDefinitionService.nodesOf(any(), anyInt())).thenReturn(List.of());
+    when(executionContextRepository.findByWorkflowInstanceId(any())).thenReturn(Optional.empty());
+    NodeCompletedEvent event =
+        new NodeCompletedEvent(tenantId, instance.getId(), execution.getId(), "{}");
+
+    service.onNodeCompleted(event);
+    service.onNodeCompleted(event);
+
+    assertThat(execution.getStatus()).isEqualTo(NodeExecutionStatus.COMPLETED);
+    assertThat(instance.getState()).isEqualTo(WorkflowState.RUNNING);
+    verify(nodeExecutionRepository, org.mockito.Mockito.times(1)).save(execution);
+  }
+
+  @Test
+  void rejectNodeFailsTheAiNodeAndInstanceWithoutResuming() {
+    WorkflowInstance instance = instance(WorkflowState.WAITING);
+    NodeExecution execution = new NodeExecution(tenantId, instance.getId(), "ai-1", "AI_TASK");
+    execution.waitForExternal();
+    stubFoundInstance(instance);
+    when(nodeExecutionRepository.findById(execution.getId())).thenReturn(Optional.of(execution));
+
+    service.rejectNode(
+        new NodeRejectedEvent(tenantId, instance.getId(), execution.getId(), "not acceptable"));
+
+    assertThat(execution.getStatus()).isEqualTo(NodeExecutionStatus.FAILED);
+    assertThat(instance.getState()).isEqualTo(WorkflowState.FAILED);
+    verify(nodeExecutionRepository).save(execution);
+  }
+
+  @Test
+  void rejectNodeIsIdempotentAfterTheTerminalState() {
+    WorkflowInstance instance = instance(WorkflowState.FAILED);
+    NodeExecution execution = new NodeExecution(tenantId, instance.getId(), "ai-1", "AI_TASK");
+    execution.fail("already rejected");
+    stubFoundInstance(instance);
+    when(nodeExecutionRepository.findById(execution.getId())).thenReturn(Optional.of(execution));
+
+    service.rejectNode(
+        new NodeRejectedEvent(tenantId, instance.getId(), execution.getId(), "again"));
+
+    verify(nodeExecutionRepository, never()).save(execution);
+  }
+
+  @Test
   void completeNodeCompletesRunningExecutionAndAdvances() {
     WorkflowInstance instance = instance(WorkflowState.RUNNING);
     NodeExecution execution = new NodeExecution(tenantId, instance.getId(), "form", "FORM");
