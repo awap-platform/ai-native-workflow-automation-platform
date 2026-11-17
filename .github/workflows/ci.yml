@@ -891,6 +891,12 @@ jobs:
         run: node --test "scripts/test/check-doc-links.test.mjs"
       - name: Documentation link check
         run: node scripts/check-doc-links.mjs
+      - name: Capability matrix tooling tests
+        # Issue #309: an Implemented capability without a test, or a Partial/Planned one without
+        # an issue, must fail the docs check.
+        run: node --test "scripts/test/check-capability-matrix.test.mjs"
+      - name: Capability matrix check
+        run: node scripts/check-capability-matrix.mjs
       - name: Validate Prometheus rules
         run: |
           docker run --rm -v "$PWD/infra/prometheus:/etc/prometheus" \
