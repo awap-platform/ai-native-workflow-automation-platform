@@ -319,7 +319,9 @@ provider and budget counters are untouched on a rejected call.
   `ai-layer/tests/test_copilot_knowledge.py` (no-answer/low-confidence guard and retrieval gate).
 - Backend: `AiModelRouterTest`, `AiRateLimiterTest`, `AiRateLimiterConcurrencyTest`,
   `AiRateLimitHttpMappingTest`, `AiGuardrailsOutputTest`, `KnowledgeChunkingServiceTest`,
-  `KnowledgeSearchServiceTest`, `InternalAiToolAuthTest`.
+  `KnowledgeSearchServiceTest`, `InternalAiToolAuthTest`, `KnowledgeAnalyticsE2ETest` (deterministic
+  index → search → analytics journey) and `KnowledgeAnalyticsOpenSearchIntegrationTest` (the same
+  journey against a real OpenSearch container).
 - E2E: `frontend/e2e/copilot-journey.spec.ts` runs the full Phase 2 journey against the real stack
   (natural language, confirmation, one instance, AI_TASK low-confidence HITL, human approval,
   completion, correlation IDs, metrics and no duplicate instance/task). The nightly

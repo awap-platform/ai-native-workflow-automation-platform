@@ -97,6 +97,19 @@ Rollback is the same alias switch in reverse (or re-run with the previous index 
 Unit tests in `scripts/test/knowledge-reindex.test.mjs` assert the request order, payloads and that
 a failed reindex never calls the alias switch.
 
+## End-to-end coverage (issue #308)
+
+`KnowledgeAnalyticsE2ETest` runs the seeded-document journey on every pull request with a
+deterministic in-memory OpenSearch transport: chunk counts, redacted index content, tenant-scoped
+search, the analytics daily aggregate, percentiles and bottleneck for the search step, the
+empty-index no-answer, the OpenSearch outage fallback and the analytics-sink outage isolation.
+
+`KnowledgeAnalyticsOpenSearchIntegrationTest` repeats the indexing, search and analytics path
+against a real OpenSearch container (Testcontainers, skipped when Docker is absent). It polls the
+index with a bounded timeout instead of racing `refresh_interval`, asserts the real `tenantId`
+filter, and proves the kNN branch is active. The index template sets `index.knn=true`; without that
+setting OpenSearch rejects the `knn_vector` mapping and hybrid search silently degrades to lexical.
+
 ## Configuration
 
 | Property | Default | Purpose |
