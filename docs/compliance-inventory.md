@@ -47,3 +47,8 @@ implemented by:
   receiver so a single `traceId` spans HTTP → service → outbox → Kafka.
 - `ScriptSandboxSecurityMatrixTest` — allowed/denied construct matrix plus a deterministic fuzz loop.
 - `scripts/check-compliance.sh` — fails when a file referenced by this inventory is missing.
+- `scripts/check-capability-matrix.mjs` — the AI/SCRIPT capability matrices in
+  [`ai-copilot.md`](ai-copilot.md#capability-status) and
+  [`ai-and-script-security.md`](ai-and-script-security.md#capability-status) are the single source of
+  truth for AI/security claims: an Implemented row must link its test and a Partial/Planned row must
+  link its issue.
