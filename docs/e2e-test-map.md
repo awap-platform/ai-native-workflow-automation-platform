@@ -55,6 +55,25 @@ screenshots and video retained on failure.
 | A natural-language Copilot request previews, confirms and starts exactly one instance; the AI_TASK waits for HITL, approval completes the workflow, the correlation ID is echoed end to end, a duplicate key replays the same instance and metrics count the two logical calls | [`copilot-journey.spec.ts`](../frontend/e2e/copilot-journey.spec.ts) — `copilot HITL` | stack |
 | Nightly live-provider variant of the Copilot journey against a configured OpenAI-compatible provider | [`copilot-live-provider.spec.ts`](../frontend/e2e/copilot-live-provider.spec.ts) — `live provider` | stack + `E2E_AI_LIVE_PROVIDER=1` |
 
+## Backend knowledge and analytics E2E (issue #308)
+
+The knowledge search and advanced analytics journey is a JUnit suite rather than a Playwright spec,
+because indexing, hybrid retrieval and the PostgreSQL aggregates are backend concerns:
+
+| Acceptance criterion (issue #308) | Test | Mode |
+|---|---|---|
+| A seeded document is chunked, PII-redacted, indexed and returned by tenant-scoped search | `KnowledgeAnalyticsE2ETest` — `seededDocumentIsIndexedSearchedAndCountedAsAnAnalyticsStep` | PR (in-memory OpenSearch fake) |
+| The search/process step lands in the daily aggregate, percentiles, bottleneck and group summary | same test | PR |
+| Tenant A never sees tenant B documents or aggregates; a foreign hit in the response is dropped | `tenantIsolationHoldsForIndexingSearchAndAnalytics`, `aForeignTenantDocumentInTheResultIsFilteredOut` | PR |
+| An empty index is an explicit no-answer; an OpenSearch outage returns no hits and increments the fallback counter | `emptyIndexReturnsAnExplicitNoAnswer`, `openSearchOutageDegradesToNoHitsWithoutAFabricatedAnswer` | PR |
+| An analytics sink outage never breaks the search path | `analyticsSinkOutageNeverFailsTheSearchPath` | PR |
+| Blank/malformed content is rejected without an exception or a partial document | `malformedContentIsRejectedSafely` | PR |
+| The same journey against a real OpenSearch container, including the kNN branch and index refresh polling | `KnowledgeAnalyticsOpenSearchIntegrationTest` | stack (Testcontainers) |
+
+The deterministic suite runs in the `e2e` CI job (`Knowledge search and analytics E2E contract`) and
+in the `backend` job; the Testcontainers variant runs in the `backend` job and skips itself when
+Docker is unavailable.
+
 ## Conventions
 
 - Seed values come from [`lib/e2eSeed.ts`](../frontend/lib/e2eSeed.ts); the live journey and the

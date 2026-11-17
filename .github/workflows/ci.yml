@@ -177,6 +177,10 @@ jobs:
       - name: Organization mutation testing (PIT >= 80%)
         run: mvn -B -Ppit-organization test-compile org.pitest:pitest-maven:mutationCoverage
         working-directory: backend
+      - name: Knowledge mutation testing (PIT >= 80%)
+        # Issue #308: a mutated tenant filter, fusion score or PII redaction must fail CI.
+        run: mvn -B -Ppit-knowledge test-compile org.pitest:pitest-maven:mutationCoverage
+        working-directory: backend
       - name: Upload PIT reports
         if: always()
         uses: actions/upload-artifact@v6
@@ -186,6 +190,7 @@ jobs:
             backend/identity/target/pit-reports
             backend/identity/target/pit-reports-notification-read
             backend/identity/target/pit-reports-organization
+            backend/common/target/pit-reports-knowledge
 
   owasp:
     name: Dependency Scan
@@ -289,6 +294,21 @@ jobs:
         # dependencies first and fall back to the browser alone, which the GitHub image supports.
         run: pnpm exec playwright install --with-deps chromium || pnpm exec playwright install chromium
         working-directory: frontend
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - name: Knowledge search and analytics E2E contract
+        # Issue #308: the deterministic in-memory OpenSearch fake proves indexing, tenant-scoped
+        # search, PII redaction and the analytics aggregate in the end-to-end job. The real
+        # OpenSearch Testcontainers variant runs in the backend job.
+        working-directory: backend
+        run: >-
+          ./mvnw -B -q -pl identity -am
+          -Dtest=KnowledgeAnalyticsE2ETest
+          -Dsurefire.failIfNoSpecifiedTests=false
+          test
       - name: Start Compose stack
         env:
           # Issue #189: run the suite against the one-command full stack.

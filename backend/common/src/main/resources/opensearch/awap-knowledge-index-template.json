@@ -10,6 +10,9 @@
       "number_of_shards": __SHARDS__,
       "number_of_replicas": __REPLICAS__,
       "refresh_interval": "5s",
+      "index": {
+        "knn": true
+      },
       "analysis": {
         "filter": {
           "knowledge_stop": {
