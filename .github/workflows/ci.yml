@@ -1022,7 +1022,7 @@ jobs:
       - name: Verify metrics-server precondition
         run: node infra/k8s/scripts/validate-overlays.mjs --metrics
       - name: Install Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@v5
       - name: Install External Secrets Operator
         run: |
           helm repo add external-secrets https://charts.external-secrets.io
