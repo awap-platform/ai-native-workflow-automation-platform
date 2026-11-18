@@ -4,6 +4,33 @@ Issue #132 enables the `AI` workflow node and adds a `SCRIPT` node. Both are **f
 return `501 Not Implemented` unless the deployment explicitly enables them
 (`AI_NODE_ENABLED=true`, `SCRIPT_NODE_ENABLED=true`).
 
+## Capability status
+
+Status legend: **Implemented** means code plus an automated test; **Partial** means implemented with
+a documented limitation; **Planned** means not implemented yet.
+[`scripts/check-capability-matrix.mjs`](../scripts/check-capability-matrix.mjs) fails CI when an
+Implemented row has no test link or a Partial/Planned row has no issue link.
+
+| ID | Capability | Status | Evidence | Issue |
+|---|---|---|---|---|
+| AINODE-FLAG | AI node fails closed behind `AI_NODE_ENABLED` | Implemented | [`AiNodeServiceTest.java`](../backend/identity/src/test/java/com/awap/ai/application/AiNodeServiceTest.java) | #132 |
+| AINODE-PROVIDER | Provider abstraction with local heuristic and OpenAI-compatible providers | Implemented | [`AiProviderGatewayTest.java`](../backend/identity/src/test/java/com/awap/ai/application/AiProviderGatewayTest.java) | #307 |
+| AINODE-GUARDRAILS | Prompt sanitization and injection markers | Implemented | [`AiGuardrailsTest.java`](../backend/identity/src/test/java/com/awap/ai/domain/AiGuardrailsTest.java) | #132 |
+| AINODE-TIMEOUT | Bounded provider call with timeout | Implemented | [`AiAgentServiceTest.java`](../backend/identity/src/test/java/com/awap/ai/application/AiAgentServiceTest.java) | #132 |
+| AINODE-HITL | Low confidence moves the node to WAITING with a node-linked approval task | Implemented | [`NodeExecutorAiHitlTest.java`](../backend/identity/src/test/java/com/awap/engine/application/NodeExecutorAiHitlTest.java) | #288 |
+| AINODE-BUDGET | Durable UTC-month ledger with atomic reserve/refund/reconcile | Implemented | [`AiBudgetGuardDurabilityTest.java`](../backend/identity/src/test/java/com/awap/ai/application/AiBudgetGuardDurabilityTest.java) | #301 |
+| AINODE-BUDGET-DB | Real PostgreSQL atomic boundary, idempotency and RLS | Implemented | [`AiBudgetPostgresTest.java`](../backend/identity/src/test/java/com/awap/ai/infrastructure/AiBudgetPostgresTest.java) | #301 |
+| AINODE-RATE | Per-tenant sliding-window rate limit before the provider call | Implemented | [`AiRateLimiterConcurrencyTest.java`](../backend/identity/src/test/java/com/awap/ai/application/AiRateLimiterConcurrencyTest.java) | #282 |
+| AINODE-OUTPUT | System-prompt leakage and oversized output are blocked | Implemented | [`AiGuardrailsOutputTest.java`](../backend/identity/src/test/java/com/awap/ai/domain/AiGuardrailsOutputTest.java) | #132 |
+| AINODE-ROUTING | Cheap/standard/complex model selection from complexity and action risk | Implemented | [`AiModelRouterTest.java`](../backend/identity/src/test/java/com/awap/ai/domain/AiModelRouterTest.java) | #— |
+| AINODE-FALLBACK | Provider chain with circuit breakers, typed 502/504 and zero calls on budget exhaustion | Implemented | [`AiRoutingFallbackE2ETest.java`](../backend/identity/src/test/java/com/awap/ai/application/AiRoutingFallbackE2ETest.java) | #307 |
+| AINODE-AUDIT | Every decision writes an immutable audit row | Implemented | [`AiNodeServiceTest.java`](../backend/identity/src/test/java/com/awap/ai/application/AiNodeServiceTest.java) | #132 |
+| SCRIPT-SANDBOX | Deny-by-construction expression sandbox with no host access | Implemented | [`ScriptSandboxTest.java`](../backend/identity/src/test/java/com/awap/script/application/ScriptSandboxTest.java) | #298 |
+| SCRIPT-MATRIX | Allowed/denied construct matrix and deterministic fuzz loop | Implemented | [`ScriptSandboxSecurityMatrixTest.java`](../backend/identity/src/test/java/com/awap/script/application/ScriptSandboxSecurityMatrixTest.java) | #298 |
+| SCRIPT-NETWORK | Network, filesystem, reflection and SSRF payloads are rejected | Implemented | [`ScriptSandboxNetworkTest.java`](../backend/identity/src/test/java/com/awap/script/application/ScriptSandboxNetworkTest.java) | #306 |
+| SCRIPT-FLAG | SCRIPT node fails closed when disabled or the sandbox is absent | Implemented | [`ScriptNodeServiceTest.java`](../backend/identity/src/test/java/com/awap/script/application/ScriptNodeServiceTest.java) | #132 |
+| SCRIPT-OUTPUT | Context and result are validated as JSON primitives and audited | Implemented | [`ScriptNodeServiceTest.java`](../backend/identity/src/test/java/com/awap/script/application/ScriptNodeServiceTest.java) | #306 |
+
 ## AI node and AI_TASK alias
 
 `AI_TASK` is an explicit alias of the `AI` execution path, so existing published definitions keep
@@ -16,13 +43,29 @@ purposes and share the same guardrails, budget, cache, HITL and audit behavior.
 | Prompt sanitization / guardrails | `AiGuardrails` strips NUL characters, caps the prompt at 8 000 chars and blocks `[INST]`, `<\|`, "ignore previous instructions", "system prompt", "reveal your instructions", "you are now", "jailbreak", "developer mode" and role-spoofing markers. The Copilot adds the semantic guardrail layer from issue #299 (prompt injection, jailbreak, leakage, harmful content, PII, tool misuse) with fail-closed behavior for high-risk actions and audited policy/decision/score/version fields |
 | Timeout | `AiAgentService` runs the provider call on a bounded executor with `awap.ai.timeout-ms` (default 5 000 ms) |
 | Confidence + HITL | `AiConfidenceEstimator` (deterministic, explainable) → below `awap.ai.confidence-threshold` (0.7) the node transitions to `WAITING` with `AI_HITL_REQUIRED` and creates an idempotent approval task tied to the node execution; approving it advances the workflow through the normal task completion path |
-| Budget / cost | `AiBudgetGuard` reserves estimated tokens in the durable PostgreSQL UTC-month ledger (`awap.ai.monthly-token-budget`, default 200 000) and refuses with `429`; reservations/refunds/reconciliation are atomic and idempotent, a missing ledger fails closed with `503`, and cost is recorded at `awap.ai.cost-micros-per-token` |
+| Budget / cost | `AiBudgetGuard` reserves estimated tokens in the durable PostgreSQL UTC-month ledger (`awap.ai.monthly-token-budget`, default 200 000) and refuses with `429`; reservations/refunds/reconciliation are atomic and idempotent, a missing ledger fails closed with `503`, and cost is recorded at `awap.ai.cost-micros-per-token`. **Scope: AI workflow node only.** The Copilot has a separate AI-layer gateway whose budget, rate-limit and usage store are in process memory (`COP-LLM-BUDGET`, Partial) |
 | Rate limit | `AiRateLimiter` enforces a per-tenant sliding window (`awap.ai.rate-limit-per-minute`, default 60) before the provider call |
 | Output guardrail | `AiGuardrails.sanitizeOutput` blocks system-prompt leakage and oversized completions |
-| Model routing | `AiModelRouter` selects cheap/standard/complex tiers from request complexity, action and latency; the model and tier are audited |
+| Model routing | `AiModelRouter` selects cheap/standard/complex tiers from request complexity and action risk; it does **not** use the latency budget, because budget/latency-aware routing is the Copilot AI-layer `ModelRouter` (#300). The model and tier are audited |
 | Rate/caching | Per-instance LRU cache keyed by the SHA-256 of action+prompt (`awap.ai.requests{outcome="cache_hit"}`); repeated prompts never hit the provider |
-| Fallback | The provider seam allows a fallback chain; a provider failure surfaces as `502`/`504` and the node fails the instance rather than silently continuing |
+| Fallback | The provider gateway tries the primary, the configured fallback order and the remaining registered providers (including the local heuristic) with per-provider circuit breakers. When every provider fails the response is a typed `502`/`504` and the node fails the instance; a failed provider call refunds its reservation (#307) |
 | Audit | Every decision (success, blocked, budget, cache hit, HITL) writes an immutable `automation_audit_records` row with prompt hash, confidence, tokens and cost |
+
+### Scope of the AI node guarantees
+
+These controls exist on the Java `AI`/`AI_TASK` execution path. They are not shared with the Python
+Copilot, which has its own gateway (see
+[`ai-copilot.md`](ai-copilot.md#two-independent-llm-control-planes)):
+
+- The durable monthly ledger, `GET /api/v1/ai/budget` and the fail-closed `503` apply to AI node
+  calls. The Copilot budget is a per-process counter, so a Copilot-only deployment has no durable
+  spend record yet.
+- The per-tenant sliding window is per backend replica for both planes; a multi-replica deployment
+  needs a shared store.
+- The AI node routes on complexity and action risk; latency and remaining-budget routing belongs to
+  the Copilot `ModelRouter` (#300).
+- Provider fallback is the backend gateway chain with circuit breakers (#307). The Copilot gateway
+  has its own optional secondary provider and returns a typed `LlmUnavailable`.
 
 ## SCRIPT node
 
@@ -48,7 +91,9 @@ cannot be rewritten after the fact. Read it per tenant/instance via
 
 | Metric | Tags | Use |
 |---|---|---|
-| `awap.ai.requests` | `outcome` (`success`/`hitl`/`blocked`/`budget_exceeded`/`cache_hit`) | Guardrail blocks and budget pressure |
+| `awap.ai.requests` | `outcome` (`success`/`hitl`/`blocked`/`budget_exceeded`/`cache_hit`/`rate_limited`) | Guardrail blocks, budget and rate-limit pressure |
+| `awap.ai.budget.utilization` | `state` (`near_limit`/`exhausted`) | Durable ledger warnings |
+| `awap.ai.gateway.fallbacks` | `reason` | Provider fallback use |
 | `awap.ai.tokens` / `awap.ai.cost.micros` | – | Spend tracking |
 | `awap.script.executions` | `outcome` (`success`/`failed`/`timeout`) | Sandbox health |
 
@@ -95,6 +140,14 @@ network-focused fuzz loop and the timeout path prove there is no host-side effec
 - **Secret exposure** — the context is an explicit JSON object; nothing else is in scope.
 - **Supply chain** — there are no script imports/libraries to whitelist because the grammar forbids
   them; adding one would require a new ADR.
+
+## Documentation review checklist
+
+This document is audited with the same checklist as
+[`ai-copilot.md`](ai-copilot.md#documentation-review-checklist): every capability row carries a
+status and, for `Implemented`, a link to the test that proves it; every budget, rate-limit, cache,
+fallback and routing claim names the control plane; and
+`node scripts/check-capability-matrix.mjs` plus `node scripts/check-doc-links.mjs` must pass.
 
 ## Deferred
 

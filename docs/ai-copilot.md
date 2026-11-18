@@ -26,29 +26,67 @@ one instance, and that a freshly restarted agent recovers business state only fr
 Engine — never from LangGraph state. Any regression that reads business state out of the agent graph
 fails this suite.
 
-## Implemented capabilities
+## Capability status
 
-| Capability | Implementation |
-|---|---|
-| Workflow discovery | `find_workflow` searches published workflows in the caller's tenant |
-| Workflow initiation | `create_workflow_instance` uses the existing engine and `Idempotency-Key` |
-| Task query | `query_tasks` lists the caller's tasks |
-| Task completion | `complete_task` supports approve, reject and complete |
-| Task assignment | `ASSIGN_TASK` resolves one tenant user through `find_user`, requires confirmation and calls `assign_task` with the caller context |
-| Approval assistance | Two-step propose/confirm: the first call creates nothing, the second must present the proposal id and payload hash before `create_approval` runs |
-| Notification | `SEND_NOTIFICATION` validates the channel/template/locale, requires confirmation, derives a dedupe key and calls the durable notification delivery path |
-| Knowledge search | `search_documents` queries the tenant-filtered OpenSearch knowledge index |
-| Audit | `audit_decision` writes an immutable `automation_audit_records` row |
-| Semantic guardrails | Provider-neutral policies run before and after every LLM call and before state-changing tools: prompt injection, jailbreak, system-prompt leakage, harmful content, PII and tool misuse |
-| Guardrail resilience | High-risk actions fail closed when the configured classifier is unavailable; every decision records policy, decision, score and policy version |
-| Input guardrails | The legacy marker layer still rejects known injection markers, zero-width obfuscation and oversized input |
-| Output guardrails | System-prompt leakage, harmful content and PII are blocked/redacted, and oversized completions are blocked |
-| HITL | Starting a workflow, task decisions and approvals require explicit confirmation; an AI workflow node below the confidence threshold creates a node-linked approval task |
-| Model routing | Deterministic cheap/standard/complex routing by complexity, action risk, remaining tenant budget, estimated token cost and latency |
-| Cost controls | Durable UTC-month token ledger with atomic reserve/refund, reconciliation, per-tenant rate limit, cache and provider fallback |
-| Prompt versioning | Prompts live under `ai-layer/app/prompts/*-v1.md`; every response reports `v1` |
-| Knowledge chunking | Sentence-aware chunks with overlap, indexed in OpenSearch and filtered by tenant |
-| Automatic indexing | The `document.events` consumer indexes each registered/created version best-effort; OpenSearch failures never fail the document consumer |
+Status legend: **Implemented** means code plus an automated test; **Partial** means implemented with a
+documented limitation; **Planned** means not implemented yet.
+[`scripts/check-capability-matrix.mjs`](../scripts/check-capability-matrix.mjs) fails CI when an
+Implemented row has no test link or a Partial/Planned row has no issue link.
+
+| ID | Capability | Status | Evidence | Issue |
+|---|---|---|---|---|
+| COP-STATE | LangGraph owns only planning state; business state stays in the engine | Implemented | [`test_copilot_split_brain.py`](../ai-layer/tests/test_copilot_split_brain.py) | #280 |
+| COP-TOOLS | Permission-checked internal tools scoped to the authenticated tenant | Implemented | [`InternalAiToolControllerTest.java`](../backend/identity/src/test/java/com/awap/ai/interfaces/api/InternalAiToolControllerTest.java) | #305 |
+| COP-AUTH | Forged permission headers ignored; permissions re-derived from the verified role | Implemented | [`InternalAiToolAuthTest.java`](../backend/identity/src/test/java/com/awap/ai/application/InternalAiToolAuthTest.java) | #305 |
+| COP-DISCOVERY | `find_workflow` and `create_workflow_instance` with idempotent replay | Implemented | [`test_copilot_agent.py`](../ai-layer/tests/test_copilot_agent.py) | #283 |
+| COP-TASKS | `query_tasks` and the confirmed `complete_task` approve/reject/complete flow | Implemented | [`test_copilot_complete_task_flow.py`](../ai-layer/tests/test_copilot_complete_task_flow.py) | #302 |
+| COP-ASSIGN | `assign_task` with tenant-scoped `find_user` resolution and confirmation | Implemented | [`test_copilot_task_actions.py`](../ai-layer/tests/test_copilot_task_actions.py) | #297 |
+| COP-NOTIFY | `send_notification` with channel/template/locale validation and dedupe | Implemented | [`test_copilot_task_actions.py`](../ai-layer/tests/test_copilot_task_actions.py) | #297 |
+| COP-APPROVAL | Approval propose/confirm bound to tenant, user, payload hash and TTL | Implemented | [`test_copilot_approval_flow.py`](../ai-layer/tests/test_copilot_approval_flow.py) | #296 |
+| COP-APPROVAL-NODE | Copilot approval task bound to a real APPROVAL node execution | Partial | [`test_copilot_approval_flow.py`](../ai-layer/tests/test_copilot_approval_flow.py) | #288 |
+| COP-GUARDRAILS | Semantic input/output/tool policies with fail-closed high-risk actions | Implemented | [`test_copilot_semantic_guardrails.py`](../ai-layer/tests/test_copilot_semantic_guardrails.py) | #299 |
+| COP-GUARDRAIL-LEGACY | Marker, zero-width and oversized input/output guardrails | Implemented | [`test_copilot_guardrails.py`](../ai-layer/tests/test_copilot_guardrails.py) | #299 |
+| COP-ROUTING | Budget/latency/risk-aware routing with cost estimate and audit fields | Implemented | [`test_copilot_routing.py`](../ai-layer/tests/test_copilot_routing.py) | #300 |
+| COP-LLM-BUDGET | Copilot monthly token budget and per-minute limit | Partial | [`test_llm_gateway.py`](../ai-layer/tests/test_llm_gateway.py) | #294 |
+| COP-CACHE | Tenant/prompt/model-scoped LLM response cache | Implemented | [`test_response_cache.py`](../ai-layer/tests/test_response_cache.py) | #294 |
+| COP-LLM-FALLBACK | Optional secondary provider with typed `LlmUnavailable` failure | Implemented | [`test_llm_gateway_api.py`](../ai-layer/tests/test_llm_gateway_api.py) | #294 |
+| COP-PROMPTS | Versioned, hashed prompts reported in every response | Implemented | [`test_prompts.py`](../ai-layer/tests/test_prompts.py) | #279 |
+| COP-KNOWLEDGE | Tenant-filtered knowledge search with the no-answer guard | Implemented | [`test_copilot_knowledge.py`](../ai-layer/tests/test_copilot_knowledge.py) | #281 |
+| COP-SUMMARY | Grounded find-and-summarize with citations and audit metadata | Implemented | [`test_copilot_knowledge_summary.py`](../ai-layer/tests/test_copilot_knowledge_summary.py) | #303 |
+| COP-E2E-KNOWLEDGE | Document indexing, tenant search and analytics aggregation end to end | Implemented | [`KnowledgeAnalyticsE2ETest.java`](../backend/identity/src/test/java/com/awap/analytics/application/KnowledgeAnalyticsE2ETest.java) | #308 |
+| COP-IDEMPOTENCY | End-to-end idempotency keys, replay and conflict detection | Implemented | [`test_copilot_api.py`](../ai-layer/tests/test_copilot_api.py) | #283 |
+| COP-JOBS | Asynchronous Copilot jobs with status and cancellation | Implemented | [`test_async_jobs.py`](../ai-layer/tests/test_async_jobs.py) | #— |
+| COP-E2E | SPA → backend → AI layer journey through AI_TASK HITL to completion | Implemented | [`copilot-journey.spec.ts`](../frontend/e2e/copilot-journey.spec.ts) | #284 |
+
+### Two independent LLM control planes
+
+The Copilot (Python AI layer) and the AI workflow node (Java backend) each own model controls. They
+do **not** share a ledger, so a claim about "the AI budget" must name the plane:
+
+| Control | Copilot (AI layer) | AI workflow node (backend) |
+|---|---|---|
+| Budget | `LlmGateway` monthly token counter in process memory (`AI_LLM_MONTHLY_BUDGET_TOKENS`) — **partial**: a restart or a second replica starts from zero | `AiBudgetGuard` durable PostgreSQL UTC-month ledger with atomic reserve/refund/reconcile (#301) |
+| Rate limit | `LlmGateway` per-tenant 60-second window in process memory | `AiRateLimiter` per-tenant sliding window, per replica (#282) |
+| Cache | tenant + prompt hash + model response cache (#294) | per-instance LRU keyed by action + prompt hash |
+| Fallback | optional secondary `LlmClient`, then typed `LlmUnavailable` (#294) | provider chain with circuit breakers and typed 502/504 (#307) |
+| Routing | `ModelRouter` policy table using complexity, risk, remaining backend budget and latency budget (#300) | `AiModelRouter` cheap/standard/complex from request complexity and action risk |
+
+Consequences: `GET /api/v1/ai/budget` reports the **AI node** ledger only. A Copilot-only deployment
+has no durable spend record yet; a shared Copilot ledger is the follow-up to #294
+(`COP-LLM-BUDGET`).
+
+### HITL and APPROVAL-node linkage
+
+- **AI workflow node HITL.** Below `awap.ai.confidence-threshold` the node moves to `WAITING` with
+  `AI_HITL_REQUIRED`; the approval task stores the AI node execution id and approving it resumes the
+  node through the normal APPROVAL semantics (#288, proven by #304).
+- **Copilot HITL.** Workflow start, task decisions, assignment, notifications and approval
+  assistance require an explicit second call; a confirmation is bound to a tenant/user-scoped
+  proposal hash (#296).
+- **Remaining gap.** The Copilot `create_approval` tool creates a normal task on the instance. It is
+  not bound to an APPROVAL node execution, so approving it does not resume a waiting APPROVAL node.
+  That is `COP-APPROVAL-NODE` (Partial, related implementation issue #288) and must not be described
+  as a full approval-node integration.
 
 ## Tool permission matrix
 
@@ -115,6 +153,12 @@ The same paths under the AI layer's `/api/v1` prefix, plus `workflows/discover` 
 | `AI_MODEL_COMPLEX` | `gpt-4o` | Complex/multi-step tier model |
 | `AI_COPILOT_LLM_BASE_URL` | empty | Optional OpenAI-compatible chat endpoint |
 | `AI_COPILOT_LLM_API_KEY` | empty | Optional provider key |
+| `AI_LLM_MONTHLY_BUDGET_TOKENS` | `1000000` | Copilot per-tenant monthly token budget, in process memory (Partial, #294) |
+| `AI_LLM_RATE_LIMIT_PER_MINUTE` | `60` | Copilot per-tenant per-minute limit, in process memory (Partial, #294) |
+| `AI_LLM_CACHE_TTL_SECONDS` | `30` | Copilot response cache TTL; `0` disables the cache |
+| `AI_LLM_CACHE_MAX_ENTRIES` | `256` | Copilot response cache size cap |
+| `AI_LLM_COST_MICROS_PER_TOKEN` | `2` | Copilot cost estimate used by routing and usage rows |
+| `AI_LLM_MAX_OUTPUT_TOKENS` | `1024` | Copilot output cap used for budget admission |
 | `KNOWLEDGE_INDEX` | `awap-knowledge` | OpenSearch knowledge index name |
 | `AI_LAYER_SERVICE_TOKEN` | empty | AI layer's expected service token |
 | `AI_APPROVAL_PROPOSAL_TTL_SECONDS` | `900` | Lifetime of an unconfirmed approval proposal |
@@ -280,19 +324,24 @@ and `ai-layer/tests/test_copilot_api.py` (the HTTP contract).
   `409 RESOURCE_CONFLICT`.
 - Keys are retained by `IdempotencyPurgeScheduler`; an expired key is treated as new.
 
-## Rate-limit and burst behaviour (issue #282)
+## Rate-limit and burst behaviour (issues #282, #294)
 
-`AiRateLimiter` is a per-tenant 60-second sliding window that admits at most
-`AI_RATE_LIMIT_PER_MINUTE` AI calls (default 60). The check runs before model routing, the token
-budget and metering, so a rejected call never reaches the provider and never consumes budget. A
-rejection is a `429 QUOTA_EXCEEDED` Problem Details response with the correlation ID echoed back to
-the client.
+There are two separate limiters:
 
-The limiter is in-memory and therefore per replica; a multi-replica deployment needs the
-distributed-limiter follow-up. Concurrent bursts, per-tenant isolation, window recovery, a clock
-that moves backward and interrupt preservation are proven by `AiRateLimiterConcurrencyTest`.
-`AiRateLimitHttpMappingTest` proves the 429 HTTP contract, and `AiNodeServiceTest` proves the
-provider and budget counters are untouched on a rejected call.
+- **AI workflow node.** `AiRateLimiter` is a per-tenant 60-second sliding window that admits at most
+  `AI_RATE_LIMIT_PER_MINUTE` AI calls (default 60). The check runs before model routing, the token
+  budget and metering, so a rejected call never reaches the provider and never consumes budget. A
+  rejection is a `429 QUOTA_EXCEEDED` Problem Details response with the correlation ID echoed back
+  to the client. Concurrent bursts, per-tenant isolation, window recovery, a clock that moves
+  backward and interrupt preservation are proven by `AiRateLimiterConcurrencyTest`;
+  `AiRateLimitHttpMappingTest` proves the 429 contract and `AiNodeServiceTest` proves the provider
+  and budget counters are untouched on a rejected call.
+- **Copilot.** `LlmGateway` enforces `AI_LLM_RATE_LIMIT_PER_MINUTE` (default 60) per tenant and
+  returns a typed `LlmRateLimited` with `retry_after_seconds` before the provider call, proven by
+  [`test_llm_gateway.py`](../ai-layer/tests/test_llm_gateway.py).
+
+Both limiters are in-memory and therefore per replica. A multi-replica deployment needs a shared
+store; the Copilot `UsageStore` protocol is the migration seam (`COP-LLM-BUDGET`, Partial).
 
 ## Failure behaviour
 
@@ -304,8 +353,10 @@ provider and budget counters are untouched on a rejected call.
   `LOW_CONFIDENCE`; both set `requires_human_approval=true`.
 - OpenSearch unavailable: knowledge search returns `SEARCH_UNAVAILABLE` and increments the outcome
   counter; it never returns another tenant's data and never claims no documents exist.
-- Model provider 429/5xx/transport failure: backend AI node falls back to the local heuristic
-  provider; the Copilot surface reports the failure instead of inventing an answer.
+- Model provider 429/5xx/transport failure: the backend AI node walks its provider chain, which
+  includes the local heuristic provider and per-provider circuit breakers; when every provider fails
+  the request is a typed `502`/`504` (#307). The Copilot gateway tries its optional secondary
+  provider and then returns a typed `LlmUnavailable` instead of inventing an answer.
 - Metering or budget exhaustion: `429` before the model is called.
 - Per-tenant AI rate limit: `429` before routing, budget or the provider is touched; admitted and
   rejected counts are exposed as `awap.ai.requests{outcome=success|rate_limited}`.
@@ -335,3 +386,19 @@ Prompt files are immutable, versioned, hashed and gated by CI. See
 [ADR-0008](adr/0008-ai-prompt-versioning-and-change-control.md). Every response reports
 `prompt_key`, `prompt_version` and `prompt_hash`; the `audit_decision` tool receives the same
 metadata, so a decision can be traced back to the exact immutable prompt file.
+
+## Documentation review checklist
+
+Use this checklist for every change to this document or to
+[`ai-and-script-security.md`](ai-and-script-security.md). It is enforced by CI, not only by review.
+
+- [ ] Every capability is listed in the capability matrix with `Implemented`, `Partial` or
+      `Planned`; the status is copied from the code, not from the plan.
+- [ ] An `Implemented` row links the automated test that would fail if the behaviour regressed.
+- [ ] A `Partial` or `Planned` row links the issue that closes the gap and states the limitation.
+- [ ] Budget, rate-limit, cache, fallback and routing claims name the control plane
+      (Copilot AI layer or AI workflow node); no claim implies a shared ledger.
+- [ ] HITL claims distinguish the AI node's APPROVAL-node linkage from the Copilot's standalone
+      approval task.
+- [ ] `node scripts/check-capability-matrix.mjs` and `node scripts/check-doc-links.mjs` pass.
+- [ ] New metrics, configuration variables and endpoints added by the change are documented.
