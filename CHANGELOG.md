@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0](https://github.com/koraysrn/ai-native-workflow-automation-platform/compare/v1.4.0...v1.5.0) (2026-11-17)
+
+
+### Features
+
+* **ai:** add a provider-neutral semantic guardrail layer ([#299](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/299)) ([#332](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/332)) ([e311c14](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/e311c146a2c7a49acb92e95a23a3d744b04f1ec1))
+* **ai:** make model routing budget and latency aware ([#300](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/300)) ([#333](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/333)) ([d014121](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/d01412193ae3c4005035c62d15c6a126622dc9f5))
+* **ai:** replace the in-memory budget with a durable monthly ledger ([#301](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/301)) ([#334](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/334)) ([c4b6afa](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/c4b6afa5549a8480d76694fc5d623240dd778f68))
+* **ai:** summarize knowledge hits with citations and audit ids ([#303](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/303)) ([#336](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/336)) ([7864ec7](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/7864ec74957a20c956ed7993b41e75f83af68b14))
+* **copilot:** expose assign_task and send_notification agent actions ([#297](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/297)) ([#329](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/329)) ([f643e39](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/f643e39a843d3c6e55c1c919b7375d97107fdd95))
+* **engine:** resume AI HITL approval and fail rejected nodes deterministically ([#304](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/304)) ([#337](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/337)) ([64695b6](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/64695b66878ea4e056cd0f61482d13883fec721e))
+
+
+### Bug Fixes
+
+* **copilot:** require explicit two-step HITL approval confirmation ([#296](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/296)) ([#328](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/328)) ([7003e7f](https://github.com/koraysrn/ai-native-workflow-automation-platform/commit/7003e7f0baaeb93f9f778c461a2a044cb3f1ecab))
+
 ## [1.4.0](https://github.com/koraysrn/ai-native-workflow-automation-platform/compare/v1.3.0...v1.4.0) (2026-11-15)
 
 
