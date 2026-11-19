@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { useActiveRole } from "../../lib/hooks/useActiveRole";
 import { useActiveTenant } from "../../lib/hooks/useActiveTenant";
-import { useUnreadNotificationCount } from "../../lib/hooks/useNotifications";
+import { useUnreadBadge } from "../../lib/hooks/useUnreadBadge";
 import { useI18n } from "../../lib/locale";
 import { breadcrumbForPath, requiredRolesForPath, visibleNavGroups } from "../../lib/navigation";
 import { ForbiddenState } from "../ui/states";
@@ -23,7 +23,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const { t } = useI18n();
   const role = useActiveRole();
   const tenant = useActiveTenant();
-  const unread = useUnreadNotificationCount();
+  const unread = useUnreadBadge(pathname);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -57,7 +57,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           breadcrumbItems={breadcrumbItems}
           tenant={tenant}
           role={role}
-          unread={unread.data?.count ?? 0}
+          unread={unread}
         />
         <main id="main-content" className="awap-main" tabIndex={-1}>
           {forbidden ? <ForbiddenState message={t("state.forbidden")} /> : children}

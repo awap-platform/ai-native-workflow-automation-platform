@@ -749,6 +749,33 @@ export function fetchUnreadNotificationCount(): Promise<UnreadNotificationCountD
   return authFetch<UnreadNotificationCountDto>("/api/v1/notifications/unread-count");
 }
 
+/**
+ * Chrome-only unread badge.
+ *
+ * A background badge must never refresh an expired token or redirect the user to
+ * the login page. Unlike `fetchUnreadNotificationCount`, this helper returns
+ * `null` for any failure and performs no auth side effects.
+ */
+export async function fetchUnreadNotificationCountSilent(): Promise<UnreadNotificationCountDto | null> {
+  const headers: Record<string, string> = {};
+  const tenant = activeTenantId();
+  if (tenant) {
+    headers["X-Tenant-Id"] = tenant;
+  }
+  try {
+    const response = await fetch(`${apiBase()}/api/v1/notifications/unread-count`, {
+      headers,
+      credentials: "include",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as UnreadNotificationCountDto;
+  } catch {
+    return null;
+  }
+}
+
 export function markNotificationRead(id: string): Promise<NotificationDeliveryDto> {
   return authPatch<NotificationDeliveryDto>(`/api/v1/notifications/${encodeURIComponent(id)}/read`);
 }
