@@ -16,8 +16,8 @@ export default function OrganizationsPage() {
 
   const tree = companies.data ?? [];
   return (
-    <div>
-      <h1 style={{ fontSize: 24, fontWeight: 700 }}>Organizations</h1>
+    <div className="awap-page">
+      <h1 className="awap-page-title">Organizations</h1>
       {tree.length === 0 ? (
         <EmptyState message="No companies yet." />
       ) : (

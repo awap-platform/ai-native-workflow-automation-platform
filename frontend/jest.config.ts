@@ -13,6 +13,8 @@ const config: Config = {
     "<rootDir>/node_modules/",
     "<rootDir>/.next/",
     "<rootDir>/e2e/",
+    // Guard scripts use the Node built-in test runner (`pnpm test:scripts`).
+    "<rootDir>/scripts/test/",
   ],
 };
 

@@ -33,6 +33,20 @@ Masked: email local parts, bearer tokens, JSON/key-value secrets (`password`, `t
 Kept readable: trace IDs, correlation IDs, UUIDs, aggregate IDs and HTTP metadata. Masking happens
 in the appender, so a future logging call site cannot bypass it accidentally.
 
+## Frontend visibility (UI/UX phase 0)
+
+- [`frontend/lib/api.ts`](../frontend/lib/api.ts) reads the echoed
+  `X-Correlation-Id` header into `ApiError.correlationId`. `correlationIdOf()`
+  is the single accessor used by UI code.
+- [`frontend/components/ui/QueryState.tsx`](../frontend/components/ui/QueryState.tsx)
+  renders the ID under the error message with `.awap-correlation`.
+- [`frontend/app/(app)/error.tsx`](../frontend/app/(app)/error.tsx) and
+  [`frontend/app/global-error.tsx`](../frontend/app/global-error.tsx) fall back
+  to the Next.js error digest when no API correlation ID exists.
+- The Copilot answer panel already renders the AI-layer `correlation_id`.
+- Tests: `frontend/lib/__tests__/apiCorrelation.test.ts` and
+  `frontend/components/ui/__tests__/QueryState.test.tsx`.
+
 ## Failure behaviour
 
 - An unsafe or oversized client header is replaced and the request continues; the raw value is

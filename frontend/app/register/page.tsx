@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { useRegisterTenant } from "../../lib/hooks/resources";
@@ -27,51 +28,83 @@ export default function RegisterPage() {
   }
 
   return (
-    <main style={{ maxWidth: 420, margin: "48px auto", fontFamily: "sans-serif" }}>
-      <h1>Create tenant</h1>
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <input
-          placeholder="Tenant slug"
-          aria-label="Tenant slug"
-          value={slug}
-          onChange={(e) => setSlug(e.target.value)}
-          required
-        />
-        <input
-          placeholder="Company name"
-          aria-label="Company name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
-        <input
-          placeholder="Admin full name"
-          aria-label="Admin full name"
-          value={adminFullName}
-          onChange={(e) => setAdminFullName(e.target.value)}
-          required
-        />
-        <input
-          placeholder="Admin email"
-          aria-label="Admin email"
-          type="email"
-          value={adminEmail}
-          onChange={(e) => setAdminEmail(e.target.value)}
-          required
-        />
-        <input
-          placeholder="Admin password"
-          aria-label="Admin password"
-          type="password"
-          value={adminPassword}
-          onChange={(e) => setAdminPassword(e.target.value)}
-          required
-        />
-        <button type="submit" disabled={register.isPending}>
+    <main id="main-content" className="awap-auth">
+      <h1 className="awap-auth-title">Create tenant</h1>
+      <p className="awap-auth-subtitle">
+        Every new tenant starts with an administrator who can invite the rest of the team.
+      </p>
+      <form onSubmit={handleSubmit} className="awap-form">
+        <label className="awap-label">
+          Tenant slug
+          <input
+            className="awap-input"
+            type="text"
+            autoComplete="organization"
+            value={slug}
+            onChange={(event) => setSlug(event.target.value)}
+            required
+          />
+        </label>
+        <label className="awap-label">
+          Company name
+          <input
+            className="awap-input"
+            type="text"
+            autoComplete="organization"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            required
+          />
+        </label>
+        <label className="awap-label">
+          Admin full name
+          <input
+            className="awap-input"
+            type="text"
+            autoComplete="name"
+            value={adminFullName}
+            onChange={(event) => setAdminFullName(event.target.value)}
+            required
+          />
+        </label>
+        <label className="awap-label">
+          Admin email
+          <input
+            className="awap-input"
+            type="email"
+            autoComplete="email"
+            value={adminEmail}
+            onChange={(event) => setAdminEmail(event.target.value)}
+            required
+          />
+        </label>
+        <label className="awap-label">
+          Admin password
+          <input
+            className="awap-input"
+            type="password"
+            autoComplete="new-password"
+            value={adminPassword}
+            onChange={(event) => setAdminPassword(event.target.value)}
+            required
+          />
+        </label>
+        <button
+          type="submit"
+          className="awap-button awap-button-primary"
+          disabled={register.isPending}
+        >
           {register.isPending ? "Creating…" : "Create tenant"}
         </button>
       </form>
-      {message && <p aria-live="polite">{message}</p>}
+      <p className="mt-4">
+        <Link href="/">Back to sign in</Link>
+      </p>
+      {message ? (
+        <p aria-live="polite" className="awap-alert awap-alert-danger">
+          {message}
+        </p>
+      ) : null}
     </main>
   );
 }

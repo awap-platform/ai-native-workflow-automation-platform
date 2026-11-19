@@ -11,25 +11,36 @@ export default function WorkflowsPage() {
   const [starting, setStarting] = useState<WorkflowDefinitionDto | null>(null);
 
   return (
-    <div>
-      <h1 style={{ fontSize: 24, fontWeight: 700 }}>Workflows</h1>
-      {starting && (
+    <div className="awap-page">
+      <h1 className="awap-page-title">Workflows</h1>
+      {starting ? (
         <StartWorkflowDialog workflowId={starting.id} onClose={() => setStarting(null)} />
-      )}
-      {workflows.isLoading && <LoadingState label="Loading workflows…" />}
-      {workflows.isError && (
+      ) : null}
+      {workflows.isLoading ? <LoadingState label="Loading workflows…" /> : null}
+      {workflows.isError ? (
         <ErrorState error={workflows.error} message="Failed to load workflows." />
-      )}
-      {workflows.isSuccess && workflows.data.length === 0 && (
-        <EmptyState message="No workflows yet." />
-      )}
-      <ul>
+      ) : null}
+      {workflows.isSuccess && workflows.data.length === 0 ? (
+        <EmptyState message="No workflows yet. Create a draft in the Designer." />
+      ) : null}
+      <ul className="awap-list" aria-label="Workflow definitions">
         {(workflows.data ?? []).map((workflow) => (
-          <li key={workflow.id} style={{ marginBottom: 8 }}>
-            {workflow.name} — {workflow.status} (v{workflow.currentVersion}){" "}
-            {workflow.status === "PUBLISHED" && (
-              <button onClick={() => setStarting(workflow)}>Start</button>
-            )}
+          <li key={workflow.id} className="awap-list-row">
+            <span>
+              {workflow.name}{" "}
+              <span className="awap-muted">
+                {workflow.status} (v{workflow.currentVersion})
+              </span>
+            </span>
+            {workflow.status === "PUBLISHED" ? (
+              <button
+                type="button"
+                className="awap-button"
+                onClick={() => setStarting(workflow)}
+              >
+                Start
+              </button>
+            ) : null}
           </li>
         ))}
       </ul>

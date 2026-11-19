@@ -26,45 +26,58 @@ export default function Home() {
   }
 
   return (
-    <main style={{ maxWidth: 420, margin: "48px auto", fontFamily: "sans-serif" }}>
-      <h1>AWAP</h1>
-      <p>AI-Native Workflow Automation Platform</p>
+    <main id="main-content" className="awap-auth">
+      <h1 className="awap-auth-title">AWAP</h1>
+      <p className="awap-auth-subtitle">AI-Native Workflow Automation Platform</p>
 
-      <form
-        onSubmit={handleSubmit}
-        style={{ display: "flex", flexDirection: "column", gap: 12 }}
-      >
-        <input
-          placeholder="Tenant slug"
-          aria-label="Tenant slug"
-          value={tenantSlug}
-          onChange={(event) => setTenantSlug(event.target.value)}
-          required
-        />
-        <input
-          placeholder="Email"
-          aria-label="Email"
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          required
-        />
-        <input
-          placeholder="Password"
-          aria-label="Password"
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          required
-        />
-        <button type="submit">Sign in</button>
+      <form onSubmit={handleSubmit} className="awap-form">
+        <label className="awap-label">
+          Tenant slug
+          <input
+            className="awap-input"
+            type="text"
+            autoComplete="organization"
+            value={tenantSlug}
+            onChange={(event) => setTenantSlug(event.target.value)}
+            required
+          />
+        </label>
+        <label className="awap-label">
+          Email
+          <input
+            className="awap-input"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+          />
+        </label>
+        <label className="awap-label">
+          Password
+          <input
+            className="awap-input"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+          />
+        </label>
+        <button type="submit" className="awap-button awap-button-primary">
+          Sign in
+        </button>
       </form>
 
-      <p style={{ marginTop: 16 }}>
+      <p className="mt-4">
         <Link href="/register">Create a tenant</Link>
       </p>
 
-      {message && <p aria-live="polite">{message}</p>}
+      {message ? (
+        <p aria-live="polite" className="awap-alert awap-alert-danger">
+          {message}
+        </p>
+      ) : null}
     </main>
   );
 }

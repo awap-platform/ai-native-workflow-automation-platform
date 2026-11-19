@@ -50,6 +50,7 @@ jest.mock("../../../lib/api", () => {
   return {
     ApiError,
     errorStatus: (error: unknown) => (error instanceof ApiError ? error.status : undefined),
+    correlationIdOf: () => undefined,
     fetchAnalyticsDashboard: jest.fn(),
     listTasks: jest.fn(),
     fetchOrganizationTree: jest.fn(),

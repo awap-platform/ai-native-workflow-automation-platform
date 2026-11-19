@@ -39,33 +39,32 @@ export default function SelectTenantPage() {
   };
 
   return (
-    <div style={{ padding: 24 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700 }}>Select tenant</h1>
-      {memberships.isLoading && <LoadingState label="Loading tenants..." />}
-      {memberships.isError && (
-        <ErrorState error={memberships.error} message="Failed to load tenants." />
-      )}
-      {memberships.isSuccess && rows.length === 0 && (
-        <EmptyState message="You do not belong to any tenant yet." />
-      )}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 360 }}>
-        {rows.map((tenant) => (
-          <button
-            key={tenant.tenantId}
-            type="button"
-            onClick={() => choose(tenant.tenantId)}
-            style={{
-              padding: "10px 12px",
-              borderRadius: 8,
-              border: "1px solid #cbd5e1",
-              background: "#f8fafc",
-              cursor: "pointer",
-            }}
-          >
-            {tenant.tenantId} — {tenant.role}
-          </button>
-        ))}
+    <main id="main-content" className="awap-main">
+      <div className="awap-page">
+        <h1 className="awap-page-title">Select tenant</h1>
+        <p className="awap-muted">
+          Tenant scope is visible everywhere. Choose the workspace you want to work in.
+        </p>
+        {memberships.isLoading ? <LoadingState label="Loading tenants..." /> : null}
+        {memberships.isError ? (
+          <ErrorState error={memberships.error} message="Failed to load tenants." />
+        ) : null}
+        {memberships.isSuccess && rows.length === 0 ? (
+          <EmptyState message="You do not belong to any tenant yet." />
+        ) : null}
+        <div className="awap-form max-w-sm">
+          {rows.map((tenant) => (
+            <button
+              key={tenant.tenantId}
+              type="button"
+              className="awap-button"
+              onClick={() => choose(tenant.tenantId)}
+            >
+              {tenant.tenantId} — {tenant.role}
+            </button>
+          ))}
+        </div>
       </div>
-    </div>
+    </main>
   );
 }

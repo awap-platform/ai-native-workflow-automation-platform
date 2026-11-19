@@ -5,6 +5,7 @@ import {
   CSP_REPORTING_ENDPOINTS,
   cspHeaderName,
   generateNonce,
+  resolveStyleAttrException,
 } from "./lib/csp";
 
 const apiOrigins =
@@ -21,6 +22,7 @@ const PROTECTED_PREFIXES = [
   "/analytics",
   "/notifications",
   "/notification-templates",
+  "/admin",
 ];
 
 function isProtected(pathname: string): boolean {
@@ -44,17 +46,37 @@ function withCspRequestHeaders(
   return requestHeaders;
 }
 
-function applyCspHeaders(response: NextResponse, headerName: string, csp: string): void {
+function applyCspHeaders(
+  response: NextResponse,
+  headerName: string,
+  csp: string,
+  exception: { active: boolean; expiry: string; issue: string; expired: boolean },
+): void {
   response.headers.set(headerName, csp);
   response.headers.set("Report-To", CSP_REPORT_TO);
   response.headers.set("Reporting-Endpoints", CSP_REPORTING_ENDPOINTS);
+  // Makes the time-limited inline-style exception observable in monitoring.
+  response.headers.set(
+    "X-CSP-Style-Attr-Exception",
+    exception.active
+      ? `active;expires=${exception.expiry};issue=${exception.issue}`
+      : `inactive;expired=${exception.expired};issue=${exception.issue}`,
+  );
 }
 
 export function proxy(request: NextRequest) {
   const nonce = generateNonce();
   const reportOnly = process.env.CSP_REPORT_ONLY === "true";
   const headerName = cspHeaderName(reportOnly);
-  const csp = buildCsp({ nonce, apiOrigins });
+  // Throws after the exception expiry so a forgotten migration fails the build
+  // instead of silently weakening the policy.
+  const exception = resolveStyleAttrException();
+  const csp = buildCsp({
+    nonce,
+    apiOrigins,
+    styleAttrException: exception.active,
+    upgradeInsecureRequests: process.env.NODE_ENV === "production",
+  });
 
   const session = request.cookies.get("awap_session")?.value;
   const redirect = isProtected(request.nextUrl.pathname) && session !== "1";
@@ -67,7 +89,7 @@ export function proxy(request: NextRequest) {
         },
       });
 
-  applyCspHeaders(response, headerName, csp);
+  applyCspHeaders(response, headerName, csp, exception);
   return response;
 }
 
