@@ -37,11 +37,11 @@ test.describe("registration", () => {
     });
 
     await page.goto("/register");
-    await page.getByPlaceholder("Tenant slug").fill("acme");
-    await page.getByPlaceholder("Company name").fill("Acme Inc");
-    await page.getByPlaceholder("Admin full name").fill("Ada Lovelace");
-    await page.getByPlaceholder("Admin email").fill("ada@acme.com");
-    await page.getByPlaceholder("Admin password").fill("s3cret");
+    await page.getByLabel("Tenant slug").fill("acme");
+    await page.getByLabel("Company name").fill("Acme Inc");
+    await page.getByLabel("Admin full name").fill("Ada Lovelace");
+    await page.getByLabel("Admin email").fill("ada@acme.com");
+    await page.getByLabel("Admin password").fill("s3cret");
     await page.getByRole("button", { name: "Create tenant" }).click();
 
     await expect(page).toHaveURL("/");
@@ -61,9 +61,9 @@ test.describe("login", () => {
     );
 
     await page.goto("/");
-    await page.getByPlaceholder("Tenant slug").fill("acme");
-    await page.getByPlaceholder("Email").fill("ada@acme.com");
-    await page.getByPlaceholder("Password").fill("wrong");
+    await page.getByLabel("Tenant slug").fill("acme");
+    await page.getByLabel("Email").fill("ada@acme.com");
+    await page.getByLabel("Password").fill("wrong");
     await page.getByRole("button", { name: "Sign in" }).click();
 
     await expect(page.getByText("Login failed")).toBeVisible();
@@ -86,9 +86,9 @@ test.describe("login", () => {
     await mockDashboardReads(page);
 
     await page.goto("/");
-    await page.getByPlaceholder("Tenant slug").fill("acme");
-    await page.getByPlaceholder("Email").fill("ada@acme.com");
-    await page.getByPlaceholder("Password").fill("s3cret");
+    await page.getByLabel("Tenant slug").fill("acme");
+    await page.getByLabel("Email").fill("ada@acme.com");
+    await page.getByLabel("Password").fill("s3cret");
     await page.getByRole("button", { name: "Sign in" }).click();
 
     // No active tenant yet: the guard routes to the tenant picker. Match the heading, not any text:
@@ -100,8 +100,8 @@ test.describe("login", () => {
     await page.getByRole("button", { name: /tenant-a/ }).click();
     await expect(page).toHaveURL(/\/dashboard/);
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-    await expect(page.getByText("Pending tasks: 0")).toBeVisible();
-    await expect(page.getByText("Active workflow instances: 0")).toBeVisible();
+    await expect(page.getByTestId("dashboard-pending-tasks")).toHaveText("0");
+    await expect(page.getByTestId("dashboard-active-instances")).toHaveText("0");
   });
 
   test("expired session redirects protected routes to the login page", async ({ page }) => {
