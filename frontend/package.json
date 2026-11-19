@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "node scripts/lint.mjs",
     "lint:inline": "node scripts/check-inline-styles.mjs --check",
+    "lint:colors": "node scripts/check-hardcoded-colors.mjs",
     "lint:inline:baseline": "node scripts/check-inline-styles.mjs --write-baseline",
     "budget": "node scripts/check-bundle-budget.mjs",
     "typecheck": "next typegen && tsc --noEmit",

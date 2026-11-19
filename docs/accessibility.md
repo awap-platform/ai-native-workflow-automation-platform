@@ -27,6 +27,7 @@ uses the shared fixtures in
 | Workflow instances | `/instances` | ✅ | ✅ | State labels |
 | Organizations | `/organizations` | ✅ | ✅ | Empty and nested tree |
 | CSP reports | `/admin/csp` | ✅ | — | Redacted aggregate dashboard |
+| Design system | `/design-system` | ✅ | — | 32-component catalogue; light + dark axe |
 
 Keyboard focus is exercised on every screen. Form-label, live-region and
 error-announcement checks run for login, register, documents and notifications.
@@ -52,6 +53,14 @@ pnpm test:a11y
 The suite uses deterministic API mocks, so it does not need Postgres, Kafka or a
 backend. Animations are reduced with `prefers-reduced-motion`; no inline style is
 injected because the CSP would block it.
+
+Phase 1 adds shell and catalogue coverage:
+
+- [`e2e/shell.spec.ts`](../frontend/e2e/shell.spec.ts) — every sidebar route,
+  mobile drawer + Escape focus restoration, Ctrl+K command palette, role-hidden
+  admin menu/forbidden URL, 404 and 320 px reflow.
+- [`e2e/design-system.spec.ts`](../frontend/e2e/design-system.spec.ts) — axe in
+  light and dark, theme toggle, long Turkish text and 4 × 2 visual baselines.
 
 The phase 0 companions are:
 

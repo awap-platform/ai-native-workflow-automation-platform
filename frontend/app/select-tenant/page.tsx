@@ -2,13 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import AuthShell from "../../components/layout/AuthShell";
+import { EmptyState, ErrorState, LoadingState } from "../../components/ui/QueryState";
 import { setActiveTenant } from "../../lib/auth";
 import { useTenantMemberships } from "../../lib/hooks/resources";
+import { useI18n } from "../../lib/locale";
 import { isForbiddenError } from "../../lib/queryClient";
-import { EmptyState, ErrorState, LoadingState } from "../../components/ui/QueryState";
 
 export default function SelectTenantPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const memberships = useTenantMemberships();
   const tenants = memberships.data;
   const rows = tenants ?? [];
@@ -39,18 +42,16 @@ export default function SelectTenantPage() {
   };
 
   return (
-    <main id="main-content" className="awap-main">
-      <div className="awap-page">
-        <h1 className="awap-page-title">Select tenant</h1>
-        <p className="awap-muted">
-          Tenant scope is visible everywhere. Choose the workspace you want to work in.
-        </p>
-        {memberships.isLoading ? <LoadingState label="Loading tenants..." /> : null}
+    <AuthShell wide>
+      <div className="awap-page awap-reading">
+        <h1 className="awap-page-title">{t("selectTenant.title")}</h1>
+        <p className="awap-muted">{t("selectTenant.description")}</p>
+        {memberships.isLoading ? <LoadingState label={t("selectTenant.loading")} /> : null}
         {memberships.isError ? (
-          <ErrorState error={memberships.error} message="Failed to load tenants." />
+          <ErrorState error={memberships.error} message={t("selectTenant.error")} />
         ) : null}
         {memberships.isSuccess && rows.length === 0 ? (
-          <EmptyState message="You do not belong to any tenant yet." />
+          <EmptyState message={t("selectTenant.empty")} />
         ) : null}
         <div className="awap-form max-w-sm">
           {rows.map((tenant) => (
@@ -65,6 +66,6 @@ export default function SelectTenantPage() {
           ))}
         </div>
       </div>
-    </main>
+    </AuthShell>
   );
 }

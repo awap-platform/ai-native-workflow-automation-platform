@@ -258,6 +258,54 @@
     background: var(--awap-bg);
   }
 
+  .awap-shell-main {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+  }
+
+  .awap-topbar {
+    position: sticky;
+    top: 0;
+    z-index: var(--awap-z-dropdown);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--awap-space-3);
+    min-height: 56px;
+    padding: var(--awap-space-2) var(--awap-space-4);
+    border-bottom: 1px solid var(--awap-border);
+    background: color-mix(in oklch, var(--awap-surface) 94%, transparent);
+    backdrop-filter: blur(8px);
+  }
+
+  .awap-topbar-search {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--awap-space-2);
+    min-height: 36px;
+    padding: 0 var(--awap-space-3);
+    border: 1px solid var(--awap-border);
+    border-radius: var(--awap-radius-md);
+    background: var(--awap-surface-raised);
+    color: var(--awap-muted);
+    font: inherit;
+    cursor: pointer;
+  }
+  .awap-topbar-search:hover {
+    border-color: color-mix(in oklch, var(--awap-primary) 40%, var(--awap-border));
+    color: var(--awap-text);
+  }
+  .awap-kbd {
+    padding: 0 4px;
+    border: 1px solid var(--awap-border);
+    border-radius: 4px;
+    background: var(--awap-surface);
+    color: var(--awap-muted);
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: var(--awap-text-xs);
+  }
+
   .awap-sidebar {
     display: flex;
     flex-direction: column;
@@ -707,26 +755,10 @@
     grid-template-columns: 1fr;
   }
   .awap-sidebar {
-    flex-direction: row;
-    align-items: center;
-    gap: var(--awap-space-3);
-    border-right: 0;
-    border-bottom: 1px solid var(--awap-border);
-    overflow-x: auto;
-  }
-  .awap-sidebar .awap-brand {
-    flex: 0 0 auto;
-  }
-  .awap-nav {
-    flex-direction: row;
-    gap: var(--awap-space-2);
-  }
-  .awap-nav-group {
-    flex-direction: row;
-    align-items: center;
-  }
-  .awap-nav-heading {
     display: none;
+  }
+  .awap-topbar {
+    padding: var(--awap-space-2);
   }
   .awap-main {
     padding: var(--awap-space-4);
@@ -743,6 +775,147 @@
     display: flex;
     justify-content: space-between;
     border-bottom: 0;
+  }
+}
+
+/* ------------------------------------------------------------------------- */
+/* Phase 1: auth shell, overlays, toasts and command palette                  */
+/* ------------------------------------------------------------------------- */
+
+.awap-auth-shell {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  background: var(--awap-bg);
+}
+
+.awap-auth-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--awap-space-3);
+  padding: var(--awap-space-3) var(--awap-space-4);
+  border-bottom: 1px solid var(--awap-border);
+  background: var(--awap-surface);
+}
+
+.awap-auth-main {
+  flex: 1;
+  width: 100%;
+  padding: var(--awap-space-6) var(--awap-space-4);
+}
+
+.awap-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--awap-z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--awap-space-4);
+  background: oklch(0.15 0.02 258 / 55%);
+  animation: awap-fade-in var(--awap-motion-fast) var(--awap-ease);
+}
+
+.awap-dialog {
+  width: 100%;
+  max-width: 560px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: var(--awap-space-5);
+  border: 1px solid var(--awap-border);
+  border-radius: var(--awap-radius-lg);
+  background: var(--awap-surface);
+  box-shadow: var(--awap-shadow-3);
+}
+
+.awap-drawer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: min(360px, 90vw);
+  overflow-y: auto;
+  padding: var(--awap-space-4);
+  background: var(--awap-surface);
+  box-shadow: var(--awap-shadow-3);
+  animation: awap-slide-in var(--awap-motion-normal) var(--awap-ease);
+}
+.awap-drawer-left {
+  left: 0;
+}
+.awap-drawer-right {
+  right: 0;
+}
+
+.awap-command-panel {
+  width: 100%;
+  max-width: 640px;
+  max-height: 80vh;
+  overflow: hidden;
+  padding: var(--awap-space-3);
+  border: 1px solid var(--awap-border);
+  border-radius: var(--awap-radius-lg);
+  background: var(--awap-surface);
+  box-shadow: var(--awap-shadow-3);
+}
+
+.awap-toast-viewport {
+  position: fixed;
+  right: var(--awap-space-4);
+  bottom: var(--awap-space-4);
+  z-index: var(--awap-z-toast);
+  display: grid;
+  gap: var(--awap-space-2);
+  width: min(360px, calc(100vw - 2rem));
+}
+
+.awap-toast {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--awap-space-3);
+  padding: var(--awap-space-3);
+  border: 1px solid var(--awap-border);
+  border-radius: var(--awap-radius-md);
+  background: var(--awap-surface);
+  box-shadow: var(--awap-shadow-2);
+  animation: awap-fade-in var(--awap-motion-fast) var(--awap-ease);
+}
+
+.awap-alert-success {
+  border-color: var(--awap-success);
+  background: color-mix(in oklch, var(--awap-success) 12%, var(--awap-surface));
+}
+
+.awap-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes awap-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes awap-slide-in {
+  from {
+    transform: translateX(-12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .awap-auth-main {
+    padding: var(--awap-space-4);
   }
 }
 

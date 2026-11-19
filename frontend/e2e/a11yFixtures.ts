@@ -280,10 +280,10 @@ export async function installApiMocks(page: Page, populated: boolean): Promise<v
   });
 }
 
-/** Seeds the cookies the middleware and RouteGuard rely on. */
+/** Seeds the cookies the middleware, RouteGuard and shell rely on. */
 export async function setSession(
   page: Page,
-  options: { tenant?: string | null } = {},
+  options: { tenant?: string | null; role?: string | null; locale?: string | null } = {},
 ): Promise<void> {
   const cookies = [
     { name: "awap_session", value: "1", url: "http://localhost:3000", sameSite: "Lax" as const },
@@ -292,6 +292,22 @@ export async function setSession(
     cookies.push({
       name: "awap_tenant",
       value: options.tenant,
+      url: "http://localhost:3000",
+      sameSite: "Lax" as const,
+    });
+  }
+  if (options.role !== null && options.role !== undefined) {
+    cookies.push({
+      name: "awap_role",
+      value: options.role,
+      url: "http://localhost:3000",
+      sameSite: "Lax" as const,
+    });
+  }
+  if (options.locale !== null && options.locale !== undefined) {
+    cookies.push({
+      name: "awap_locale",
+      value: options.locale,
       url: "http://localhost:3000",
       sameSite: "Lax" as const,
     });
@@ -408,6 +424,13 @@ export const SCREENS: ScreenDefinition[] = [
     name: "admin-csp",
     path: "/admin/csp",
     heading: "CSP reports",
+    protected: true,
+    states: ["empty"],
+  },
+  {
+    name: "design-system",
+    path: "/design-system",
+    heading: "Design system",
     protected: true,
     states: ["empty"],
   },

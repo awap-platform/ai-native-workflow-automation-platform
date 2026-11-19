@@ -274,6 +274,10 @@ jobs:
         # UI/UX phase 0: a new `style={...}` fails; existing debt may only shrink.
         run: pnpm lint:inline
         working-directory: frontend
+      - name: Hard-coded colour guard
+        # UI/UX phase 1 (R1-02): component and shell layers must use tokens.
+        run: pnpm lint:colors
+        working-directory: frontend
       # The browser suite runs in the dedicated `e2e` job against the Compose stack.
 
   e2e:
