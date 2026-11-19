@@ -14,7 +14,8 @@ export default function RouteGuard({ children }: { children: React.ReactNode }) 
       return;
     }
     if (pathname !== "/select-tenant" && !getActiveTenant()) {
-      router.replace("/select-tenant");
+      const returnTo = encodeURIComponent(`${pathname}${window.location.search}`);
+      router.replace(`/select-tenant?returnTo=${returnTo}`);
     }
   }, [pathname, router]);
 

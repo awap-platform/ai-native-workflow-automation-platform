@@ -1,3 +1,6 @@
+import { clearSessionExpiry, setSessionExpiry } from "./auth";
+import { safeReturnTo } from "./redirect";
+
 function apiBase(): string {
   return process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8080";
 }
@@ -123,7 +126,12 @@ export async function fetchTenants(): Promise<TenantMembershipDto[]> {
     credentials: "include",
   });
   if (!response.ok) {
-    throw new Error(`Failed to load tenants with status ${response.status}`);
+    throw new ApiError(
+      response.status,
+      await readErrorDetail(response, "Failed to load tenants"),
+      correlationHeader(response),
+      parseRetryAfter(response),
+    );
   }
   return (await response.json()) as TenantMembershipDto[];
 }
@@ -188,6 +196,30 @@ export interface TokenDto {
   expiresIn: number;
 }
 
+/** Reads `Retry-After` as seconds when the backend supplies one. */
+export function parseRetryAfter(response: Response): number | undefined {
+  const raw = response.headers?.get?.("retry-after");
+  if (!raw) {
+    return undefined;
+  }
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.ceil(seconds);
+  }
+  const date = Date.parse(raw);
+  if (Number.isNaN(date)) {
+    return undefined;
+  }
+  return Math.max(0, Math.ceil((date - Date.now()) / 1000));
+}
+
+/**
+ * Enumeration-safe login.
+ *
+ * Invalid credentials, an unknown tenant and a forbidden account all return the
+ * same message to the UI. Rate-limit and temporary-unavailability responses keep
+ * their actionable copy and `Retry-After`.
+ */
 export async function login(
   tenantSlug: string,
   email: string,
@@ -200,9 +232,41 @@ export async function login(
     body: JSON.stringify({ tenantSlug, email, password }),
   });
   if (!response.ok) {
-    throw new ApiError(response.status, "Login failed", correlationHeader(response));
+    const correlationId = correlationHeader(response);
+    const retryAfter = parseRetryAfter(response);
+    if (response.status === 429) {
+      throw new ApiError(
+        429,
+        "Too many attempts. Please wait before trying again.",
+        correlationId,
+        retryAfter,
+      );
+    }
+    if (response.status === 503) {
+      throw new ApiError(
+        503,
+        "Sign-in is temporarily unavailable. Try again shortly.",
+        correlationId,
+        retryAfter,
+      );
+    }
+    if (response.status === 401 || response.status === 403 || response.status === 404) {
+      throw new ApiError(
+        response.status,
+        "Email or password is incorrect.",
+        correlationId,
+      );
+    }
+    throw new ApiError(
+      response.status,
+      await readErrorDetail(response, "Login failed"),
+      correlationId,
+      retryAfter,
+    );
   }
-  return (await response.json()) as TokenDto;
+  const tokens = (await response.json()) as TokenDto;
+  setSessionExpiry(tokens.expiresIn);
+  return tokens;
 }
 
 /** Reads the correlation ID the backend echoes on every response (issue #191). */
@@ -216,12 +280,20 @@ export class ApiError extends Error {
   readonly status: number;
   /** Correlation ID echoed by the backend, surfaced in error states for support. */
   readonly correlationId: string | undefined;
+  /** Seconds until a rate-limited request may be retried. */
+  readonly retryAfterSeconds: number | undefined;
 
-  constructor(status: number, message: string, correlationId?: string) {
+  constructor(
+    status: number,
+    message: string,
+    correlationId?: string,
+    retryAfterSeconds?: number,
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.correlationId = correlationId;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -243,7 +315,17 @@ async function refreshAccessToken(): Promise<boolean> {
       credentials: "include",
       body: "{}",
     });
-    return response.ok;
+    if (!response.ok) {
+      if (response.status === 401) {
+        clearSessionExpiry();
+      }
+      return false;
+    }
+    const tokens = (await response.json()) as TokenDto;
+    if (tokens.expiresIn > 0) {
+      setSessionExpiry(tokens.expiresIn);
+    }
+    return true;
   } catch {
     return false;
   }
@@ -270,8 +352,12 @@ export function refreshSession(): Promise<boolean> {
 export const navigation = {
   redirectToLogin(): void {
     // A full navigation re-runs the middleware auth check and clears in-memory server state.
+    // `returnTo` is validated so a malicious query string cannot become an open redirect.
+    const current = `${window.location.pathname}${window.location.search}`;
+    const returnTo = safeReturnTo(current);
+    const query = new URLSearchParams({ reason: "expired", returnTo });
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- full reload re-runs the middleware auth check
-    window.location.assign("/");
+    window.location.assign(`/?${query.toString()}`);
   },
 };
 
@@ -330,6 +416,7 @@ async function apiRequest<T>(
       response.status,
       await readErrorDetail(response, `${method} ${path.split("?")[0]} failed`),
       correlationHeader(response),
+      parseRetryAfter(response),
     );
   }
   if (response.status === 204) {
@@ -347,6 +434,81 @@ const authPostWithHeaders = <T>(
   body: unknown,
   headers?: Record<string, string>,
 ): Promise<T> => apiRequest<T>("POST", path, body, false, headers);
+
+export interface CurrentUserDto {
+  id: string;
+  tenantId: string;
+  email: string;
+  fullName: string;
+  role: string;
+}
+
+/** Profile of the authenticated user, used by onboarding and the shell. */
+export function fetchCurrentUser(): Promise<CurrentUserDto> {
+  return authFetch<CurrentUserDto>("/api/v1/auth/me");
+}
+
+export interface InvitationTenantDto {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+export interface AcceptInvitationPayload {
+  fullName?: string;
+  password?: string;
+}
+
+/**
+ * Public invitation acceptance. Sends no auth redirect; the endpoint identifies
+ * the invitee by the token. Existing users may omit the password.
+ */
+export async function acceptInvitation(
+  token: string,
+  payload: AcceptInvitationPayload = {},
+): Promise<InvitationTenantDto> {
+  const started = performance.now();
+  const response = await fetch(
+    `${apiBase()}/api/v1/tenant-invitations/${encodeURIComponent(token)}/accept`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await csrfHeaders()) },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    },
+  );
+  logApi("POST", `/api/v1/tenant-invitations/${token}/accept`, response.status, started);
+  if (!response.ok) {
+    throw new ApiError(
+      response.status,
+      await readErrorDetail(response, "The invitation could not be accepted."),
+      correlationHeader(response),
+      parseRetryAfter(response),
+    );
+  }
+  return (await response.json()) as InvitationTenantDto;
+}
+
+export interface InvitationDto {
+  id: string;
+  tenantId: string;
+  email: string;
+  role: string;
+  expiresAt: string;
+  token: string;
+}
+
+/** Creates a tenant invitation; the response includes the one-time raw token. */
+export function inviteTenantUser(
+  tenantId: string,
+  email: string,
+  role: string,
+): Promise<InvitationDto> {
+  return authPost<InvitationDto>(`/api/v1/tenants/${encodeURIComponent(tenantId)}/invitations`, {
+    email,
+    role,
+  });
+}
 
 export function listTasks(): Promise<TaskDto[]> {
   return authFetch<TaskDto[]>("/api/v1/tasks");

@@ -9,7 +9,13 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const SCAN_DIRS = ["components/ui", "components/layout", "app/(app)/design-system"];
+const SCAN_DIRS = [
+  "components/ui",
+  "components/layout",
+  "components/auth",
+  "components/onboarding",
+  "app/(app)/design-system",
+];
 const HEX_PATTERN = /#[0-9a-fA-F]{3,8}\b/g;
 
 function listFiles(directory) {

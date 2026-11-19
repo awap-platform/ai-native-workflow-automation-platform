@@ -11,8 +11,9 @@ uses the shared fixtures in
 | Screen | Route | Empty | Populated | Notes |
 |---|---|:---:|:---:|---|
 | Login | `/` | ✅ | — | Form labels and error live region |
-| Register | `/register` | ✅ | — | Form labels |
-| Tenant selection | `/select-tenant` | — | ✅ | Two memberships |
+| Register | `/register` | ✅ | — | Wizard labels validated across all steps |
+| Invitation acceptance | `/invitations/accept?token=…` | ✅ | — | Public token form; new/existing account modes |
+| Tenant selection | `/select-tenant` | — | ✅ | Two memberships shown as cards |
 | Dashboard | `/dashboard` | ✅ | ✅ | Tasks/instances counts |
 | AI Copilot | `/copilot` | ✅ | ✅ | Natural-language request, HITL warning and tool-call list |
 | Tasks | `/tasks` | ✅ | ✅ | Populated state opens the task detail panel |
@@ -53,6 +54,22 @@ pnpm test:a11y
 The suite uses deterministic API mocks, so it does not need Postgres, Kafka or a
 backend. Animations are reduced with `prefers-reduced-motion`; no inline style is
 injected because the CSP would block it.
+
+Phase 2 adds onboarding/auth coverage:
+
+- [`e2e/login-security.spec.ts`](../frontend/e2e/login-security.spec.ts) —
+  enumeration-safe errors, 429/Retry-After, expired banner, safe `returnTo` and
+  double-submit protection.
+- [`e2e/register-onboarding.spec.ts`](../frontend/e2e/register-onboarding.spec.ts)
+  — wizard steps, empty/long/duplicate input, password strength and double submit.
+- [`e2e/tenant-picker.spec.ts`](../frontend/e2e/tenant-picker.spec.ts) —
+  auto-select, multi-tenant card choice, 403/500 and no-access CTA.
+- [`e2e/invitation.spec.ts`](../frontend/e2e/invitation.spec.ts) — new/existing
+  user acceptance and expired/consumed token recovery.
+- [`e2e/onboarding.spec.ts`](../frontend/e2e/onboarding.spec.ts) — first-login
+  access summary and persistent dismissal.
+- [`e2e/session-timeout.spec.ts`](../frontend/e2e/session-timeout.spec.ts) —
+  countdown, stay-signed-in refresh and failed-refresh return to login.
 
 Phase 1 adds shell and catalogue coverage:
 

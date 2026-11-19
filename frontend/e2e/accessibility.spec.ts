@@ -175,20 +175,27 @@ for (const screen of SCREENS) {
 
 test("login and register controls expose accessible names", async ({ page }) => {
   await openScreen(page, SCREENS[0]!, "empty");
-  for (const label of ["Tenant slug", "Email", "Password"]) {
+  for (const label of ["Tenant slug", "Email"]) {
     await expect(page.getByLabel(label)).toBeVisible();
   }
+  await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
 
   await openScreen(page, SCREENS[1]!, "empty");
-  for (const label of [
-    "Tenant slug",
-    "Company name",
-    "Admin full name",
-    "Admin email",
-    "Admin password",
-  ]) {
-    await expect(page.getByLabel(label)).toBeVisible();
-  }
+  await expect(page.getByLabel("Tenant slug")).toBeVisible();
+  await expect(page.getByLabel("Company name")).toBeVisible();
+  await page.getByLabel("Tenant slug").fill("acme");
+  await page.getByLabel("Company name").fill("Acme Inc");
+  await page.getByTestId("register-next").click();
+
+  await expect(page.getByLabel("Admin full name")).toBeVisible();
+  await expect(page.getByLabel("Admin email")).toBeVisible();
+  await page.getByLabel("Admin full name").fill("Ada Lovelace");
+  await page.getByLabel("Admin email").fill("ada@acme.com");
+  await page.getByTestId("register-next").click();
+
+  await expect(page.getByLabel("Admin password")).toBeVisible();
+  await expect(page.getByLabel("Confirm password")).toBeVisible();
+  await expect(page.getByLabel(/I accept the terms/)).toBeVisible();
 });
 
 test("login failures are announced through a live region", async ({ page }) => {
@@ -198,9 +205,11 @@ test("login failures are announced through a live region", async ({ page }) => {
   );
   await page.getByLabel("Tenant slug").fill("acme");
   await page.getByLabel("Email").fill("ada@acme.com");
-  await page.getByLabel("Password").fill("wrong");
+  await page.getByLabel("Password", { exact: true }).fill("wrong");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.locator('p[aria-live="polite"]')).toContainText("Login failed");
+  await expect(page.getByTestId("login-error")).toContainText(
+    "Email or password is incorrect.",
+  );
 });
 
 test("live status regions are present on documents and notifications", async ({ page }) => {

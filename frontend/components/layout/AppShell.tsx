@@ -11,6 +11,7 @@ import { ForbiddenState } from "../ui/states";
 import type { BreadcrumbItem } from "../ui/data-display";
 import GlobalCommandPalette from "./GlobalCommandPalette";
 import MobileDrawer from "./MobileDrawer";
+import SessionTimeoutWarning from "./SessionTimeoutWarning";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 
@@ -51,6 +52,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     <div className="awap-shell">
       <Sidebar groups={groups} pathname={pathname} tenant={tenant} role={role} />
       <div className="awap-shell-main">
+        <SessionTimeoutWarning />
         <Topbar
           onOpenMenu={() => setMobileOpen(true)}
           onOpenSearch={() => setPaletteOpen(true)}

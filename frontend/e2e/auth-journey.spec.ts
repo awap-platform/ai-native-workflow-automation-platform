@@ -39,12 +39,17 @@ test.describe("registration", () => {
     await page.goto("/register");
     await page.getByLabel("Tenant slug").fill("acme");
     await page.getByLabel("Company name").fill("Acme Inc");
+    await page.getByTestId("register-next").click();
     await page.getByLabel("Admin full name").fill("Ada Lovelace");
     await page.getByLabel("Admin email").fill("ada@acme.com");
-    await page.getByLabel("Admin password").fill("s3cret");
-    await page.getByRole("button", { name: "Create tenant" }).click();
+    await page.getByTestId("register-next").click();
+    await page.getByLabel("Admin password").fill("Str0ng-Passw0rd!");
+    await page.getByLabel("Confirm password").fill("Str0ng-Passw0rd!");
+    await page.getByLabel(/I accept the terms/).check();
+    await page.getByTestId("register-next").click();
+    await page.getByTestId("register-submit").click();
 
-    await expect(page).toHaveURL("/");
+    await expect(page).toHaveURL(/\/\?registered=1/);
     expect(requests).toHaveLength(1);
     expect(requests[0]).toMatchObject({
       slug: "acme",
@@ -63,10 +68,12 @@ test.describe("login", () => {
     await page.goto("/");
     await page.getByLabel("Tenant slug").fill("acme");
     await page.getByLabel("Email").fill("ada@acme.com");
-    await page.getByLabel("Password").fill("wrong");
+    await page.getByLabel("Password", { exact: true }).fill("wrong");
     await page.getByRole("button", { name: "Sign in" }).click();
 
-    await expect(page.getByText("Login failed")).toBeVisible();
+    await expect(page.getByTestId("login-error")).toContainText(
+      "Email or password is incorrect.",
+    );
     await expect(page).toHaveURL("/");
   });
 
@@ -88,7 +95,7 @@ test.describe("login", () => {
     await page.goto("/");
     await page.getByLabel("Tenant slug").fill("acme");
     await page.getByLabel("Email").fill("ada@acme.com");
-    await page.getByLabel("Password").fill("s3cret");
+    await page.getByLabel("Password", { exact: true }).fill("s3cret");
     await page.getByRole("button", { name: "Sign in" }).click();
 
     // No active tenant yet: the guard routes to the tenant picker. Match the heading, not any text:
@@ -97,7 +104,10 @@ test.describe("login", () => {
     await expect(page.getByRole("heading", { name: "Select tenant" })).toBeVisible();
 
     // Choosing a tenant persists the cookie and reloads into the dashboard.
-    await page.getByRole("button", { name: /tenant-a/ }).click();
+    await page
+      .getByTestId("tenant-card-tenant-a")
+      .getByRole("button", { name: "Continue" })
+      .click();
     await expect(page).toHaveURL(/\/dashboard/);
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
     await expect(page.getByTestId("dashboard-pending-tasks")).toHaveText("0");
@@ -106,8 +116,8 @@ test.describe("login", () => {
 
   test("expired session redirects protected routes to the login page", async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(page).toHaveURL("/");
-    await expect(page.getByRole("heading", { name: "AWAP" })).toBeVisible();
+    await expect(page).toHaveURL(/\/(\?.*)?$/);
+    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
   });
 });
 

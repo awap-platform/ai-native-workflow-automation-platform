@@ -11,7 +11,15 @@ import { openScreen, SCREENS } from "./a11yFixtures";
  * animation to (effectively) zero.
  */
 
-const REFLOW_SCREENS = ["dashboard", "tasks", "workflows", "documents", "notifications"];
+const REFLOW_SCREENS = [
+  "login",
+  "register",
+  "dashboard",
+  "tasks",
+  "workflows",
+  "documents",
+  "notifications",
+];
 
 function screen(name: string) {
   const found = SCREENS.find((candidate) => candidate.name === name);
@@ -42,7 +50,7 @@ test("reduced motion collapses transitions and animations", async ({ page }) => 
   await openScreen(page, screen("login"), "empty");
 
   const durations = await page.evaluate(() => {
-    const button = document.querySelector(".awap-button");
+    const button = document.querySelector('[data-slot="button"]');
     if (!button) {
       return null;
     }

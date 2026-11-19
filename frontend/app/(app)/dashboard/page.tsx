@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import AccessSummary from "../../../components/onboarding/AccessSummary";
 import { ErrorState, LoadingState } from "../../../components/ui/QueryState";
 import { useTasks, useWorkflowInstances } from "../../../lib/hooks/resources";
 
@@ -24,6 +25,7 @@ export default function DashboardPage() {
   return (
     <div className="awap-page">
       <h1 className="awap-page-title">Dashboard</h1>
+      <AccessSummary />
       <div className="grid gap-4 sm:grid-cols-2">
         <section className="awap-card" aria-labelledby="dashboard-tasks-heading">
           <h2 id="dashboard-tasks-heading" className="awap-section-title">

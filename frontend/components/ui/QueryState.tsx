@@ -35,10 +35,14 @@ export function ErrorState({
   error,
   message = "Something went wrong.",
   forbiddenMessage = "You do not have permission to view this.",
+  onRetry,
+  retryLabel = "Retry",
 }: {
   error?: unknown;
   message?: string | undefined;
   forbiddenMessage?: string | undefined;
+  onRetry?: (() => void) | undefined;
+  retryLabel?: string | undefined;
 }) {
   const correlationId = correlationIdOf(error);
 
@@ -57,6 +61,11 @@ export function ErrorState({
       <span>{message}</span>
       {correlationId ? (
         <span className="awap-correlation">Correlation ID: {correlationId}</span>
+      ) : null}
+      {onRetry ? (
+        <button type="button" className="awap-button mt-3" onClick={onRetry}>
+          {retryLabel}
+        </button>
       ) : null}
     </div>
   );
