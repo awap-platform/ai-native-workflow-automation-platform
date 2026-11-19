@@ -22,6 +22,11 @@ describe("QueryState components", () => {
     );
   });
 
+  it("renders the correlation ID when the API supplied one", () => {
+    render(<ErrorState error={new ApiError(500, "boom", "corr-123")} />);
+    expect(screen.getByTestId("error-state")).toHaveTextContent("Correlation ID: corr-123");
+  });
+
   it("renders an empty state with the default test id", () => {
     render(<EmptyState message="Nothing here yet." />);
     expect(screen.getByTestId("empty-state")).toHaveTextContent("Nothing here yet.");

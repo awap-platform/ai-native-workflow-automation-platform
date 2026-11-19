@@ -3,12 +3,12 @@
 import { EmptyState, ErrorState, LoadingState } from "../../../components/ui/QueryState";
 import { useWorkflowInstances } from "../../../lib/hooks/resources";
 
-const stateColors: Record<string, string> = {
-  COMPLETED: "#16a34a",
-  FAILED: "#e11d48",
-  RUNNING: "#2563eb",
-  WAITING: "#f59e0b",
-  CANCELLED: "#6b7280",
+const stateClass: Record<string, string> = {
+  COMPLETED: "awap-state-completed",
+  FAILED: "awap-state-failed",
+  RUNNING: "awap-state-running",
+  WAITING: "awap-state-waiting",
+  CANCELLED: "awap-state-cancelled",
 };
 
 /** Live instance monitor. Polling stays here because staleness matters more than request volume. */
@@ -16,20 +16,20 @@ export default function InstancesPage() {
   const instances = useWorkflowInstances({ refetchInterval: 5000 });
 
   return (
-    <div>
-      <h1 style={{ fontSize: 24, fontWeight: 700 }}>Workflow Instances</h1>
-      {instances.isLoading && <LoadingState label="Loading workflow instances…" />}
-      {instances.isError && (
+    <div className="awap-page">
+      <h1 className="awap-page-title">Workflow Instances</h1>
+      {instances.isLoading ? <LoadingState label="Loading workflow instances…" /> : null}
+      {instances.isError ? (
         <ErrorState error={instances.error} message="Failed to load workflow instances." />
-      )}
-      {instances.isSuccess && instances.data.length === 0 && (
+      ) : null}
+      {instances.isSuccess && instances.data.length === 0 ? (
         <EmptyState message="No workflow instances yet." />
-      )}
-      <ul>
+      ) : null}
+      <ul className="awap-list" aria-label="Workflow instances">
         {(instances.data ?? []).map((instance) => (
-          <li key={instance.id}>
-            {instance.workflowDefinitionId} —{" "}
-            <span style={{ color: stateColors[instance.state] ?? "#111827", fontWeight: 600 }}>
+          <li key={instance.id} className="awap-list-row">
+            <span className="font-mono text-xs">{instance.workflowDefinitionId}</span>
+            <span className={`awap-state ${stateClass[instance.state] ?? ""}`}>
               {instance.state}
             </span>
           </li>

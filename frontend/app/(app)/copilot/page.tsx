@@ -37,36 +37,31 @@ export default function CopilotPage() {
   const result = copilot.data;
 
   return (
-    <div data-testid="copilot-page">
-      <h1 style={{ fontSize: 24, fontWeight: 700 }}>AI Copilot</h1>
-      <p style={{ color: "#475569", maxWidth: 760 }}>
+    <div className="awap-page" data-testid="copilot-page">
+      <h1 className="awap-page-title">AI Copilot</h1>
+      <p className="awap-reading awap-muted">
         Ask in natural language to discover or start a workflow, query, complete or assign tasks,
         send a notification, prepare an approval, or search your tenant documents. High-risk
         actions require explicit confirmation and are audited.
       </p>
 
-      <section
-        style={{
-          border: "1px solid #cbd5e1",
-          borderRadius: 10,
-          padding: 16,
-          marginTop: 16,
-          background: "#f8fafc",
-        }}
-      >
-        <label htmlFor="copilot-message" style={{ display: "block", fontWeight: 600 }}>
+      <section className="awap-card" aria-labelledby="copilot-request-heading">
+        <h2 id="copilot-request-heading" className="awap-section-title">
+          Copilot request
+        </h2>
+        <label className="awap-label" htmlFor="copilot-message">
           Your request
         </label>
         <textarea
           id="copilot-message"
+          className="awap-textarea"
           value={message}
           onChange={(event) => setMessage(event.target.value)}
           rows={3}
           maxLength={8_000}
-          placeholder="Örneğin: İzin talebi başlat"
-          style={{ width: "100%", marginTop: 8, padding: 10, borderRadius: 8 }}
+          placeholder="For example: start a leave request"
         />
-        <label style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
+        <label className="awap-checkbox-row">
           <input
             type="checkbox"
             checked={confirmed}
@@ -76,52 +71,28 @@ export default function CopilotPage() {
         </label>
         <button
           type="button"
+          className="awap-button awap-button-primary"
           onClick={submit}
           disabled={copilot.isPending || message.trim().length === 0}
-          style={{
-            marginTop: 12,
-            padding: "10px 16px",
-            borderRadius: 8,
-            border: "none",
-            background: "#4f46e5",
-            color: "white",
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
         >
           {copilot.isPending ? "Thinking…" : "Send to Copilot"}
         </button>
       </section>
 
-      {copilot.isPending && <LoadingState label="Copilot is working…" />}
-      {copilot.isError && (
+      {copilot.isPending ? <LoadingState label="Copilot is working…" /> : null}
+      {copilot.isError ? (
         <ErrorState error={copilot.error} message="The Copilot request failed." />
-      )}
+      ) : null}
 
-      {result && (
-        <section style={{ marginTop: 20 }} aria-live="polite">
-          <h2 style={{ fontSize: 18 }}>Answer</h2>
-          <div
-            data-testid="copilot-answer"
-            style={{
-              whiteSpace: "pre-wrap",
-              border: "1px solid #cbd5e1",
-              borderRadius: 10,
-              padding: 16,
-              background: "white",
-            }}
-          >
+      {result ? (
+        <section className="awap-card" aria-live="polite" aria-labelledby="copilot-answer-heading">
+          <h2 id="copilot-answer-heading" className="awap-section-title">
+            Answer
+          </h2>
+          <div data-testid="copilot-answer" className="whitespace-pre-wrap">
             {result.answer}
           </div>
-          <dl
-            style={{
-              display: "grid",
-              gridTemplateColumns: "max-content 1fr",
-              gap: "6px 16px",
-              marginTop: 12,
-              color: "#475569",
-            }}
-          >
+          <dl className="mt-3 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 awap-muted">
             <dt>Intent</dt>
             <dd>{result.action}</dd>
             <dt>Confidence</dt>
@@ -135,31 +106,25 @@ export default function CopilotPage() {
             <dt>Correlation ID</dt>
             <dd>{result.correlation_id || "n/a"}</dd>
           </dl>
-          {result.requires_human_approval && (
+          {result.requires_human_approval ? (
             <p
               data-testid="copilot-hitl"
-              style={{
-                marginTop: 12,
-                padding: 12,
-                borderRadius: 8,
-                background: "#fef3c7",
-                color: "#92400e",
-              }}
+              className="awap-alert awap-alert-warning mt-3"
             >
               Human confirmation is required before this action can run.
             </p>
-          )}
-          <h3 style={{ fontSize: 16, marginTop: 18 }}>Tool calls</h3>
-          <ul data-testid="copilot-tool-calls" style={{ paddingLeft: 20 }}>
+          ) : null}
+          <h3 className="mt-4 awap-section-title">Tool calls</h3>
+          <ul data-testid="copilot-tool-calls" className="awap-list pl-4">
             {result.tool_calls.map((call, index) => (
               <li key={`${call.name}-${index}`}>
                 <strong>{call.name}</strong> {call.ok ? "ok" : `failed: ${call.error ?? ""}`}
               </li>
             ))}
-            {result.tool_calls.length === 0 && <li>No tool calls.</li>}
+            {result.tool_calls.length === 0 ? <li>No tool calls.</li> : null}
           </ul>
         </section>
-      )}
+      ) : null}
     </div>
   );
 }

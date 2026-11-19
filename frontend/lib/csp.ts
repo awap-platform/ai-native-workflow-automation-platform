@@ -1,12 +1,23 @@
 /**
- * Content Security Policy helpers (issue #183).
+ * Content Security Policy helpers (issue #183, UI/UX phase 0).
  *
- * Pure functions so the nonce generation, header construction and report
- * redaction can be unit-tested without a running Next.js server.
+ * Pure functions so nonce generation, header construction and report redaction
+ * can be unit-tested without a running Next.js server.
+ *
+ * The policy never emits `unsafe-eval`. Inline `<script>` and `<style>` blocks
+ * require the per-request nonce. One intentionally temporary exception remains:
+ * `style-src-attr 'unsafe-inline'`, because the legacy screens still set React
+ * `style` attributes. It has an owner, a tracking issue and an expiry; the build
+ * fails after the expiry unless the exception is explicitly switched off.
  */
 
 export const CSP_REPORT_URI = "/api/csp-report";
 export const CSP_REPORT_GROUP = "csp-endpoint";
+
+/** Owner/tracking reference for the temporary inline-style exception. */
+export const CSP_STYLE_ATTR_EXCEPTION_ISSUE = "AWAP-UIUX-PHASE-0";
+/** Hard expiry. `resolveStyleAttrException` throws once this instant has passed. */
+export const CSP_STYLE_ATTR_EXCEPTION_EXPIRY = "2026-12-31T00:00:00.000Z";
 
 /** Builds the `Report-To` header value for the CSP collector. */
 export const CSP_REPORT_TO = JSON.stringify({
@@ -23,9 +34,54 @@ export interface CspOptions {
   /** Space-separated API origins allowed by `connect-src`. */
   apiOrigins: string;
   reportUri?: string;
+  /** Injectable clock for tests and for deterministic policy snapshots. */
+  now?: Date;
+  /** Overrides the resolved exception state; used by tests. */
+  styleAttrException?: boolean;
+  /** Adds `upgrade-insecure-requests`; enabled in production deployments. */
+  upgradeInsecureRequests?: boolean;
 }
 
 export type RandomValues = (bytes: Uint8Array) => Uint8Array;
+
+export interface StyleAttrExceptionState {
+  issue: string;
+  expiry: string;
+  active: boolean;
+  expired: boolean;
+  source: "env" | "default";
+}
+
+/**
+ * Resolves the temporary `style-src-attr 'unsafe-inline'` exception.
+ *
+ * - `CSP_STYLE_ATTR_UNSAFE_INLINE=false` switches it off explicitly (the goal).
+ * - Before the expiry the exception is active by default.
+ * - After the expiry the function throws, so CI and the production build cannot
+ *   silently keep the exception alive.
+ */
+export function resolveStyleAttrException(now: Date = new Date()): StyleAttrExceptionState {
+  const flag = process.env.CSP_STYLE_ATTR_UNSAFE_INLINE;
+  const expiry = CSP_STYLE_ATTR_EXCEPTION_EXPIRY;
+  const expired = now.getTime() > new Date(expiry).getTime();
+
+  if (flag === "false") {
+    return { issue: CSP_STYLE_ATTR_EXCEPTION_ISSUE, expiry, active: false, expired, source: "env" };
+  }
+  if (expired) {
+    throw new Error(
+      `CSP style-src-attr exception expired on ${expiry} (${CSP_STYLE_ATTR_EXCEPTION_ISSUE}). ` +
+        "Remove the remaining inline style attributes or set CSP_STYLE_ATTR_UNSAFE_INLINE=false.",
+    );
+  }
+  return {
+    issue: CSP_STYLE_ATTR_EXCEPTION_ISSUE,
+    expiry,
+    active: true,
+    expired,
+    source: flag === "true" ? "env" : "default",
+  };
+}
 
 /**
  * Generates a per-request base64url nonce. `crypto.getRandomValues` is
@@ -52,25 +108,46 @@ export function cspHeaderName(reportOnly: boolean): string {
 
 /**
  * Builds a nonce-based policy. `strict-dynamic` lets nonce-trusted Next.js
- * bootstrap scripts load their chunks, while `unsafe-inline` and `unsafe-eval`
- * are never emitted.
+ * bootstrap scripts load their chunks. `script-src`/`style-src-elem` never
+ * contain `unsafe-inline` or `unsafe-eval`; only `style-src-attr` may carry the
+ * temporary exception described above.
  */
-export function buildCsp({ nonce, apiOrigins, reportUri = CSP_REPORT_URI }: CspOptions): string {
+export function buildCsp({
+  nonce,
+  apiOrigins,
+  reportUri = CSP_REPORT_URI,
+  now = new Date(),
+  styleAttrException,
+  upgradeInsecureRequests = false,
+}: CspOptions): string {
   const origins = apiOrigins.trim() || "'self'";
-  return [
+  const exceptionActive =
+    styleAttrException ?? resolveStyleAttrException(now).active;
+
+  const directives = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    "script-src-attr 'none'",
     `style-src 'self' 'nonce-${nonce}'`,
+    `style-src-elem 'self' 'nonce-${nonce}'`,
+    `style-src-attr ${exceptionActive ? "'unsafe-inline'" : "'none'"}`,
     "img-src 'self' data: blob:",
     "font-src 'self'",
+    "media-src 'self' blob:",
     `connect-src 'self' ${origins}`,
+    "worker-src 'self' blob:",
+    "manifest-src 'self'",
     "object-src 'none'",
     "frame-ancestors 'none'",
+    "frame-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
-    `report-uri ${reportUri}`,
-    `report-to ${CSP_REPORT_GROUP}`,
-  ].join("; ");
+  ];
+  if (upgradeInsecureRequests) {
+    directives.push("upgrade-insecure-requests");
+  }
+  directives.push(`report-uri ${reportUri}`, `report-to ${CSP_REPORT_GROUP}`);
+  return directives.join("; ");
 }
 
 /** Removes query strings, fragments and credentials from a URL-shaped value. */
@@ -105,7 +182,10 @@ const REPORT_NUMBER_FIELDS = ["status-code", "line-number", "column-number"] as 
  * fragments, credentials, cookies and authorization material never leave the
  * process, and script samples are dropped entirely.
  */
-export function redactCspReport(payload: unknown): Record<string, unknown> {
+export function redactCspReport(
+  payload: unknown,
+  now: Date = new Date(),
+): Record<string, unknown> {
   const raw =
     payload && typeof payload === "object" && "csp-report" in payload
       ? (payload as { "csp-report": unknown })["csp-report"]
@@ -133,5 +213,5 @@ export function redactCspReport(payload: unknown): Record<string, unknown> {
   // Script samples can contain form values or tokens; never log them.
   sanitized["script-sample"] = "[redacted]";
   sanitized["csp-report"] = "redacted";
-  return { "csp-report": sanitized, timestamp: new Date().toISOString() };
+  return { "csp-report": sanitized, timestamp: now.toISOString() };
 }

@@ -30,6 +30,8 @@ const IGNORED_DIRS = new Set([
   "playwright-report",
   "test-results",
   "a11y-report",
+  // Local reference clones used for UI/UX analysis; never committed.
+  "references",
 ]);
 
 /** Collects Markdown files under a root, skipping generated directories. */

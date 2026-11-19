@@ -253,14 +253,26 @@ jobs:
       - name: Unit tests (Jest)
         run: pnpm exec jest --runInBand
         working-directory: frontend
+      - name: Guard-script unit tests
+        # UI/UX phase 0: the inline-style ratchet and bundle-budget helpers fail
+        # on covered or regressed input.
+        run: pnpm test:scripts
+        working-directory: frontend
       - name: Type check
         run: pnpm typecheck
         working-directory: frontend
       - name: Build
         run: pnpm build
         working-directory: frontend
+      - name: Bundle budget (route <= 250 KB gzip)
+        run: pnpm budget
+        working-directory: frontend
       - name: Lint
         run: pnpm lint
+        working-directory: frontend
+      - name: Inline-style ratchet
+        # UI/UX phase 0: a new `style={...}` fails; existing debt may only shrink.
+        run: pnpm lint:inline
         working-directory: frontend
       # The browser suite runs in the dedicated `e2e` job against the Compose stack.
 
@@ -376,6 +388,14 @@ jobs:
           done
           docker compose -f infra/docker-compose.yml logs --tail=200 frontend
           exit 1
+      - name: Lighthouse budget
+        # UI/UX phase 0 (T0-07): performance >= 90, LCP < 2.5s, CLS < 0.1,
+        # TBT < 200ms and zero console errors on the public entry screens.
+        uses: treosh/lighthouse-ci-action@v12
+        with:
+          configPath: ./.github/lighthouse/lighthouserc.json
+          uploadArtifacts: true
+          temporaryPublicStorage: true
       - name: Run Playwright suite
         working-directory: frontend
         env:

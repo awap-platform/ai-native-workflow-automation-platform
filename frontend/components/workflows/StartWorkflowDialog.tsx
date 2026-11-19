@@ -16,17 +16,22 @@ export default function StartWorkflowDialog({
   const start = useStartWorkflow();
 
   return (
-    <div style={{ border: "1px solid #cbd5e1", padding: 16, marginBottom: 12, borderRadius: 8 }}>
-      <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 8px" }}>Start workflow</h2>
-      <textarea
-        placeholder="Context JSON"
-        aria-label="Workflow context JSON"
-        value={contextJson}
-        onChange={(event) => setContextJson(event.target.value)}
-        style={{ display: "block", width: "100%", minHeight: 96, marginBottom: 12 }}
-      />
-      <div style={{ display: "flex", gap: 8 }}>
+    <section className="awap-card" aria-labelledby="start-workflow-heading">
+      <h2 id="start-workflow-heading" className="awap-section-title">
+        Start workflow
+      </h2>
+      <label className="awap-label">
+        Workflow context JSON
+        <textarea
+          className="awap-textarea"
+          value={contextJson}
+          onChange={(event) => setContextJson(event.target.value)}
+        />
+      </label>
+      <div className="mt-3 flex flex-wrap gap-2">
         <button
+          type="button"
+          className="awap-button awap-button-primary"
           onClick={() =>
             start.mutate(
               { workflowDefinitionId: workflowId, contextJson },
@@ -40,9 +45,15 @@ export default function StartWorkflowDialog({
         >
           Start
         </button>
-        <button onClick={onClose}>Cancel</button>
+        <button type="button" className="awap-button awap-button-ghost" onClick={onClose}>
+          Cancel
+        </button>
       </div>
-      {message && <p aria-live="polite">{message}</p>}
-    </div>
+      {message ? (
+        <p aria-live="polite" className="awap-alert awap-alert-danger">
+          {message}
+        </p>
+      ) : null}
+    </section>
   );
 }

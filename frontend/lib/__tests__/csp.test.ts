@@ -1,13 +1,38 @@
 import {
   buildCsp,
   CSP_REPORT_TO,
+  CSP_STYLE_ATTR_EXCEPTION_EXPIRY,
   cspHeaderName,
   generateNonce,
   redactCspReport,
   redactUrl,
+  resolveStyleAttrException,
+  type CspOptions,
 } from "../csp";
 
+const DURING_EXCEPTION = new Date("2026-11-19T00:00:00.000Z");
+const AFTER_EXPIRY = new Date("2027-01-01T00:00:00.000Z");
+
+function policy(overrides: Partial<CspOptions> = {}): string {
+  return buildCsp({
+    nonce: "abc123",
+    apiOrigins: "https://api.example.com",
+    now: DURING_EXCEPTION,
+    ...overrides,
+  });
+}
+
 describe("csp", () => {
+  const originalFlag = process.env.CSP_STYLE_ATTR_UNSAFE_INLINE;
+
+  afterEach(() => {
+    if (originalFlag === undefined) {
+      delete process.env.CSP_STYLE_ATTR_UNSAFE_INLINE;
+    } else {
+      process.env.CSP_STYLE_ATTR_UNSAFE_INLINE = originalFlag;
+    }
+  });
+
   it("generates a URL-safe nonce with the requested entropy", () => {
     const nonce = generateNonce((bytes) => bytes.fill(255));
     expect(nonce).toMatch(/^[A-Za-z0-9_-]+$/);
@@ -15,15 +40,52 @@ describe("csp", () => {
     expect(generateNonce()).not.toBe(generateNonce());
   });
 
-  it("builds a nonce policy without unsafe-inline or unsafe-eval", () => {
-    const csp = buildCsp({ nonce: "abc123", apiOrigins: "https://api.example.com" });
+  it("builds a nonce policy that never allows unsafe script execution", () => {
+    const csp = policy();
     expect(csp).toContain("script-src 'self' 'nonce-abc123' 'strict-dynamic'");
+    expect(csp).toContain("script-src-attr 'none'");
     expect(csp).toContain("style-src 'self' 'nonce-abc123'");
+    expect(csp).toContain("style-src-elem 'self' 'nonce-abc123'");
     expect(csp).toContain("connect-src 'self' https://api.example.com");
     expect(csp).toContain("report-uri /api/csp-report");
     expect(csp).toContain("report-to csp-endpoint");
-    expect(csp).not.toContain("unsafe-inline");
     expect(csp).not.toContain("unsafe-eval");
+  });
+
+  it("emits the temporary style-attribute exception while it is active", () => {
+    const csp = policy();
+    expect(csp).toContain("style-src-attr 'unsafe-inline'");
+    // The exception is scoped to attributes only; inline <style> elements still
+    // require the nonce.
+    expect(csp).not.toMatch(/style-src-elem[^;]*unsafe-inline/);
+    expect(csp).not.toMatch(/script-src[^;]*unsafe-inline/);
+  });
+
+  it("drops the exception when it is explicitly disabled", () => {
+    const csp = policy({ styleAttrException: false });
+    expect(csp).toContain("style-src-attr 'none'");
+    expect(csp).not.toContain("style-src-attr 'unsafe-inline'");
+    process.env.CSP_STYLE_ATTR_UNSAFE_INLINE = "false";
+    expect(resolveStyleAttrException(DURING_EXCEPTION).active).toBe(false);
+  });
+
+  it("fails the build after the exception expiry", () => {
+    expect(() => resolveStyleAttrException(AFTER_EXPIRY)).toThrow(/expired/);
+    expect(CSP_STYLE_ATTR_EXCEPTION_EXPIRY).toBe("2026-12-31T00:00:00.000Z");
+  });
+
+  it("adds upgrade-insecure-requests only when requested", () => {
+    expect(policy()).not.toContain("upgrade-insecure-requests");
+    expect(policy({ upgradeInsecureRequests: true })).toContain("upgrade-insecure-requests");
+  });
+
+  it("locks down object, frame and base directives", () => {
+    const csp = policy();
+    expect(csp).toContain("object-src 'none'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("frame-src 'none'");
+    expect(csp).toContain("base-uri 'self'");
+    expect(csp).toContain("form-action 'self'");
   });
 
   it("uses the report-only header name when requested", () => {
@@ -40,19 +102,22 @@ describe("csp", () => {
   });
 
   it("drops script samples and sensitive fields from the report", () => {
-    const redacted = redactCspReport({
-      "csp-report": {
-        "document-uri": "https://app.example.com/tasks?token=abc",
-        "blocked-uri": "https://evil.example.com/x?y=1",
-        "script-sample": "document.cookie",
-        "violated-directive": "script-src",
-        "effective-directive": "script-src-elem",
-        "line-number": 12,
-        "column-number": 3,
-        cookie: "awap_session=1",
-        authorization: "Bearer secret",
+    const redacted = redactCspReport(
+      {
+        "csp-report": {
+          "document-uri": "https://app.example.com/tasks?token=abc",
+          "blocked-uri": "https://evil.example.com/x?y=1",
+          "script-sample": "document.cookie",
+          "violated-directive": "script-src",
+          "effective-directive": "script-src-elem",
+          "line-number": 12,
+          "column-number": 3,
+          cookie: "awap_session=1",
+          authorization: "Bearer secret",
+        },
       },
-    });
+      DURING_EXCEPTION,
+    );
     const report = redacted["csp-report"] as Record<string, unknown>;
     expect(report["document-uri"]).toBe("https://app.example.com/tasks");
     expect(report["blocked-uri"]).toBe("https://evil.example.com/x");
@@ -61,6 +126,7 @@ describe("csp", () => {
     expect(report).not.toHaveProperty("cookie");
     expect(report).not.toHaveProperty("authorization");
     expect(JSON.stringify(redacted)).not.toContain("token=abc");
+    expect(redacted.timestamp).toBe(DURING_EXCEPTION.toISOString());
   });
 
   it("handles malformed reports without throwing", () => {

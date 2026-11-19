@@ -26,6 +26,7 @@ uses the shared fixtures in
 | Analytics | `/analytics` | ✅ | ✅ | Empty and aggregate tables |
 | Workflow instances | `/instances` | ✅ | ✅ | State labels |
 | Organizations | `/organizations` | ✅ | ✅ | Empty and nested tree |
+| CSP reports | `/admin/csp` | ✅ | — | Redacted aggregate dashboard |
 
 Keyboard focus is exercised on every screen. Form-label, live-region and
 error-announcement checks run for login, register, documents and notifications.
@@ -51,6 +52,16 @@ pnpm test:a11y
 The suite uses deterministic API mocks, so it does not need Postgres, Kafka or a
 backend. Animations are reduced with `prefers-reduced-motion`; no inline style is
 injected because the CSP would block it.
+
+The phase 0 companions are:
+
+- [`e2e/console-errors.spec.ts`](../frontend/e2e/console-errors.spec.ts) — zero
+  console errors, page errors, hydration errors and CSP violations on every
+  screen in `SCREENS`.
+- [`e2e/visual-baseline.spec.ts`](../frontend/e2e/visual-baseline.spec.ts) —
+  four viewports for the deterministic screens.
+- [`e2e/responsive.spec.ts`](../frontend/e2e/responsive.spec.ts) — 200% zoom
+  reflow and reduced-motion collapse.
 
 ## Unhappy paths
 

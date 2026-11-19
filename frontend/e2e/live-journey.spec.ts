@@ -108,9 +108,9 @@ test("completes the live product journey against the real API", async ({ page })
 
   // 1. Real login through the browser form; no route interception anywhere in this spec.
   await page.goto("/");
-  await page.getByPlaceholder("Tenant slug").fill(plan.slug);
-  await page.getByPlaceholder("Email").fill(plan.adminEmail);
-  await page.getByPlaceholder("Password").fill(plan.adminPassword);
+  await page.getByLabel("Tenant slug").fill(plan.slug);
+  await page.getByLabel("Email").fill(plan.adminEmail);
+  await page.getByLabel("Password").fill(plan.adminPassword);
   await page.getByRole("button", { name: "Sign in" }).click();
 
   // The single seeded membership is auto-selected by /select-tenant.
@@ -131,10 +131,12 @@ test("completes the live product journey against the real API", async ({ page })
     "/api/v1/workflow-instances",
     tenantId,
   );
-  await expect(page.getByText(`Pending tasks: ${initialTasks.length}`)).toBeVisible();
-  await expect(
-    page.getByText(`Active workflow instances: ${initialInstances.length}`),
-  ).toBeVisible();
+  await expect(page.getByTestId("dashboard-pending-tasks")).toHaveText(
+    String(initialTasks.length),
+  );
+  await expect(page.getByTestId("dashboard-active-instances")).toHaveText(
+    String(initialInstances.length),
+  );
 
   // 3. Publish a tiny workflow and start it through the real UI.
   const suffix = `${plan.slug}-${Date.now()}`;
@@ -169,7 +171,7 @@ test("completes the live product journey against the real API", async ({ page })
   await expect(workflowRow).toContainText("PUBLISHED");
   await workflowRow.getByRole("button", { name: "Start" }).click();
   const startDialog = page.getByRole("heading", { name: "Start workflow" }).locator("..");
-  await page.getByPlaceholder("Context JSON").fill('{"source":"live-e2e"}');
+  await page.getByLabel("Workflow context JSON").fill('{"source":"live-e2e"}');
   await startDialog.getByRole("button", { name: "Start", exact: true }).click();
   await expect(startDialog).toBeHidden({ timeout: 30_000 });
 
@@ -208,7 +210,7 @@ test("completes the live product journey against the real API", async ({ page })
   await expect(taskRow).toContainText("ASSIGNED");
   await taskRow.getByRole("button", { name: taskTitle }).click();
   await expect(page.getByRole("heading", { name: taskTitle })).toBeVisible();
-  await page.getByPlaceholder("Comment").fill("Approved by the live E2E journey.");
+  await page.getByLabel("Decision comment").fill("Approved by the live E2E journey.");
   await page.getByRole("button", { name: "Approve", exact: true }).click();
   await expect(taskRow).toContainText("APPROVED", { timeout: 30_000 });
   await expect

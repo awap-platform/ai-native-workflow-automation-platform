@@ -11,23 +11,27 @@ export default function TasksPage() {
   const [selected, setSelected] = useState<TaskDto | null>(null);
 
   return (
-    <div>
-      <h1 style={{ fontSize: 24, fontWeight: 700 }}>Tasks</h1>
-      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} />}
-      {tasks.isLoading && <LoadingState label="Loading tasks…" />}
-      {tasks.isError && <ErrorState error={tasks.error} message="Failed to load tasks." />}
-      {tasks.isSuccess && tasks.data.length === 0 && <EmptyState message="No tasks yet." />}
-      <ul>
+    <div className="awap-page">
+      <h1 className="awap-page-title">Tasks</h1>
+      {selected ? <TaskDetail task={selected} onClose={() => setSelected(null)} /> : null}
+      {tasks.isLoading ? <LoadingState label="Loading tasks…" /> : null}
+      {tasks.isError ? (
+        <ErrorState error={tasks.error} message="Failed to load tasks." />
+      ) : null}
+      {tasks.isSuccess && tasks.data.length === 0 ? (
+        <EmptyState message="No tasks yet. New assignments appear here automatically." />
+      ) : null}
+      <ul className="awap-list" aria-label="Task inbox">
         {(tasks.data ?? []).map((task) => (
-          <li key={task.id} style={{ marginBottom: 8 }}>
+          <li key={task.id} className="awap-list-row">
             <button
               type="button"
+              className="awap-link-button"
               onClick={() => setSelected(task)}
-              style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
             >
               {task.title}
-            </button>{" "}
-            — {task.status}
+            </button>
+            <span className="awap-muted">{task.status}</span>
           </li>
         ))}
       </ul>

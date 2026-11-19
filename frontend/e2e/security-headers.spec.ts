@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * Asserts the per-request nonce policy (issue #183): no `unsafe-inline`, no
- * `unsafe-eval`, a CSP reporting endpoint, and the common security headers.
+ * Asserts the per-request nonce policy (issue #183, UI/UX phase 0): no unsafe
+ * script execution, a nonce-trusted style element policy, the time-limited
+ * style-attribute exception, a CSP reporting endpoint and the common security
+ * headers.
  */
 test("security headers use a nonce and block foreign connect origins", async ({ request }) => {
   const response = await request.get("/");
@@ -11,12 +13,22 @@ test("security headers use a nonce and block foreign connect origins", async ({ 
   expect(csp).toContain("script-src 'self'");
   expect(csp).toMatch(/'nonce-[A-Za-z0-9_-]{16,}'/);
   expect(csp).toContain("'strict-dynamic'");
-  expect(csp).not.toContain("unsafe-inline");
+  expect(csp).toContain("script-src-attr 'none'");
+  expect(csp).not.toMatch(/script-src[^;]*unsafe-inline/);
   expect(csp).not.toContain("unsafe-eval");
+  expect(csp).toMatch(/style-src-elem[^;]*'nonce-/);
+  expect(csp).not.toMatch(/style-src-elem[^;]*unsafe-inline/);
+  // The attribute exception is scoped and time limited; the violation report
+  // header exposes its expiry so monitoring can alert before it lapses.
+  expect(csp).toContain("style-src-attr 'unsafe-inline'");
   expect(csp).toContain("connect-src");
   expect(csp).not.toContain("https://evil.example.com");
   expect(csp).toContain("report-uri /api/csp-report");
   expect(csp).toContain("frame-ancestors 'none'");
+
+  const exception = response.headers()["x-csp-style-attr-exception"] ?? "";
+  expect(exception).toContain("active");
+  expect(exception).toContain("expires=");
 
   expect(response.headers()["report-to"]).toContain("/api/csp-report");
   expect(response.headers()["reporting-endpoints"]).toContain("/api/csp-report");

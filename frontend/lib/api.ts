@@ -157,7 +157,11 @@ export async function registerTenant(payload: RegisterTenantPayload): Promise<Te
   });
   logApi("POST", "/api/v1/tenants", response.status, started);
   if (!response.ok) {
-    throw new Error(await readErrorDetail(response, "Registration failed"));
+    throw new ApiError(
+      response.status,
+      await readErrorDetail(response, "Registration failed"),
+      correlationHeader(response),
+    );
   }
   return (await response.json()) as TenantDto;
 }
@@ -196,25 +200,39 @@ export async function login(
     body: JSON.stringify({ tenantSlug, email, password }),
   });
   if (!response.ok) {
-    throw new Error("Login failed");
+    throw new ApiError(response.status, "Login failed", correlationHeader(response));
   }
   return (await response.json()) as TokenDto;
+}
+
+/** Reads the correlation ID the backend echoes on every response (issue #191). */
+export function correlationHeader(response: Response): string | undefined {
+  const value = response.headers?.get?.("x-correlation-id");
+  return value ?? undefined;
 }
 
 /** Error thrown by every API call; `status` lets the query layer classify retries. */
 export class ApiError extends Error {
   readonly status: number;
+  /** Correlation ID echoed by the backend, surfaced in error states for support. */
+  readonly correlationId: string | undefined;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, correlationId?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.correlationId = correlationId;
   }
 }
 
 /** HTTP status of an error when it came from the API layer. */
 export function errorStatus(error: unknown): number | undefined {
   return error instanceof ApiError ? error.status : undefined;
+}
+
+/** Correlation ID of an error when it came from the API layer. */
+export function correlationIdOf(error: unknown): string | undefined {
+  return error instanceof ApiError ? error.correlationId : undefined;
 }
 
 async function refreshAccessToken(): Promise<boolean> {
@@ -311,6 +329,7 @@ async function apiRequest<T>(
     throw new ApiError(
       response.status,
       await readErrorDetail(response, `${method} ${path.split("?")[0]} failed`),
+      correlationHeader(response),
     );
   }
   if (response.status === 204) {

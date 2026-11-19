@@ -247,6 +247,23 @@ export function responseFor(pathname: string, populated: boolean): unknown {
 export async function installApiMocks(page: Page, populated: boolean): Promise<void> {
   await page.route(`${API}/**`, async (route) => {
     const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+
+    // The document scan view opens an EventSource. Answering it with JSON makes
+    // the browser log a MIME mismatch, so serve a valid (immediately closing)
+    // event stream instead.
+    if (pathname.endsWith("/api/v1/documents/events")) {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream",
+          "cache-control": "no-cache",
+        },
+        body: ": connected\n\n",
+      });
+      return;
+    }
+
     if (request.method() !== "GET") {
       await route.fulfill({
         status: 200,
@@ -255,7 +272,6 @@ export async function installApiMocks(page: Page, populated: boolean): Promise<v
       });
       return;
     }
-    const pathname = new URL(request.url()).pathname;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -387,6 +403,13 @@ export const SCREENS: ScreenDefinition[] = [
     heading: "Organizations",
     protected: true,
     states: ["empty", "populated"],
+  },
+  {
+    name: "admin-csp",
+    path: "/admin/csp",
+    heading: "CSP reports",
+    protected: true,
+    states: ["empty"],
   },
 ];
 
