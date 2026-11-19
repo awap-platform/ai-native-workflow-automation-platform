@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import OfflineBanner from "../components/layout/OfflineBanner";
 import QueryProvider from "../components/providers/QueryProvider";
+import { ToastProvider } from "../components/ui/overlays";
+import { resolveLocale } from "../lib/i18n";
+import { LocaleProvider } from "../lib/locale";
+import { ThemeProvider } from "../lib/theme";
+import { themeBootstrapScript } from "../lib/themeScript";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,19 +34,38 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Reading request headers opts the tree into dynamic rendering. A statically
   // prerendered page cannot carry the per-request CSP nonce, so Next.js would
   // emit nonce-less scripts and hydration would be blocked by the policy.
-  await headers();
+  const headerStore = await headers();
+  const nonce = headerStore.get("x-nonce") ?? undefined;
+  const cookieStore = await cookies();
+  const locale = resolveLocale(cookieStore.get("awap_locale")?.value);
 
   return (
+    // The pre-paint theme script adds `.dark` before React hydrates.
     <html
-      lang="en"
+      lang={locale}
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} antialiased`}
     >
+      <head>
+        {nonce ? (
+          <script
+            nonce={nonce}
+            dangerouslySetInnerHTML={{ __html: themeBootstrapScript }}
+          />
+        ) : null}
+      </head>
       <body>
         <a href="#main-content" className="awap-skip-link">
           Skip to main content
         </a>
         <OfflineBanner />
-        <QueryProvider>{children}</QueryProvider>
+        <QueryProvider>
+          <ThemeProvider>
+            <LocaleProvider initialLocale={locale}>
+              <ToastProvider>{children}</ToastProvider>
+            </LocaleProvider>
+          </ThemeProvider>
+        </QueryProvider>
       </body>
     </html>
   );

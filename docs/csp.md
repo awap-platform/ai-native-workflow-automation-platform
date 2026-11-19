@@ -36,6 +36,9 @@ report-to csp-endpoint
 - Next.js reads the CSP request header and applies the nonce to its bootstrap
   scripts. Application code can read `x-nonce` when it must render an inline
   tag.
+- The root layout injects a nonce-carrying pre-paint theme script. It only
+  toggles the `.dark` class and writes no inline styles, so it stays valid under
+  the nonce policy and prevents a theme flash/hydration mismatch.
 - `connect-src` is driven by `API_ORIGINS`, the same variable the backend CORS
   allowlist uses, so the two cannot drift.
 - `frame-ancestors 'none'`, `frame-src 'none'`, `object-src 'none'`,

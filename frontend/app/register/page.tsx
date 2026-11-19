@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import AuthShell from "../../components/layout/AuthShell";
 import { useRegisterTenant } from "../../lib/hooks/resources";
+import { useI18n } from "../../lib/locale";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const register = useRegisterTenant();
   const [slug, setSlug] = useState("");
   const [name, setName] = useState("");
@@ -23,88 +26,92 @@ export default function RegisterPage() {
       router.push("/");
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Registration failed");
+      setMessage(
+        error instanceof Error ? error.message : t("auth.registrationFailed"),
+      );
     }
   }
 
   return (
-    <main id="main-content" className="awap-auth">
-      <h1 className="awap-auth-title">Create tenant</h1>
-      <p className="awap-auth-subtitle">
-        Every new tenant starts with an administrator who can invite the rest of the team.
-      </p>
-      <form onSubmit={handleSubmit} className="awap-form">
-        <label className="awap-label">
-          Tenant slug
-          <input
-            className="awap-input"
-            type="text"
-            autoComplete="organization"
-            value={slug}
-            onChange={(event) => setSlug(event.target.value)}
-            required
-          />
-        </label>
-        <label className="awap-label">
-          Company name
-          <input
-            className="awap-input"
-            type="text"
-            autoComplete="organization"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            required
-          />
-        </label>
-        <label className="awap-label">
-          Admin full name
-          <input
-            className="awap-input"
-            type="text"
-            autoComplete="name"
-            value={adminFullName}
-            onChange={(event) => setAdminFullName(event.target.value)}
-            required
-          />
-        </label>
-        <label className="awap-label">
-          Admin email
-          <input
-            className="awap-input"
-            type="email"
-            autoComplete="email"
-            value={adminEmail}
-            onChange={(event) => setAdminEmail(event.target.value)}
-            required
-          />
-        </label>
-        <label className="awap-label">
-          Admin password
-          <input
-            className="awap-input"
-            type="password"
-            autoComplete="new-password"
-            value={adminPassword}
-            onChange={(event) => setAdminPassword(event.target.value)}
-            required
-          />
-        </label>
-        <button
-          type="submit"
-          className="awap-button awap-button-primary"
-          disabled={register.isPending}
-        >
-          {register.isPending ? "Creating…" : "Create tenant"}
-        </button>
-      </form>
-      <p className="mt-4">
-        <Link href="/">Back to sign in</Link>
-      </p>
-      {message ? (
-        <p aria-live="polite" className="awap-alert awap-alert-danger">
-          {message}
+    <AuthShell>
+      <section className="awap-auth" aria-labelledby="register-heading">
+        <h1 id="register-heading" className="awap-auth-title">
+          {t("auth.createTenant")}
+        </h1>
+        <p className="awap-auth-subtitle">{t("auth.registerHint")}</p>
+        <form onSubmit={handleSubmit} className="awap-form">
+          <label className="awap-label">
+            {t("auth.tenantSlug")}
+            <input
+              className="awap-input"
+              type="text"
+              autoComplete="organization"
+              value={slug}
+              onChange={(event) => setSlug(event.target.value)}
+              required
+            />
+          </label>
+          <label className="awap-label">
+            {t("auth.companyName")}
+            <input
+              className="awap-input"
+              type="text"
+              autoComplete="organization"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              required
+            />
+          </label>
+          <label className="awap-label">
+            {t("auth.adminFullName")}
+            <input
+              className="awap-input"
+              type="text"
+              autoComplete="name"
+              value={adminFullName}
+              onChange={(event) => setAdminFullName(event.target.value)}
+              required
+            />
+          </label>
+          <label className="awap-label">
+            {t("auth.adminEmail")}
+            <input
+              className="awap-input"
+              type="email"
+              autoComplete="email"
+              value={adminEmail}
+              onChange={(event) => setAdminEmail(event.target.value)}
+              required
+            />
+          </label>
+          <label className="awap-label">
+            {t("auth.adminPassword")}
+            <input
+              className="awap-input"
+              type="password"
+              autoComplete="new-password"
+              value={adminPassword}
+              onChange={(event) => setAdminPassword(event.target.value)}
+              required
+            />
+          </label>
+          <button
+            type="submit"
+            className="awap-button awap-button-primary"
+            disabled={register.isPending}
+          >
+            {register.isPending ? t("auth.creating") : t("auth.createTenant")}
+          </button>
+        </form>
+        <p className="mt-4">
+          <Link href="/">{t("auth.backToSignIn")}</Link>
         </p>
-      ) : null}
-    </main>
+        {message ? (
+          <p aria-live="polite" className="awap-alert awap-alert-danger">
+            {message}
+          </p>
+        ) : null}
+      </section>
+    </AuthShell>
   );
 }
