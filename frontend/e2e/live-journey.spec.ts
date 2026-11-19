@@ -110,7 +110,7 @@ test("completes the live product journey against the real API", async ({ page })
   await page.goto("/");
   await page.getByLabel("Tenant slug").fill(plan.slug);
   await page.getByLabel("Email").fill(plan.adminEmail);
-  await page.getByLabel("Password").fill(plan.adminPassword);
+  await page.getByLabel("Password", { exact: true }).fill(plan.adminPassword);
   await page.getByRole("button", { name: "Sign in" }).click();
 
   // The single seeded membership is auto-selected by /select-tenant.

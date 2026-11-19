@@ -218,9 +218,17 @@ export interface StepperStep {
   description?: string;
 }
 
-export function Stepper({ steps, current }: { steps: StepperStep[]; current: number }) {
+export function Stepper({
+  steps,
+  current,
+  ariaLabel = "Progress",
+}: {
+  steps: StepperStep[];
+  current: number;
+  ariaLabel?: string;
+}) {
   return (
-    <ol className="flex flex-wrap gap-2" aria-label="Progress">
+    <ol className="flex flex-wrap gap-2" aria-label={ariaLabel}>
       {steps.map((step, index) => {
         const state = index < current ? "complete" : index === current ? "current" : "upcoming";
         return (

@@ -327,8 +327,14 @@ export interface ScreenDefinition {
 }
 
 export const SCREENS: ScreenDefinition[] = [
-  { name: "login", path: "/", heading: "AWAP", states: ["empty"] },
+  { name: "login", path: "/", heading: "Sign in", states: ["empty"] },
   { name: "register", path: "/register", heading: "Create tenant", states: ["empty"] },
+  {
+    name: "invitation",
+    path: "/invitations/accept?token=demo-token",
+    heading: "Accept invitation",
+    states: ["empty"],
+  },
   {
     name: "select-tenant",
     path: "/select-tenant",
