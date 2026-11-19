@@ -40,7 +40,7 @@ in the appender, so a future logging call site cannot bypass it accidentally.
   is the single accessor used by UI code.
 - [`frontend/components/ui/QueryState.tsx`](../frontend/components/ui/QueryState.tsx)
   renders the ID under the error message with `.awap-correlation`.
-- [`frontend/app/(app)/error.tsx`](../frontend/app/(app)/error.tsx) and
+- `frontend/app/(app)/error.tsx` and
   [`frontend/app/global-error.tsx`](../frontend/app/global-error.tsx) fall back
   to the Next.js error digest when no API correlation ID exists.
 - The Copilot answer panel already renders the AI-layer `correlation_id`.
