@@ -38,9 +38,12 @@ export function useTasks() {
   return useQuery({ queryKey: queryKeys.tasks.list(), queryFn: listTasks });
 }
 
-/** Tasks assigned to the current user, used by the inbox "mine" filter. */
-export function useMyTasks() {
-  return useQuery({ queryKey: queryKeys.tasks.mine(), queryFn: listMyTasks });
+/**
+ * Tasks assigned to the current user. The inbox only asks for this list when the "mine" filter is
+ * active, so every other view makes one tenant-scoped request instead of two.
+ */
+export function useMyTasks(enabled = true) {
+  return useQuery({ queryKey: queryKeys.tasks.mine(), queryFn: listMyTasks, enabled });
 }
 
 /**

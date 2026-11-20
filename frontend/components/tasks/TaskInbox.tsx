@@ -52,9 +52,10 @@ export default function TaskInbox({ initialTaskId = null, detailOnly = false }: 
   const isMobile = useIsMobile();
 
   const tasksQuery = useTasks();
-  const myTasksQuery = useMyTasks();
 
   const [query, setQuery] = useState<InboxQuery>(DEFAULT_INBOX_QUERY);
+  const mineActive = query.filter === "mine";
+  const myTasksQuery = useMyTasks(mineActive);
   const [selectedId, setSelectedId] = useState<string | null>(initialTaskId);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const savedViews = useSyncExternalStore(
@@ -79,7 +80,7 @@ export default function TaskInbox({ initialTaskId = null, detailOnly = false }: 
   const allTasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
   const myTasks = useMemo(() => myTasksQuery.data ?? [], [myTasksQuery.data]);
 
-  const source = query.filter === "mine" ? myTasks : allTasks;
+  const source = mineActive ? myTasks : allTasks;
   const rows = useMemo(
     () => filterTasks(source, query, now),
     [source, query, now],
@@ -218,7 +219,7 @@ export default function TaskInbox({ initialTaskId = null, detailOnly = false }: 
 
   const error = tasksQuery.error;
   const status = errorStatus(error);
-  const loading = tasksQuery.isLoading || (query.filter === "mine" && myTasksQuery.isLoading);
+  const loading = tasksQuery.isLoading || (mineActive && myTasksQuery.isLoading);
 
   if (detailOnly) {
     if (!selected) {

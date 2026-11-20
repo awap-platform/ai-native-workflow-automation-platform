@@ -25,7 +25,8 @@ interface Task {
   completedAt: string | null;
 }
 
-const NOW = Date.parse("2026-11-20T12:00:00Z");
+// Relative to the browser clock so "due in an hour" never becomes overdue during the run.
+const NOW = Date.now();
 
 function task(overrides: Partial<Task> & { id: string; title: string }): Task {
   return {

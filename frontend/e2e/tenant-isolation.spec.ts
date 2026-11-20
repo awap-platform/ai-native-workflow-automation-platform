@@ -33,18 +33,23 @@ test("a cross-tenant rejection renders no foreign rows", async ({ page }) => {
     { name: "awap_tenant", value: "tenant-b", url: "http://localhost:3000" },
   ]);
   const headers: Record<string, string> = {};
-  await page.route(`${API}tasks`, async (route) => {
+  const reject = async (route: import("@playwright/test").Route) => {
     headers["x-tenant-id"] = route.request().headers()["x-tenant-id"] ?? "";
     await route.fulfill({
       status: 404,
       contentType: "application/problem+json",
       body: JSON.stringify({ status: 404, title: "The requested resource was not found." }),
     });
-  });
+  };
+  // Both task reads must be scoped: the inbox list and the lazy "assigned to me" list.
+  await page.route(`${API}tasks`, reject);
+  await page.route(`${API}tasks/mine`, reject);
 
   await page.goto("/tasks");
 
   await expect(page.getByRole("heading", { name: "Task inbox" })).toBeVisible();
   await expect.poll(() => headers["x-tenant-id"]).toBe("tenant-b");
-  await expect(page.locator("main ul li")).toHaveCount(0);
+  await expect(page.getByTestId("task-list")).toHaveCount(0);
+  await expect(page.getByTestId("error-state")).toBeVisible();
+  await expect(page).toHaveURL(/\/tasks$/);
 });
