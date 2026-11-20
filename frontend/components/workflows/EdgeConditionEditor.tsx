@@ -161,12 +161,12 @@ export default function EdgeConditionEditor({
   return (
     <aside
       aria-labelledby="edge-condition-heading"
-      style={{ width: 320, border: "1px solid #e2e8f0", borderRadius: 8, padding: 12 }}
+      style={{ width: 320, border: "1px solid var(--awap-border)", borderRadius: 8, padding: 12 }}
     >
       <h2 id="edge-condition-heading" style={{ fontSize: 16, fontWeight: 700 }}>
         Edge condition
       </h2>
-      <p style={{ color: "#6b7280", fontSize: 12, marginTop: 0 }}>
+      <p style={{ color: "var(--awap-muted)", fontSize: 12, marginTop: 0 }}>
         From {edge.source} to {edge.target}
       </p>
 
@@ -201,7 +201,7 @@ export default function EdgeConditionEditor({
           justifyContent: "space-between",
           alignItems: "center",
           fontSize: 12,
-          color: "#6b7280",
+          color: "var(--awap-muted)",
         }}
       >
         <span id="edge-condition-help">
@@ -234,7 +234,7 @@ export default function EdgeConditionEditor({
             listStyle: "none",
             padding: 4,
             margin: "4px 0 8px",
-            border: "1px solid #cbd5e1",
+            border: "1px solid var(--awap-border)",
             borderRadius: 6,
             maxHeight: 180,
             overflowY: "auto",
@@ -254,14 +254,17 @@ export default function EdgeConditionEditor({
                   display: "block",
                   width: "100%",
                   textAlign: "left",
-                  background: index === activeIndex ? "#e0f2fe" : "transparent",
+                  background:
+                    index === activeIndex ? "var(--awap-surface-raised)" : "transparent",
                   border: "none",
                   padding: "4px 6px",
                   cursor: "pointer",
                 }}
               >
                 <span style={{ fontFamily: "monospace" }}>{suggestion.label}</span>{" "}
-                <span style={{ color: "#6b7280", fontSize: 11 }}>{suggestion.description}</span>
+                <span style={{ color: "var(--awap-muted)", fontSize: 11 }}>
+                  {suggestion.description}
+                </span>
               </button>
             </li>
           ))}
@@ -269,23 +272,23 @@ export default function EdgeConditionEditor({
       ) : null}
 
       {clientError !== null ? (
-        <p id="edge-condition-error" role="alert" style={{ color: "#b91c1c" }}>
+        <p id="edge-condition-error" role="alert" style={{ color: "var(--awap-danger)" }}>
           {clientError}
         </p>
       ) : null}
 
       {status === "validating" ? (
-        <p role="status" style={{ color: "#6b7280" }}>
+        <p role="status" style={{ color: "var(--awap-muted)" }}>
           Checking expression…
         </p>
       ) : null}
       {status === "done" && serverResult?.valid && condition.trim() !== "" ? (
-        <p role="status" style={{ color: "#15803d" }}>
+        <p role="status" style={{ color: "var(--awap-success)" }}>
           Expression is valid.
         </p>
       ) : null}
       {status === "done" && serverError !== null ? (
-        <p role="alert" style={{ color: "#b91c1c" }}>
+        <p role="alert" style={{ color: "var(--awap-danger)" }}>
           {serverError}
         </p>
       ) : null}
@@ -298,7 +301,7 @@ export default function EdgeConditionEditor({
         </p>
       ) : null}
 
-      <fieldset style={{ border: "1px solid #e2e8f0", borderRadius: 6, marginTop: 12 }}>
+      <fieldset style={{ border: "1px solid var(--awap-border)", borderRadius: 6, marginTop: 12 }}>
         <legend style={{ fontSize: 13, fontWeight: 700 }}>Expression builder</legend>
         <label htmlFor="condition-variable">Variable</label>
         <select

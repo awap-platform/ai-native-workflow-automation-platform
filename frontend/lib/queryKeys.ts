@@ -17,6 +17,8 @@ export const queryKeys = {
   workflowDefinitions: {
     all: ["workflow-definitions"] as const,
     list: () => ["workflow-definitions"] as const,
+    detail: (id: string) => ["workflow-definitions", "detail", id] as const,
+    versions: (id: string) => ["workflow-definitions", "versions", id] as const,
   },
   workflowInstances: {
     all: ["instances"] as const,

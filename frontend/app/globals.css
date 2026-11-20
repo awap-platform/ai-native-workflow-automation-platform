@@ -956,3 +956,344 @@
     outline: 2px solid Highlight;
   }
 }
+
+/* ------------------------------------------------------- workflow designer */
+
+.awap-designer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--awap-space-3);
+}
+
+.awap-designer__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--awap-space-2);
+  align-items: center;
+}
+
+/* Reserve space for validation/save notices so their appearance never moves the canvas. */
+.awap-designer__messages {
+  min-height: 4.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--awap-space-1);
+}
+
+.awap-designer__messages p {
+  margin: 0;
+}
+
+.awap-designer__toolbar input {
+  min-width: 14rem;
+}
+
+.awap-designer__layout {
+  display: flex;
+  gap: var(--awap-space-4);
+  align-items: stretch;
+}
+
+.awap-designer__palette {
+  flex: 0 0 15rem;
+  border-right: 1px solid var(--awap-border);
+  padding-right: var(--awap-space-3);
+  max-height: 40rem;
+  overflow-y: auto;
+}
+
+.awap-designer__palette-search {
+  width: 100%;
+  margin-bottom: var(--awap-space-2);
+}
+
+.awap-designer__group {
+  margin-bottom: var(--awap-space-3);
+}
+
+.awap-designer__group-title {
+  margin: 0 0 var(--awap-space-1);
+  font-size: var(--awap-text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--awap-muted);
+}
+
+.awap-designer__group-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--awap-space-1);
+}
+
+.awap-designer__palette-button {
+  width: 100%;
+  text-align: left;
+  padding: var(--awap-space-1) var(--awap-space-2);
+  border: 1px solid var(--awap-border);
+  border-radius: var(--awap-radius-sm);
+  background: var(--awap-surface);
+  color: var(--awap-text);
+  cursor: grab;
+  font-size: var(--awap-text-sm);
+}
+
+.awap-designer__palette-button[data-active="true"] {
+  outline: 2px solid var(--awap-primary);
+  outline-offset: 1px;
+}
+
+.awap-designer__canvas {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 34rem;
+  border: 1px solid var(--awap-border);
+  border-radius: var(--awap-radius-md);
+  background: var(--awap-surface);
+}
+
+.awap-designer__side {
+  flex: 0 0 20rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--awap-space-3);
+  max-height: 40rem;
+  overflow-y: auto;
+}
+
+.awap-designer__panel {
+  border: 1px solid var(--awap-border);
+  border-radius: var(--awap-radius-md);
+  background: var(--awap-surface);
+  padding: var(--awap-space-3);
+}
+
+.awap-designer__panel h2,
+.awap-designer__panel h3 {
+  margin-top: 0;
+}
+
+.awap-designer__field {
+  display: block;
+  margin-bottom: var(--awap-space-2);
+  font-size: var(--awap-text-sm);
+}
+
+.awap-designer__field input,
+.awap-designer__field textarea,
+.awap-designer__field select {
+  display: block;
+  width: 100%;
+  margin-top: var(--awap-space-1);
+}
+
+.awap-designer__field textarea {
+  min-height: 4.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.awap-designer__hint {
+  color: var(--awap-muted);
+  font-size: var(--awap-text-xs);
+}
+
+.awap-designer__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--awap-space-1);
+  margin-bottom: var(--awap-space-2);
+}
+
+.awap-designer__issue-list,
+.awap-designer__nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--awap-space-1);
+}
+
+.awap-designer__issue {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--awap-border);
+  border-left-width: 4px;
+  border-radius: var(--awap-radius-sm);
+  background: var(--awap-surface);
+  color: var(--awap-text);
+  padding: var(--awap-space-1) var(--awap-space-2);
+  font-size: var(--awap-text-xs);
+  cursor: pointer;
+}
+
+.awap-designer__issue--error {
+  border-left-color: var(--awap-danger);
+}
+
+.awap-designer__issue--warning {
+  border-left-color: var(--awap-warning);
+}
+
+.awap-designer__nav-button {
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: var(--awap-radius-sm);
+  background: transparent;
+  color: var(--awap-text);
+  padding: var(--awap-space-1) var(--awap-space-2);
+  font-size: var(--awap-text-xs);
+  cursor: pointer;
+}
+
+.awap-designer__nav-button:hover,
+.awap-designer__nav-button:focus-visible {
+  border-color: var(--awap-border);
+  background: var(--awap-surface-raised);
+}
+
+.awap-designer__node-card {
+  min-width: 6.5rem;
+  padding: var(--awap-space-1) var(--awap-space-2);
+  border-radius: var(--awap-radius-sm);
+  border: 1px solid var(--awap-border);
+  background: var(--awap-primary);
+  color: var(--awap-primary-foreground);
+  text-align: center;
+  font-size: var(--awap-text-sm);
+  max-width: 12rem;
+}
+
+/* Truncate inside the card so the top/bottom handles are never clipped. */
+.awap-designer__node-card .awap-designer__truncate {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.awap-designer__node-card[data-node-type="START"] {
+  background: var(--awap-success);
+}
+
+.awap-designer__node-card[data-node-type="END"] {
+  background: var(--awap-danger);
+}
+
+.awap-designer__node-card[data-node-type="DECISION"],
+.awap-designer__node-card[data-node-type="CONDITION"] {
+  background: var(--awap-warning);
+  color: var(--awap-text);
+}
+
+.awap-designer__edge {
+  stroke: var(--awap-primary);
+}
+
+.awap-designer__badge {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background: var(--awap-surface-raised);
+  color: var(--awap-text);
+  border: 1px solid var(--awap-primary);
+  border-radius: var(--awap-radius-full);
+  padding: 2px 8px;
+  font-size: var(--awap-text-xs);
+  pointer-events: all;
+  max-width: 15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.awap-designer__legend-swatch {
+  display: inline-block;
+  width: 2rem;
+  border-top: 2px solid var(--awap-muted);
+  vertical-align: middle;
+  margin-right: var(--awap-space-1);
+}
+
+.awap-designer__legend-badge {
+  display: inline-block;
+  background: var(--awap-surface-raised);
+  color: var(--awap-text);
+  border: 1px solid var(--awap-primary);
+  border-radius: var(--awap-radius-full);
+  padding: 0 6px;
+  margin-right: var(--awap-space-1);
+  font-size: var(--awap-text-xs);
+  font-weight: 700;
+}
+
+.awap-designer__version-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--awap-space-2);
+}
+
+.awap-designer__version {
+  border: 1px solid var(--awap-border);
+  border-radius: var(--awap-radius-sm);
+  padding: var(--awap-space-2);
+}
+
+.awap-designer__version[data-current="true"] {
+  border-color: var(--awap-primary);
+}
+
+.awap-designer__summary {
+  border: 1px solid var(--awap-success);
+  border-radius: var(--awap-radius-md);
+  padding: var(--awap-space-3);
+  background: var(--awap-surface-raised);
+}
+
+.awap-designer__truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 14rem;
+}
+
+/* The app shell sidebar plus a fixed palette and inspector leave too little canvas at laptop
+   widths, so the inspector moves below the canvas before the phone breakpoint. */
+@media (max-width: 1400px) {
+  .awap-designer__layout {
+    flex-wrap: wrap;
+  }
+  .awap-designer__palette {
+    flex: 0 0 12rem;
+  }
+  .awap-designer__canvas {
+    flex: 1 1 30rem;
+  }
+  .awap-designer__side {
+    flex: 1 1 100%;
+    max-height: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .awap-designer__side > * {
+    flex: 1 1 18rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .awap-designer__layout {
+    flex-direction: column;
+  }
+  .awap-designer__palette,
+  .awap-designer__side {
+    flex: 1 1 auto;
+    max-height: none;
+    border-right: none;
+  }
+  .awap-designer__side {
+    flex-direction: column;
+  }
+}

@@ -11,9 +11,6 @@
   "app/(app)/forms/fill/page.tsx": {
     "count": 7
   },
-  "app/(app)/workflows/designer/page.tsx": {
-    "count": 39
-  },
   "components/documents/DocumentScanTable.tsx": {
     "count": 15
   },
@@ -26,14 +23,8 @@
   "components/workflows/ConditionalEdge.tsx": {
     "count": 2
   },
-  "components/workflows/DesignerLegend.tsx": {
-    "count": 5
-  },
   "components/workflows/EdgeConditionEditor.tsx": {
     "count": 21
-  },
-  "components/workflows/NodePalette.tsx": {
-    "count": 5
   },
   "components/workflows/TransitionComposer.tsx": {
     "count": 4

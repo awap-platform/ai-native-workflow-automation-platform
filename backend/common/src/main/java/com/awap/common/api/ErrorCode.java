@@ -8,6 +8,7 @@ public enum ErrorCode {
   UNAUTHORIZED("AWAP-COMMON-0004", "Authentication is required."),
   FORBIDDEN("AWAP-COMMON-0005", "Access to the requested resource is forbidden."),
   RESOURCE_CONFLICT("AWAP-COMMON-0006", "The resource was changed by another request."),
+  PAYLOAD_TOO_LARGE("AWAP-COMMON-0007", "The request payload exceeds the allowed size."),
   INVALID_CREDENTIALS("AWAP-IDN-0001", "Invalid credentials."),
   TENANT_ALREADY_EXISTS("AWAP-IDN-0002", "A tenant with this slug already exists."),
   REFRESH_TOKEN_INVALID("AWAP-IDN-0003", "The refresh token is invalid or expired."),

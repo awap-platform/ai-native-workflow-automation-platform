@@ -1,10 +1,20 @@
 "use client";
 
-import { useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import Link from "next/link";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type DragEvent,
+  type KeyboardEvent,
+} from "react";
 import {
   Background,
   Controls,
   Handle,
+  MiniMap,
   Position,
   ReactFlow,
   ReactFlowProvider,
@@ -14,17 +24,35 @@ import {
   type Connection,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+
+import { errorStatus } from "../../../../lib/api";
 import {
+  useArchiveWorkflowVersion,
   useCreateWorkflowDefinition,
+  usePublishWorkflowDefinition,
+  useRollbackWorkflowDefinition,
   useValidateWorkflowExpression,
+  useWorkflowDefinition,
+  useWorkflowVersions,
 } from "../../../../lib/hooks/resources";
+import { useActiveTenant } from "../../../../lib/hooks/useActiveTenant";
+import {
+  AUTOSAVE_DELAY_MS,
+  clearDraft,
+  draftKey,
+  guardNavigation,
+  loadDraft,
+  requestUnloadGuard,
+  saveDraft,
+  shouldAutosave,
+} from "../../../../lib/workflowDraft";
 import {
   DEFAULT_WORKFLOW_VARIABLES,
   validateExpression,
 } from "../../../../lib/workflowExpressions";
 import {
   conditionOf,
-  duplicateEdge,
+  parseDefinitionJson,
   toDefinitionJson,
   withConditionIndicators,
   type WorkflowEdge,
@@ -34,44 +62,56 @@ import {
 import {
   NODE_DRAG_MIME,
   addConnection,
+  alignNodes,
   canRedo,
   canUndo,
   connectionError,
+  copySelection,
   createHistory,
   createNode,
   dropToFlowPosition,
-  duplicateNode,
+  pasteClipboard,
   pushHistory,
   redo,
   removeNode,
   shortcutAction,
   undo,
-  validateGraph,
+  validateGraphIssues,
+  type AlignmentMode,
+  type GraphClipboard,
   type GraphHistory,
+  type GraphIssue,
   type GraphSnapshot,
 } from "../../../../lib/workflowDesigner";
+import BpmnPanel from "../../../../components/workflows/BpmnPanel";
 import ConditionalEdge from "../../../../components/workflows/ConditionalEdge";
 import DesignerLegend from "../../../../components/workflows/DesignerLegend";
 import EdgeConditionEditor from "../../../../components/workflows/EdgeConditionEditor";
 import NodePalette from "../../../../components/workflows/NodePalette";
+import NodePropertiesPanel from "../../../../components/workflows/NodePropertiesPanel";
+import ProcessNavigator, {
+  CanvasZoomControls,
+} from "../../../../components/workflows/ProcessNavigator";
 import TransitionComposer from "../../../../components/workflows/TransitionComposer";
+import ValidationPanel from "../../../../components/workflows/ValidationPanel";
+import VersionHistoryPanel from "../../../../components/workflows/VersionHistoryPanel";
 
 const workflowVariables = [...DEFAULT_WORKFLOW_VARIABLES];
 
+function signatureOf(name: string, nodes: WorkflowNode[], edges: WorkflowEdge[]): string {
+  return `${name}\u0000${toDefinitionJson(nodes, edges)}`;
+}
+
+const subscribeToLocation = () => () => {};
+const getLocationSearch = () => (typeof window === "undefined" ? "" : window.location.search);
+const getServerLocationSearch = () => "";
+
 function WorkflowNodeCard({ data }: { data: WorkflowNodeData }) {
+  const label = data.name ?? data.type;
   return (
-    <div
-      style={{
-        padding: "8px 12px",
-        borderRadius: 6,
-        background: "#4f46e5",
-        color: "#fff",
-        minWidth: 100,
-        textAlign: "center",
-      }}
-    >
+    <div className="awap-designer__node-card" data-node-type={data.type} title={label}>
       <Handle type="target" position={Position.Top} />
-      {data.name ?? data.type}
+      <span className="awap-designer__truncate">{label}</span>
       <Handle type="source" position={Position.Bottom} />
     </div>
   );
@@ -81,8 +121,6 @@ const nodeTypes = { workflow: WorkflowNodeCard };
 const edgeTypes = { conditional: ConditionalEdge };
 
 export default function DesignerPage() {
-  // React Flow's screen-to-flow conversion needs the provider context, so the
-  // canvas is a child component (issue #198).
   return (
     <ReactFlowProvider>
       <DesignerCanvas />
@@ -93,22 +131,57 @@ export default function DesignerPage() {
 function DesignerCanvas() {
   const createWorkflow = useCreateWorkflowDefinition();
   const validateExpressionApi = useValidateWorkflowExpression();
+  const publishWorkflow = usePublishWorkflowDefinition();
+  const rollbackWorkflow = useRollbackWorkflowDefinition();
+  const archiveVersion = useArchiveWorkflowVersion();
+  const tenant = useActiveTenant();
+  const { screenToFlowPosition, fitView } = useReactFlow();
+
   const [name, setName] = useState("");
   const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<WorkflowEdge>([]);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [clipboard, setClipboard] = useState<GraphClipboard | null>(null);
+  const [createdDefinitionId, setCreatedDefinitionId] = useState<string | null>(null);
+  const [definitionLoaded, setDefinitionLoaded] = useState(false);
+  const [savedSignature, setSavedSignature] = useState(() => signatureOf("", [], []));
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishedVersion, setPublishedVersion] = useState<number | null>(null);
+  const [autosavedAt, setAutosavedAt] = useState<string | null>(null);
   const [historyFlags, setHistoryFlags] = useState({ undo: false, redo: false });
-  const historyRef = useRef<GraphHistory>(createHistory({ nodes: [], edges: [] }));
-  const { screenToFlowPosition } = useReactFlow();
 
-  const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
+  const historyRef = useRef<GraphHistory>(createHistory({ nodes: [], edges: [] }));
+  const restoredRef = useRef(false);
+  const dragIntentRef = useRef<string | null>(null);
+
+  // Hydration-safe read of ?id=: the server snapshot is empty and the client snapshot is the
+  // real query string, so no effect needs to synchronise it after mount.
+  const search = useSyncExternalStore(
+    subscribeToLocation,
+    getLocationSearch,
+    getServerLocationSearch,
+  );
+  const urlDefinitionId = useMemo(() => new URLSearchParams(search).get("id"), [search]);
+  const definitionId = createdDefinitionId ?? urlDefinitionId;
+
+  const definitionQuery = useWorkflowDefinition(definitionId);
+  const versionsQuery = useWorkflowVersions(definitionId);
+  const versions = useMemo(() => versionsQuery.data ?? [], [versionsQuery.data]);
+
+  const signature = useMemo(() => signatureOf(name, nodes, edges), [name, nodes, edges]);
+  const dirty = signature !== savedSignature;
+  const selectedNode =
+    selectedNodeIds.length === 1
+      ? (nodes.find((node) => node.id === selectedNodeIds[0]) ?? null)
+      : null;
   const selectedEdge = edges.find((edge) => edge.id === selectedEdgeId) ?? null;
   const displayEdges = useMemo(() => withConditionIndicators(edges), [edges]);
   const invalidEdges = edges.filter((edge) => !validateExpression(conditionOf(edge)).valid);
+  const report = useMemo(() => validateGraphIssues(nodes, edges), [nodes, edges]);
 
   function nodeLabel(nodeId: string): string {
     const node = nodes.find((candidate) => candidate.id === nodeId);
@@ -122,11 +195,11 @@ function DesignerCanvas() {
   function applySnapshot(snapshot: GraphSnapshot) {
     setNodes(snapshot.nodes);
     setEdges(snapshot.edges);
-    setSelectedNodeId(null);
+    setSelectedNodeIds([]);
     setSelectedEdgeId(null);
   }
 
-  /** Applies a mutation and records an immutable snapshot for undo/redo. */
+  /** Applies a structural mutation and records an immutable snapshot for undo/redo. */
   function commit(nextNodes: WorkflowNode[], nextEdges: WorkflowEdge[]) {
     applySnapshot({ nodes: nextNodes, edges: nextEdges });
     historyRef.current = pushHistory(historyRef.current, { nodes: nextNodes, edges: nextEdges });
@@ -138,25 +211,140 @@ function DesignerCanvas() {
     refreshHistoryFlags();
   }
 
+  // Recover an autosaved draft when the page was closed or crashed (no ?id= load wins). The state
+  // update is deferred one tick so the effect only reads external storage synchronously.
+  useEffect(() => {
+    if (!tenant || restoredRef.current) {
+      return;
+    }
+    restoredRef.current = true;
+    if (definitionId) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      const draft = loadDraft(window.localStorage, draftKey(tenant));
+      if (draft && draft.nodes.length > 0) {
+        setNodes(draft.nodes);
+        setEdges(draft.edges);
+        setName(draft.name);
+        if (draft.definitionId) {
+          setCreatedDefinitionId(draft.definitionId);
+        }
+        setNotice("Recovered an unsaved draft from this browser.");
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [tenant, definitionId, setNodes, setEdges]);
+
+  // Load the current version when the designer is opened from a saved definition.
+  useEffect(() => {
+    if (!definitionId || definitionLoaded || !definitionQuery.data || versions.length === 0) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      const snapshot = versions.find((version) => version.current) ?? versions[0];
+      if (!snapshot) {
+        setDefinitionLoaded(true);
+        return;
+      }
+      try {
+        const parsed = parseDefinitionJson(snapshot.definitionJson);
+        const loadedName = definitionQuery.data?.name ?? "";
+        setNodes(parsed.nodes);
+        setEdges(parsed.edges);
+        setName(loadedName);
+        setSavedSignature(signatureOf(loadedName, parsed.nodes, parsed.edges));
+        setNotice(`Loaded version ${snapshot.version}.`);
+      } catch {
+        setError("The saved version could not be loaded into the canvas.");
+      } finally {
+        setDefinitionLoaded(true);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [definitionId, definitionLoaded, definitionQuery.data, versions, setNodes, setEdges]);
+
+  // Autosave runs on a debounce and never blocks editing; a storage failure is silent.
+  useEffect(() => {
+    if (!tenant || !shouldAutosave(dirty, nodes, edges)) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      const saved = saveDraft(window.localStorage, draftKey(tenant), {
+        name,
+        nodes,
+        edges,
+        definitionId,
+      });
+      if (saved) {
+        setAutosavedAt(new Date().toISOString());
+      }
+    }, AUTOSAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [tenant, dirty, name, nodes, edges, definitionId]);
+
+  // Tab-close guard.
+  useEffect(() => {
+    const handler = (event: BeforeUnloadEvent) => requestUnloadGuard(event, dirty);
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty]);
+
+  // In-app navigation guard for ordinary same-origin links.
+  useEffect(() => {
+    if (!dirty) {
+      return;
+    }
+    const handler = (event: MouseEvent) => {
+      const decision = guardNavigation(
+        {
+          defaultPrevented: event.defaultPrevented,
+          button: event.button,
+          metaKey: event.metaKey,
+          ctrlKey: event.ctrlKey,
+          shiftKey: event.shiftKey,
+          altKey: event.altKey,
+          target: event.target,
+        },
+        true,
+        (message) => window.confirm(message),
+      );
+      if (decision === "block") {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    document.addEventListener("click", handler, true);
+    return () => document.removeEventListener("click", handler, true);
+  }, [dirty]);
+
   function addNodeAt(type: string, position: { x: number; y: number }) {
-    const node = createNode(type, position, {
-      existingIds: nodes.map((candidate) => candidate.id),
-    });
-    commit([...nodes, node], edges);
-    setSelectedNodeId(node.id);
+    const node = {
+      ...createNode(type, position, {
+        existingIds: nodes.map((candidate) => candidate.id),
+      }),
+      selected: true,
+    };
+    commit(
+      [...nodes.map((candidate) => ({ ...candidate, selected: false })), node],
+      edges,
+    );
+    setSelectedNodeIds([node.id]);
     setSelectedEdgeId(null);
     setNotice(`${type} node added.`);
   }
 
   function addNode(type: string) {
     const index = nodes.length;
-    // A grid keeps handles reachable; overlapping nodes make connecting edges unreliable.
     addNodeAt(type, { x: 80 + (index % 3) * 220, y: 80 + Math.floor(index / 3) * 140 });
   }
 
   function onDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
-    const type = event.dataTransfer.getData(NODE_DRAG_MIME);
+    // The pointer-down type is authoritative; the data-transfer value is the fallback for drags
+    // that start outside the palette.
+    const type = dragIntentRef.current ?? event.dataTransfer.getData(NODE_DRAG_MIME);
+    dragIntentRef.current = null;
     if (type === "") {
       setError("Drop a node type from the palette.");
       return;
@@ -169,7 +357,6 @@ function DesignerCanvas() {
       screenToFlowPosition,
     });
     if (position === null) {
-      // A drop outside the canvas is ignored instead of creating an off-screen node.
       setError("Drop the node inside the canvas.");
       return;
     }
@@ -192,17 +379,29 @@ function DesignerCanvas() {
     connect({ source, target, sourceHandle: null, targetHandle: null });
   }
 
-  function closeEdgeInspector() {
-    setSelectedEdgeId(null);
-    setEdges((current) =>
-      current.map((edge) => (edge.selected ? { ...edge, selected: false } : edge)),
+  function selectEdge(edgeId: string | null) {
+    setNodes((current) =>
+      current.some((node) => node.selected)
+        ? current.map((node) => ({ ...node, selected: false }))
+        : current,
     );
+    setEdges((current) =>
+      current.map((edge) =>
+        edge.selected === (edge.id === edgeId) ? edge : { ...edge, selected: edge.id === edgeId },
+      ),
+    );
+    setSelectedEdgeId(edgeId);
+    setSelectedNodeIds([]);
+  }
+
+  function closeEdgeInspector() {
+    selectEdge(null);
   }
 
   function updateSelectedConfig(config: Record<string, unknown>) {
     setNodes((current) =>
       current.map((node) =>
-        node.id === selectedNodeId ? { ...node, data: { ...node.data, config } } : node,
+        selectedNodeIds.includes(node.id) ? { ...node, data: { ...node.data, config } } : node,
       ),
     );
   }
@@ -210,7 +409,7 @@ function DesignerCanvas() {
   function updateSelectedName(nextName: string) {
     setNodes((current) =>
       current.map((node) =>
-        node.id === selectedNodeId ? { ...node, data: { ...node.data, name: nextName } } : node,
+        node.id === selectedNodeIds[0] ? { ...node, data: { ...node.data, name: nextName } } : node,
       ),
     );
   }
@@ -226,19 +425,12 @@ function DesignerCanvas() {
     );
   }
 
-  function duplicateSelectedEdge() {
-    if (selectedEdge === null) {
-      return;
-    }
-    const copy = duplicateEdge(selectedEdge);
-    commit(nodes, [...edges, copy]);
-    setSelectedEdgeId(copy.id);
-    setNotice("Edge duplicated with its condition.");
-  }
-
   function deleteSelection() {
-    if (selectedNodeId !== null) {
-      const next = removeNode(nodes, edges, selectedNodeId);
+    if (selectedNodeIds.length > 0) {
+      const next = selectedNodeIds.reduce(
+        (snapshot, nodeId) => removeNode(snapshot.nodes, snapshot.edges, nodeId),
+        { nodes, edges },
+      );
       commit(next.nodes, next.edges);
       setNotice("Node deleted.");
       return;
@@ -253,18 +445,68 @@ function DesignerCanvas() {
   }
 
   function duplicateSelection() {
-    if (selectedNodeId !== null) {
-      const copy = duplicateNode(nodes, selectedNodeId);
-      if (copy === null) {
-        return;
-      }
-      commit([...nodes, copy], edges);
-      setSelectedNodeId(copy.id);
+    if (selectedNodeIds.length > 0) {
+      const copied = copySelection(nodes, edges, selectedNodeIds);
+      const copies = copied.nodes.map((node) => ({ ...node, selected: true }));
+      commit(
+        [...nodes.map((node) => ({ ...node, selected: false })), ...copies],
+        [...edges, ...copied.edges],
+      );
+      setSelectedNodeIds(copies.map((node) => node.id));
       setSelectedEdgeId(null);
       setNotice("Node duplicated.");
       return;
     }
-    duplicateSelectedEdge();
+    if (selectedEdge !== null) {
+      const copied = copySelection(nodes, edges, [], [selectedEdge.id]);
+      const clone = copied.edges[0];
+      if (clone) {
+        commit(nodes, [
+          ...edges.map((edge) => ({ ...edge, selected: false })),
+          { ...clone, selected: true },
+        ]);
+        setSelectedEdgeId(clone.id);
+        setSelectedNodeIds([]);
+        setNotice("Edge duplicated with its condition.");
+      }
+    }
+  }
+
+  function copyCurrent() {
+    if (selectedNodeIds.length === 0 && selectedEdgeId === null) {
+      return;
+    }
+    const copied = copySelection(
+      nodes,
+      edges,
+      selectedNodeIds,
+      selectedEdgeId === null ? [] : [selectedEdgeId],
+    );
+    setClipboard(copied);
+    setNotice(`${copied.nodes.length} node(s) and ${copied.edges.length} transition(s) copied.`);
+  }
+
+  function pasteCurrent() {
+    if (!clipboard) {
+      return;
+    }
+    const pasted = pasteClipboard(clipboard, nodes);
+    const copies = pasted.nodes.map((node) => ({ ...node, selected: true }));
+    commit(
+      [...nodes.map((node) => ({ ...node, selected: false })), ...copies],
+      [...edges, ...pasted.edges],
+    );
+    setSelectedNodeIds(copies.map((node) => node.id));
+    setSelectedEdgeId(null);
+    setNotice("Pasted from the canvas clipboard.");
+  }
+
+  function alignSelection(mode: AlignmentMode) {
+    if (selectedNodeIds.length < 2) {
+      return;
+    }
+    commit(alignNodes(nodes, selectedNodeIds, mode), edges);
+    setNotice(`Aligned ${selectedNodeIds.length} nodes.`);
   }
 
   function applyUndo() {
@@ -285,8 +527,9 @@ function DesignerCanvas() {
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const action = shortcutAction(event, {
-      node: selectedNode !== null,
-      edge: selectedEdge !== null,
+      node: selectedNodeIds.length > 0,
+      edge: selectedEdgeId !== null,
+      clipboard: clipboard !== null,
     });
     if (action === null) {
       return;
@@ -298,28 +541,65 @@ function DesignerCanvas() {
       applyRedo();
     } else if (action === "duplicate") {
       duplicateSelection();
+    } else if (action === "copy") {
+      copyCurrent();
+    } else if (action === "paste") {
+      pasteCurrent();
     } else {
       deleteSelection();
     }
   }
 
-  async function save() {
+  function focusNode(nodeId: string) {
+    setSelectedNodeIds([nodeId]);
+    setSelectedEdgeId(null);
+    setNodes((current) =>
+      current.map((node) => ({ ...node, selected: node.id === nodeId })),
+    );
+    void fitView({ nodes: [{ id: nodeId }], duration: 300, padding: 0.6 });
+  }
+
+  function focusIssue(issue: GraphIssue) {
+    if (issue.nodeId) {
+      focusNode(issue.nodeId);
+      setNotice(issue.message);
+      return;
+    }
+    if (issue.edgeId) {
+      const edge = edges.find((candidate) => candidate.id === issue.edgeId);
+      if (edge) {
+        setSelectedEdgeId(edge.id);
+        setSelectedNodeIds([]);
+        focusNode(edge.source);
+        setSelectedEdgeId(edge.id);
+      }
+      setNotice(issue.message);
+      return;
+    }
+    setNotice(issue.message);
+  }
+
+  async function save(): Promise<string | null> {
     setError("");
     setNotice("");
     if (name.trim() === "") {
       setError("Workflow name is required.");
-      return;
+      return null;
     }
     if (invalidEdges.length > 0) {
       setError(
         `Fix ${invalidEdges.length} invalid condition${invalidEdges.length === 1 ? "" : "s"} before saving.`,
       );
-      return;
+      return null;
     }
-    const validation = validateGraph(nodes, edges);
-    if (!validation.valid) {
-      setError(validation.errors.join(" "));
-      return;
+    if (report.blocking) {
+      setError(
+        report.issues
+          .filter((issue) => issue.severity === "error")
+          .map((issue) => issue.message)
+          .join(" "),
+      );
+      return null;
     }
     const conditions = [...new Set(edges.map(conditionOf).filter((value) => value.trim() !== ""))];
     setSaving(true);
@@ -331,40 +611,136 @@ function DesignerCanvas() {
         );
       } catch {
         setError("Condition validation failed. Check your connection and retry.");
-        return;
+        return null;
       }
       const invalid = results.find((result) => !result.valid);
       if (invalid) {
         setError(invalid.errors[0]?.message ?? "A condition is invalid.");
-        return;
+        return null;
       }
       try {
-        await createWorkflow.mutateAsync({
+        const created = await createWorkflow.mutateAsync({
           name,
           definitionJson: toDefinitionJson(nodes, edges),
         });
+        setCreatedDefinitionId(created.id);
+        setSavedSignature(signature);
+        setPublishedVersion(null);
+        if (tenant) {
+          clearDraft(window.localStorage, draftKey(tenant));
+        }
+        setAutosavedAt(null);
         setNotice("Draft saved");
+        return created.id;
       } catch {
-        setError("Save failed");
+        setError("Save failed. Your draft is still autosaved in this browser.");
+        return null;
       }
     } finally {
       setSaving(false);
     }
   }
 
+  async function publish() {
+    setError("");
+    setNotice("");
+    setPublishing(true);
+    try {
+      const id = definitionId ?? (await save());
+      if (!id) {
+        return;
+      }
+      const result = await publishWorkflow.mutateAsync(id);
+      setCreatedDefinitionId(result.id);
+      setPublishedVersion(result.currentVersion);
+      setNotice(`Published version ${result.currentVersion}.`);
+    } catch (cause) {
+      if (errorStatus(cause) === 409) {
+        setError(
+          "Another tab published this workflow first. Reload the versions panel; your draft is still autosaved.",
+        );
+      } else {
+        setError("Publish failed. Your draft has not been lost.");
+      }
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  async function rollbackTo(version: number) {
+    if (!definitionId) {
+      return;
+    }
+    const target = versions.find((snapshot) => snapshot.version === version);
+    try {
+      await rollbackWorkflow.mutateAsync({ id: definitionId, version });
+      if (target) {
+        const parsed = parseDefinitionJson(target.definitionJson);
+        setNodes(parsed.nodes);
+        setEdges(parsed.edges);
+        setSavedSignature(signatureOf(name, parsed.nodes, parsed.edges));
+        setSelectedNodeIds([]);
+        setSelectedEdgeId(null);
+      }
+      setNotice(`Rolled back to version ${version}.`);
+    } catch {
+      setError("Rollback failed. The current version is unchanged.");
+    }
+  }
+
+  async function archive(version: number) {
+    if (!definitionId) {
+      return;
+    }
+    try {
+      await archiveVersion.mutateAsync({ id: definitionId, version });
+      setNotice(`Archived version ${version}.`);
+    } catch {
+      setError("Archive failed. The version was not archived.");
+    }
+  }
+
+  function importDefinition(json: string) {
+    try {
+      const parsed = parseDefinitionJson(json);
+      commit(parsed.nodes, parsed.edges);
+      setNotice(`BPMN imported: ${parsed.nodes.length} node(s), ${parsed.edges.length} transition(s).`);
+    } catch {
+      setError("The imported BPMN produced an invalid definition.");
+    }
+  }
+
   return (
-    <div onKeyDown={onKeyDown}>
-      <h1 style={{ fontSize: 24, fontWeight: 700 }}>Workflow Designer</h1>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
+    <div className="awap-designer" onKeyDown={onKeyDown}>
+      <h1>Workflow Designer</h1>
+
+      <div className="awap-designer__toolbar">
         <input
           placeholder="Workflow name"
           aria-label="Workflow name"
           value={name}
           onChange={(event) => setName(event.target.value)}
         />
-        <button type="button" onClick={save} disabled={invalidEdges.length > 0 || saving}>
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={invalidEdges.length > 0 || saving}
+        >
           Save draft
         </button>
+        <button
+          type="button"
+          onClick={() => void publish()}
+          disabled={publishing || report.blocking || invalidEdges.length > 0}
+          aria-describedby="publish-help"
+        >
+          Publish
+        </button>
+        <span id="publish-help" className="awap-designer__hint">
+          {definitionId
+            ? `Definition ${definitionId.slice(0, 8)} · ${dirty ? "unsaved changes" : "saved"}`
+            : "Publishing saves the current draft first."}
+        </span>
         <button
           type="button"
           onClick={applyUndo}
@@ -383,30 +759,95 @@ function DesignerCanvas() {
         >
           Redo
         </button>
+        <button type="button" onClick={copyCurrent} disabled={selectedNodeIds.length === 0 && selectedEdgeId === null}>
+          Copy
+        </button>
+        <button type="button" onClick={pasteCurrent} disabled={clipboard === null}>
+          Paste
+        </button>
+        <button
+          type="button"
+          onClick={duplicateSelection}
+          disabled={selectedNodeIds.length === 0 && selectedEdgeId === null}
+        >
+          Duplicate
+        </button>
+        <button
+          type="button"
+          onClick={deleteSelection}
+          disabled={selectedNodeIds.length === 0 && selectedEdgeId === null}
+        >
+          Delete
+        </button>
+      </div>
+
+      {selectedNodeIds.length > 1 ? (
+        <div className="awap-designer__row" role="group" aria-label="Align selected nodes">
+          <span className="awap-designer__hint">{selectedNodeIds.length} nodes selected</span>
+          {(
+            [
+              ["left", "Align left"],
+              ["center", "Align centre"],
+              ["right", "Align right"],
+              ["top", "Align top"],
+              ["middle", "Align middle"],
+              ["bottom", "Align bottom"],
+            ] as const
+          ).map(([mode, label]) => (
+            <button key={mode} type="button" onClick={() => alignSelection(mode)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {/* A reserved-height live region keeps the canvas from shifting when a notice appears. */}
+      <div className="awap-designer__messages" aria-live="polite">
+        {error ? <p role="alert">{error}</p> : null}
+        {notice ? <p role="status">{notice}</p> : null}
         {invalidEdges.length > 0 ? (
-          <span role="status" style={{ color: "#b91c1c", fontSize: 13 }}>
+          <p role="status" className="awap-designer__hint">
             Fix invalid edge conditions to enable saving.
-          </span>
+          </p>
+        ) : null}
+        {dirty ? <p className="awap-designer__hint">Unsaved changes</p> : null}
+        {autosavedAt ? (
+          <p role="status" className="awap-designer__hint">
+            Draft autosaved at {new Date(autosavedAt).toLocaleTimeString()}.
+          </p>
         ) : null}
       </div>
 
-      {error ? <p role="alert">{error}</p> : null}
-      {notice ? (
-        <p role="status" aria-live="polite">
-          {notice}
-        </p>
+      {publishedVersion !== null ? (
+        <section className="awap-designer__summary" aria-labelledby="publish-summary-heading">
+          <h2 id="publish-summary-heading">Published</h2>
+          <p>
+            Version {publishedVersion} is published and is now the current version. New instances
+            start from it.
+          </p>
+          {definitionId ? (
+            <Link href={`/instances?workflow=${encodeURIComponent(definitionId)}`}>
+              View instances for this workflow
+            </Link>
+          ) : null}
+        </section>
       ) : null}
 
-      <div style={{ display: "flex", gap: 16 }}>
-        <NodePalette onAdd={addNode} />
+      <div className="awap-designer__layout">
+        <NodePalette
+          onAdd={addNode}
+          onDragIntent={(type) => {
+            dragIntentRef.current = type;
+          }}
+        />
         <div
           data-testid="designer-canvas"
+          className="awap-designer__canvas"
           onDrop={onDrop}
           onDragOver={(event) => {
             event.preventDefault();
             event.dataTransfer.dropEffect = "copy";
           }}
-          style={{ flex: 1, height: 480, border: "1px solid #e2e8f0", borderRadius: 8 }}
         >
           <ReactFlow
             nodes={nodes}
@@ -422,255 +863,80 @@ function DesignerCanvas() {
                 targetHandle: connection.targetHandle ?? null,
               }) === null
             }
+            onSelectionChange={({ nodes: selectedNodes, edges: selectedEdges }) => {
+              const ids = selectedNodes.map((node) => node.id);
+              const edgeId = selectedEdges[0]?.id ?? null;
+              // React Flow emits a fresh array on every internal update; returning the previous
+              // state for an unchanged selection keeps the controlled re-render from looping.
+              setSelectedNodeIds((current) =>
+                current.length === ids.length && current.every((id, index) => id === ids[index])
+                  ? current
+                  : ids,
+              );
+              setSelectedEdgeId((current) => (current === edgeId ? current : edgeId));
+            }}
             onNodeDragStop={rememberCurrentGraph}
             onNodeClick={(_, node) => {
-              setSelectedNodeId(node.id);
+              setSelectedNodeIds([node.id]);
               setSelectedEdgeId(null);
             }}
             onEdgeClick={(_, edge) => {
               setSelectedEdgeId(edge.id);
-              setSelectedNodeId(null);
+              setSelectedNodeIds([]);
             }}
             onPaneClick={() => {
-              setSelectedNodeId(null);
+              setSelectedNodeIds([]);
               closeEdgeInspector();
             }}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
+            multiSelectionKeyCode="Shift"
           >
             <Background />
             <Controls />
+            <MiniMap pannable zoomable />
+            <CanvasZoomControls />
           </ReactFlow>
         </div>
 
-        {selectedEdge ? (
-          <EdgeConditionEditor
-            edge={selectedEdge}
-            variables={workflowVariables}
-            onChangeCondition={updateSelectedCondition}
-            onClose={closeEdgeInspector}
-            onDuplicate={duplicateSelectedEdge}
+        <div className="awap-designer__side">
+          {selectedEdge ? (
+            <EdgeConditionEditor
+              edge={selectedEdge}
+              variables={workflowVariables}
+              onChangeCondition={updateSelectedCondition}
+              onClose={closeEdgeInspector}
+              onDuplicate={duplicateSelection}
+            />
+          ) : selectedNode ? (
+            <NodePropertiesPanel
+              node={selectedNode}
+              onChangeName={updateSelectedName}
+              onChangeConfig={updateSelectedConfig}
+              onDuplicate={duplicateSelection}
+              onDelete={deleteSelection}
+              onClose={() => setSelectedNodeIds([])}
+            />
+          ) : null}
+          <ValidationPanel report={report} onFocusIssue={focusIssue} />
+          <ProcessNavigator
+            nodes={nodes}
+            selectedNodeIds={selectedNodeIds}
+            onFocusNode={focusNode}
           />
-        ) : selectedNode ? (
-          <div style={{ width: 260, border: "1px solid #e2e8f0", borderRadius: 8, padding: 12 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700 }}>{selectedNode.data.type} node</h2>
-            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-              <button type="button" onClick={duplicateSelection}>
-                Duplicate node
-              </button>
-              <button type="button" onClick={deleteSelection}>
-                Delete node
-              </button>
-            </div>
-            {selectedNode.data.type === "APPROVAL" && (
-              <label style={{ display: "block", marginBottom: 8 }}>
-                Approvers (one per line, e.g. role:MANAGER)
-                <textarea
-                  value={((selectedNode.data.config?.approvers as string[]) ?? []).join("\n")}
-                  onChange={(event) =>
-                    updateSelectedConfig({
-                      ...selectedNode.data.config,
-                      approvers: event.target.value
-                        .split("\n")
-                        .map((line) => line.trim())
-                        .filter(Boolean),
-                    })
-                  }
-                  style={{ width: "100%", minHeight: 80, display: "block" }}
-                />
-              </label>
-            )}
-            {selectedNode.data.type === "FORM" && (
-              <label style={{ display: "block", marginBottom: 8 }}>
-                Form definition ID
-                <input
-                  value={(selectedNode.data.config?.formId as string) ?? ""}
-                  onChange={(event) =>
-                    updateSelectedConfig({
-                      ...selectedNode.data.config,
-                      formId: event.target.value,
-                    })
-                  }
-                  style={{ width: "100%", display: "block" }}
-                />
-              </label>
-            )}
-            {selectedNode.data.type === "TASK" && (
-              <label style={{ display: "block", marginBottom: 8 }}>
-                Task title
-                <input
-                  value={selectedNode.data.name ?? ""}
-                  onChange={(event) => updateSelectedName(event.target.value)}
-                  style={{ width: "100%", display: "block" }}
-                />
-              </label>
-            )}
-            {(selectedNode.data.type === "DECISION" || selectedNode.data.type === "CONDITION") && (
-              <label style={{ display: "block", marginBottom: 8 }}>
-                Fallback guard expression
-                <textarea
-                  placeholder="#amount > 100"
-                  value={(selectedNode.data.config?.expression as string) ?? ""}
-                  onChange={(event) =>
-                    updateSelectedConfig({
-                      ...selectedNode.data.config,
-                      expression: event.target.value,
-                    })
-                  }
-                  style={{ width: "100%", minHeight: 64, display: "block" }}
-                />
-                <span style={{ color: "#6b7280", fontSize: 12 }}>
-                  Branch conditions are edited on each outgoing edge. The guard is used only when no
-                  edge condition matches.
-                </span>
-              </label>
-            )}
-            {selectedNode.data.type === "DELAY" && (
-              <label style={{ display: "block", marginBottom: 8 }}>
-                Delay seconds
-                <input
-                  type="number"
-                  min={0}
-                  value={(selectedNode.data.config?.delaySeconds as number) ?? 0}
-                  onChange={(event) =>
-                    updateSelectedConfig({
-                      ...selectedNode.data.config,
-                      delaySeconds: Number(event.target.value),
-                    })
-                  }
-                  style={{ width: "100%", display: "block" }}
-                />
-              </label>
-            )}
-            {selectedNode.data.type === "PARALLEL_GATEWAY" && (
-              <label style={{ display: "block", marginBottom: 8 }}>
-                Join node id
-                <input
-                  value={(selectedNode.data.config?.joinNodeId as string) ?? ""}
-                  onChange={(event) =>
-                    updateSelectedConfig({
-                      ...selectedNode.data.config,
-                      joinNodeId: event.target.value,
-                    })
-                  }
-                  style={{ width: "100%", display: "block" }}
-                />
-              </label>
-            )}
-            {selectedNode.data.type === "WEBHOOK" && (
-              <>
-                <label style={{ display: "block", marginBottom: 8 }}>
-                  Target URL
-                  <input
-                    placeholder="https://hooks.example.com"
-                    value={(selectedNode.data.config?.url as string) ?? ""}
-                    onChange={(event) =>
-                      updateSelectedConfig({
-                        ...selectedNode.data.config,
-                        url: event.target.value,
-                      })
-                    }
-                    style={{ width: "100%", display: "block" }}
-                  />
-                </label>
-                <label style={{ display: "block", marginBottom: 8 }}>
-                  Payload JSON
-                  <textarea
-                    value={(selectedNode.data.config?.payload as string) ?? "{}"}
-                    onChange={(event) =>
-                      updateSelectedConfig({
-                        ...selectedNode.data.config,
-                        payload: event.target.value,
-                      })
-                    }
-                    style={{ width: "100%", minHeight: 64, display: "block" }}
-                  />
-                </label>
-                <label style={{ display: "block", marginBottom: 8 }}>
-                  Timeout seconds
-                  <input
-                    type="number"
-                    min={1}
-                    value={(selectedNode.data.config?.timeoutSeconds as number) ?? 10}
-                    onChange={(event) =>
-                      updateSelectedConfig({
-                        ...selectedNode.data.config,
-                        timeoutSeconds: Number(event.target.value),
-                      })
-                    }
-                    style={{ width: "100%", display: "block" }}
-                  />
-                </label>
-                <label style={{ display: "block", marginBottom: 8 }}>
-                  Max attempts
-                  <input
-                    type="number"
-                    min={1}
-                    max={10}
-                    value={(selectedNode.data.config?.maxAttempts as number) ?? 3}
-                    onChange={(event) =>
-                      updateSelectedConfig({
-                        ...selectedNode.data.config,
-                        maxAttempts: Number(event.target.value),
-                      })
-                    }
-                    style={{ width: "100%", display: "block" }}
-                  />
-                </label>
-              </>
-            )}
-            {selectedNode.data.type === "SUB_PROCESS" && (
-              <>
-                <label style={{ display: "block", marginBottom: 8 }}>
-                  Child workflow definition ID
-                  <input
-                    value={(selectedNode.data.config?.workflowDefinitionId as string) ?? ""}
-                    onChange={(event) =>
-                      updateSelectedConfig({
-                        ...selectedNode.data.config,
-                        workflowDefinitionId: event.target.value,
-                      })
-                    }
-                    style={{ width: "100%", display: "block" }}
-                  />
-                </label>
-                <label style={{ display: "block", marginBottom: 8 }}>
-                  Version (optional)
-                  <input
-                    type="number"
-                    min={1}
-                    value={(selectedNode.data.config?.version as number) ?? ""}
-                    onChange={(event) =>
-                      updateSelectedConfig({
-                        ...selectedNode.data.config,
-                        version: event.target.value ? Number(event.target.value) : undefined,
-                      })
-                    }
-                    style={{ width: "100%", display: "block" }}
-                  />
-                </label>
-              </>
-            )}
-            {(selectedNode.data.type === "START" ||
-              selectedNode.data.type === "END" ||
-              selectedNode.data.type === "MERGE_GATEWAY") && (
-              <p style={{ color: "#6b7280" }}>No configuration for this node type.</p>
-            )}
-          </div>
-        ) : null}
+        </div>
       </div>
 
-      <nav aria-labelledby="designer-transitions-heading" style={{ marginTop: 12 }}>
-        <h2 id="designer-transitions-heading" style={{ fontSize: 14, fontWeight: 700 }}>
-          Transitions
-        </h2>
+      <nav aria-labelledby="designer-transitions-heading">
+        <h2 id="designer-transitions-heading">Transitions</h2>
         <TransitionComposer nodes={nodes} onAdd={addTransitionFromComposer} />
         {edges.length === 0 ? (
-          <p style={{ color: "#6b7280", fontSize: 13 }}>
-            No transitions yet. Drag from the source handle of a node to another node.
+          <p className="awap-designer__hint">
+            No transitions yet. Drag from the source handle of a node to another node, or use the
+            form above with the keyboard.
           </p>
         ) : (
-          <ul style={{ listStyle: "none", paddingLeft: 0, display: "grid", gap: 4 }}>
+          <ul className="awap-designer__nav-list">
             {edges.map((edge) => {
               const condition = conditionOf(edge);
               const label = `Edit condition from ${nodeLabel(edge.source)} to ${nodeLabel(edge.target)}`;
@@ -679,10 +945,7 @@ function DesignerCanvas() {
                   <button
                     type="button"
                     aria-label={label}
-                    onClick={() => {
-                      setSelectedEdgeId(edge.id);
-                      setSelectedNodeId(null);
-                    }}
+                    onClick={() => selectEdge(edge.id)}
                   >
                     {nodeLabel(edge.source)} → {nodeLabel(edge.target)}{" "}
                     {condition.trim() === "" ? "(unconditional)" : `(IF: ${condition})`}
@@ -693,6 +956,20 @@ function DesignerCanvas() {
           </ul>
         )}
       </nav>
+
+      <div className="awap-designer__layout">
+        <div className="awap-designer__side">
+          <VersionHistoryPanel
+            versions={versions}
+            onRollback={(version) => void rollbackTo(version)}
+            onArchive={(version) => void archive(version)}
+            busy={rollbackWorkflow.isPending || archiveVersion.isPending}
+          />
+        </div>
+        <div className="awap-designer__side">
+          <BpmnPanel definitionJson={toDefinitionJson(nodes, edges)} onImported={importDefinition} />
+        </div>
+      </div>
 
       <DesignerLegend />
     </div>

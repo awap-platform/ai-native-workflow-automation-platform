@@ -1,6 +1,7 @@
 import type { Connection } from "@xyflow/react";
 
-import type { WorkflowEdge, WorkflowNode } from "./workflowGraph";
+import { conditionOf, type WorkflowEdge, type WorkflowNode } from "./workflowGraph";
+import { validateExpression } from "./workflowExpressions";
 
 /** Every node type the palette offers (issue #198). */
 export const NODE_TYPES = [
@@ -58,6 +59,31 @@ export interface GraphHistory {
 export interface GraphValidation {
   valid: boolean;
   errors: string[];
+}
+
+export type ValidationSeverity = "error" | "warning";
+
+/** A single validation finding. `nodeId`/`edgeId` make the panel able to focus the canvas. */
+export interface GraphIssue {
+  id: string;
+  severity: ValidationSeverity;
+  code:
+    | "start-missing"
+    | "start-duplicate"
+    | "end-missing"
+    | "dangling-transition"
+    | "cycle"
+    | "unreachable"
+    | "invalid-condition";
+  message: string;
+  nodeId?: string | undefined;
+  edgeId?: string | undefined;
+}
+
+export interface GraphIssueReport {
+  /** Errors block saving; warnings are informational. */
+  blocking: boolean;
+  issues: GraphIssue[];
 }
 
 export interface DropCoordinates {
@@ -237,33 +263,126 @@ export function duplicateNode(
  * cycles, no dangling transitions and no node that is unreachable from START.
  */
 export function validateGraph(nodes: WorkflowNode[], edges: WorkflowEdge[]): GraphValidation {
-  const errors: string[] = [];
+  const report = validateGraphIssues(nodes, edges);
+  return {
+    valid: !report.blocking,
+    errors: report.issues
+      .filter((issue) => issue.severity === "error")
+      .map((issue) => issue.message),
+  };
+}
+
+/** True when the directed graph contains a cycle (self-loops included). */
+function hasDirectedCycle(nodes: WorkflowNode[], edges: WorkflowEdge[]): boolean {
+  const adjacency = new Map<string, string[]>();
+  for (const edge of edges) {
+    const outgoing = adjacency.get(edge.source) ?? [];
+    outgoing.push(edge.target);
+    adjacency.set(edge.source, outgoing);
+  }
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const visit = (id: string): boolean => {
+    if (visiting.has(id)) {
+      return true;
+    }
+    if (visited.has(id)) {
+      return false;
+    }
+    visiting.add(id);
+    for (const next of adjacency.get(id) ?? []) {
+      if (visit(next)) {
+        return true;
+      }
+    }
+    visiting.delete(id);
+    visited.add(id);
+    return false;
+  };
+  return nodes.some((node) => visit(node.id));
+}
+
+/**
+ * Structured validation used by the validation panel and the save guard.
+ *
+ * A missing or duplicated START is a blocking error, a missing END is only a warning, and cycles,
+ * unreachable nodes and invalid edge conditions are reported as errors. Every issue carries the
+ * node or transition id so clicking it can focus the canvas.
+ */
+export function validateGraphIssues(
+  nodes: WorkflowNode[],
+  edges: WorkflowEdge[],
+): GraphIssueReport {
+  const issues: GraphIssue[] = [];
   const starts = nodes.filter((node) => node.data.type === "START");
   const ends = nodes.filter((node) => node.data.type === "END");
-  if (starts.length !== 1) {
-    errors.push("A workflow needs exactly one START node.");
+  if (starts.length === 0) {
+    issues.push({
+      id: "start-missing",
+      severity: "error",
+      code: "start-missing",
+      message: "A workflow needs exactly one START node.",
+    });
+  } else if (starts.length > 1) {
+    issues.push({
+      id: "start-duplicate",
+      severity: "error",
+      code: "start-duplicate",
+      message: "A workflow needs exactly one START node.",
+      nodeId: starts[0]?.id,
+    });
   }
   if (ends.length === 0) {
-    errors.push("A workflow needs at least one END node.");
+    issues.push({
+      id: "end-missing",
+      severity: "warning",
+      code: "end-missing",
+      message: "A workflow needs at least one END node. An instance cannot finish without one.",
+    });
   }
+
   const ids = new Set(nodes.map((node) => node.id));
   const dangling = edges.filter((edge) => !ids.has(edge.source) || !ids.has(edge.target));
-  if (dangling.length > 0) {
-    errors.push(`${dangling.length} transition(s) point to a missing node.`);
+  for (const edge of dangling) {
+    issues.push({
+      id: `dangling-${edge.id}`,
+      severity: "error",
+      code: "dangling-transition",
+      message: "A transition points to a node that is no longer on the canvas.",
+      edgeId: edge.id,
+    });
   }
+  if (dangling.length > 0) {
+    issues.push({
+      id: "dangling",
+      severity: "error",
+      code: "dangling-transition",
+      message: `${dangling.length} transition(s) point to a missing node.`,
+    });
+  }
+
+  if (hasDirectedCycle(nodes, edges)) {
+    issues.push({
+      id: "cycle",
+      severity: "error",
+      code: "cycle",
+      message: "The workflow contains a cycle.",
+    });
+  }
+
   for (const edge of edges) {
-    if (
-      createsCycle(
-        edges.filter((candidate) => candidate !== edge),
-        edge.source,
-        edge.target,
-      )
-    ) {
-      errors.push("The workflow contains a cycle.");
-      break;
+    if (!validateExpression(conditionOf(edge)).valid) {
+      issues.push({
+        id: `condition-${edge.id}`,
+        severity: "error",
+        code: "invalid-condition",
+        message: "A transition condition is invalid.",
+        edgeId: edge.id,
+      });
     }
   }
-  const start = starts[0];
+
+  const start = starts.length === 1 ? starts[0] : undefined;
   if (start) {
     const adjacency = new Map<string, string[]>();
     for (const edge of edges) {
@@ -285,10 +404,151 @@ export function validateGraph(nodes: WorkflowNode[], edges: WorkflowEdge[]): Gra
     const unreachable = nodes.filter((node) => !reachable.has(node.id));
     if (unreachable.length > 0) {
       const labels = unreachable.map((node) => node.data.name ?? node.data.type).join(", ");
-      errors.push(`Every node must be reachable from START. Unreachable: ${labels}.`);
+      issues.push({
+        id: "unreachable",
+        severity: "error",
+        code: "unreachable",
+        message: `Every node must be reachable from START. Unreachable: ${labels}.`,
+        nodeId: unreachable[0]?.id,
+      });
     }
   }
-  return { valid: errors.length === 0, errors };
+
+  return { blocking: issues.some((issue) => issue.severity === "error"), issues };
+}
+
+export interface GraphClipboard {
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+}
+
+/**
+ * Copies the selected nodes and the transitions whose endpoints are both selected. New ids are
+ * generated immediately so repeated pastes never collide with the source selection.
+ */
+export function copySelection(
+  nodes: WorkflowNode[],
+  edges: WorkflowEdge[],
+  selectedNodeIds: Iterable<string>,
+  selectedEdgeIds: Iterable<string> = [],
+  newId: () => string = () => crypto.randomUUID(),
+): GraphClipboard {
+  const selected = new Set(selectedNodeIds);
+  const explicitEdges = new Set(selectedEdgeIds);
+  const idMap = new Map<string, string>();
+  const existing = new Set(nodes.map((node) => node.id));
+  const copiedNodes = nodes
+    .filter((node) => selected.has(node.id))
+    .map((node) => {
+      const id = nextId(existing, newId);
+      existing.add(id);
+      idMap.set(node.id, id);
+      return {
+        ...node,
+        id,
+        position: { x: node.position.x + 40, y: node.position.y + 40 },
+        selected: false,
+        data: cloneNodeData(node),
+      };
+    });
+  const copiedEdges = edges.flatMap((edge) => {
+    const clone = {
+      ...edge,
+      id: nextId(existing, newId),
+      selected: false,
+      data: { ...edge.data },
+    };
+    // An explicitly selected transition keeps its endpoints (a parallel edge), while a
+    // transition copied with both endpoints is remapped onto the copied nodes.
+    if (explicitEdges.has(edge.id)) {
+      return [clone];
+    }
+    if (!selected.has(edge.source) || !selected.has(edge.target)) {
+      return [];
+    }
+    return [
+      {
+        ...clone,
+        source: idMap.get(edge.source) ?? edge.source,
+        target: idMap.get(edge.target) ?? edge.target,
+      },
+    ];
+  });
+  return { nodes: copiedNodes, edges: copiedEdges };
+}
+
+/** Pastes a clipboard snapshot with fresh ids and an additional offset. */
+export function pasteClipboard(
+  clipboard: GraphClipboard,
+  existingNodes: WorkflowNode[],
+  offset: { x: number; y: number } = { x: 24, y: 24 },
+  newId: () => string = () => crypto.randomUUID(),
+): GraphClipboard {
+  const existing = new Set(existingNodes.map((node) => node.id));
+  const idMap = new Map<string, string>();
+  const nodes = clipboard.nodes.map((node) => {
+    const id = nextId(existing, newId);
+    existing.add(id);
+    idMap.set(node.id, id);
+    return {
+      ...node,
+      id,
+      position: { x: node.position.x + offset.x, y: node.position.y + offset.y },
+      selected: false,
+      data: cloneNodeData(node),
+    };
+  });
+  const edges = clipboard.edges.flatMap((edge) => {
+    const source = idMap.get(edge.source);
+    const target = idMap.get(edge.target);
+    if (source === undefined || target === undefined) {
+      return [];
+    }
+    return [{ ...edge, id: nextId(existing, newId), source, target, selected: false, data: { ...edge.data } }];
+  });
+  return { nodes, edges };
+}
+
+export type AlignmentMode = "left" | "center" | "right" | "top" | "middle" | "bottom";
+
+/** Aligns the selected nodes against the first selected node (or their bounding box). */
+export function alignNodes(
+  nodes: WorkflowNode[],
+  selectedIds: Iterable<string>,
+  mode: AlignmentMode,
+): WorkflowNode[] {
+  const selected = new Set(selectedIds);
+  const targets = nodes.filter((node) => selected.has(node.id));
+  if (targets.length < 2) {
+    return nodes;
+  }
+  const left = Math.min(...targets.map((node) => node.position.x));
+  const right = Math.max(...targets.map((node) => node.position.x));
+  const top = Math.min(...targets.map((node) => node.position.y));
+  const bottom = Math.max(...targets.map((node) => node.position.y));
+  const center = (left + right) / 2;
+  const middle = (top + bottom) / 2;
+  return nodes.map((node) => {
+    if (!selected.has(node.id)) {
+      return node;
+    }
+    switch (mode) {
+      case "left":
+        return { ...node, position: { ...node.position, x: left } };
+      case "center":
+        return { ...node, position: { ...node.position, x: center } };
+      case "right":
+        return { ...node, position: { ...node.position, x: right } };
+      case "top":
+        return { ...node, position: { ...node.position, y: top } };
+      case "middle":
+        return { ...node, position: { ...node.position, y: middle } };
+      case "bottom":
+        return { ...node, position: { ...node.position, y: bottom } };
+      default:
+        return node;
+    }
+  });
 }
 
 export function createHistory(initial: GraphSnapshot): GraphHistory {
@@ -338,7 +598,7 @@ export function redo(history: GraphHistory): { history: GraphHistory; snapshot: 
   };
 }
 
-export type DesignerShortcut = "undo" | "redo" | "duplicate" | "delete";
+export type DesignerShortcut = "undo" | "redo" | "duplicate" | "delete" | "copy" | "paste";
 
 /**
  * Maps a keyboard event to a designer action. It is pure so the page only wires the
@@ -351,7 +611,7 @@ export function shortcutAction(
     metaKey?: boolean;
     shiftKey?: boolean;
   },
-  selection: { node: boolean; edge: boolean },
+  selection: { node: boolean; edge: boolean; clipboard?: boolean },
 ): DesignerShortcut | null {
   const modifier = event.ctrlKey === true || event.metaKey === true;
   const key = event.key.toLowerCase();
@@ -360,6 +620,12 @@ export function shortcutAction(
   }
   if (modifier && key === "y") {
     return "redo";
+  }
+  if (modifier && key === "c" && (selection.node || selection.edge)) {
+    return "copy";
+  }
+  if (modifier && key === "v" && selection.clipboard === true) {
+    return "paste";
   }
   if (modifier && key === "d" && (selection.node || selection.edge)) {
     return "duplicate";
