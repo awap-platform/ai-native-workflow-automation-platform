@@ -14,17 +14,20 @@ import {
   getDocumentDownloadUrl,
   healthCheck,
   listDocuments,
+  listMyTasks,
   listTasks,
   listWorkflowDefinitions,
   listWorkflowInstances,
   registerTenant,
   rejectTask,
+  runTaskAction,
   startWorkflowInstance,
   submitForm,
   validateWorkflowExpression,
   type CreateWorkflowPayload,
   type RegisterTenantPayload,
   type SubmitFormPayload,
+  type TaskActionInput,
 } from "../api";
 import { queryKeys } from "../queryKeys";
 
@@ -33,6 +36,31 @@ import { queryKeys } from "../queryKeys";
 /** Tenant task list. */
 export function useTasks() {
   return useQuery({ queryKey: queryKeys.tasks.list(), queryFn: listTasks });
+}
+
+/** Tasks assigned to the current user, used by the inbox "mine" filter. */
+export function useMyTasks() {
+  return useQuery({ queryKey: queryKeys.tasks.mine(), queryFn: listMyTasks });
+}
+
+/**
+ * Runs any work-item action (approve, reject, complete, claim, assign, escalate).
+ *
+ * The response replaces the row in the cached list so the inbox updates before the revalidation
+ * finishes; a failed mutation leaves the cache untouched, which keeps a 409 from silently
+ * rewriting what the reviewer sees.
+ */
+export function useTaskAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: TaskActionInput) => runTaskAction(input),
+    onSuccess: (task) => {
+      queryClient.setQueryData(queryKeys.tasks.list(), (current: (typeof task)[] | undefined) =>
+        current?.map((entry) => (entry.id === task.id ? task : entry)),
+      );
+      return queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+    },
+  });
 }
 
 /** Approve or reject a task; both decisions refresh the list the pages render. */

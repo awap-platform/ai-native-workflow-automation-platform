@@ -26,6 +26,7 @@ const VISUAL_SCREEN_NAMES = new Set([
   "register",
   "dashboard",
   "tasks",
+  "task-detail",
   "workflows",
   "instances",
   "organizations",

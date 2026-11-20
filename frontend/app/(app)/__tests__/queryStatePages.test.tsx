@@ -2,10 +2,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import * as api from "../../../lib/api";
+import { ToastProvider } from "../../../components/ui/overlays";
 import { queryKeys } from "../../../lib/queryKeys";
 import AnalyticsPage from "../analytics/page";
 import OrganizationsPage from "../organizations/page";
 import TasksPage from "../tasks/page";
+
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+  useParams: () => ({ id: "task-1" }),
+  usePathname: () => "/tasks",
+}));
 
 const emptyPercentiles = { p50: null, p90: null, p95: null, p99: null, sampleCount: 0 };
 
@@ -53,6 +61,8 @@ jest.mock("../../../lib/api", () => {
     correlationIdOf: () => undefined,
     fetchAnalyticsDashboard: jest.fn(),
     listTasks: jest.fn(),
+    listMyTasks: jest.fn(),
+    runTaskAction: jest.fn(),
     fetchOrganizationTree: jest.fn(),
   };
 });
@@ -61,6 +71,7 @@ const fetchAnalyticsDashboard = api.fetchAnalyticsDashboard as jest.MockedFuncti
   typeof api.fetchAnalyticsDashboard
 >;
 const listTasks = api.listTasks as jest.MockedFunction<typeof api.listTasks>;
+const listMyTasks = api.listMyTasks as jest.MockedFunction<typeof api.listMyTasks>;
 const fetchOrganizationTree = api.fetchOrganizationTree as jest.MockedFunction<
   typeof api.fetchOrganizationTree
 >;
@@ -70,7 +81,11 @@ function renderPage(page: ReactNode) {
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   function Wrapper({ children }: { children: ReactNode }) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+    return (
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>{children}</ToastProvider>
+      </QueryClientProvider>
+    );
   }
   return { queryClient, ...render(<>{page}</>, { wrapper: Wrapper }) };
 }
@@ -149,10 +164,13 @@ describe("page-level query states", () => {
     );
   });
 
-  it("renders the empty task list state", async () => {
+  it("renders the empty inbox state", async () => {
     listTasks.mockResolvedValue([]);
+    listMyTasks.mockResolvedValue([]);
     renderPage(<TasksPage />);
-    expect(await screen.findByTestId("empty-state")).toHaveTextContent("No tasks yet.");
+    expect(await screen.findByTestId("task-list-empty")).toHaveTextContent(
+      "No work items match these filters.",
+    );
   });
 
   it("renders the empty organization state", async () => {

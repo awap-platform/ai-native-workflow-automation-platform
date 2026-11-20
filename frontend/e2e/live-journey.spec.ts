@@ -205,7 +205,7 @@ test("completes the live product journey against the real API", async ({ page })
   expect(task.status).toBe("ASSIGNED");
 
   await page.goto("/tasks");
-  await expect(page.getByRole("heading", { name: "Tasks" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Task inbox" })).toBeVisible();
   const taskRow = page.getByRole("listitem").filter({ hasText: taskTitle });
   await expect(taskRow).toContainText("ASSIGNED");
   await taskRow.getByRole("button", { name: taskTitle }).click();

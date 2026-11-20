@@ -14,6 +14,7 @@ const SCAN_DIRS = [
   "components/layout",
   "components/auth",
   "components/onboarding",
+  "components/tasks",
   "app/(app)/design-system",
 ];
 const HEX_PATTERN = /#[0-9a-fA-F]{3,8}\b/g;

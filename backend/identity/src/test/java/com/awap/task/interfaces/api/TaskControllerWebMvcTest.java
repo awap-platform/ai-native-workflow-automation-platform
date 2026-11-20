@@ -1,6 +1,7 @@
 package com.awap.task.interfaces.api;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
@@ -16,6 +17,7 @@ import com.awap.identity.IdentityApplication;
 import com.awap.identity.infrastructure.security.TenantContext;
 import com.awap.task.application.TaskService;
 import com.awap.task.interfaces.dto.TaskResponse;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -144,6 +146,26 @@ class TaskControllerWebMvcTest {
         .reject(any(UUID.class), eq(id), any(UUID.class), any(String.class), eq("Needs rework"));
   }
 
+  @Test
+  void escalatePassesTheNewAssigneeToTheService() throws Exception {
+    UUID id = UUID.randomUUID();
+    UUID assignee = UUID.randomUUID();
+    when(taskService.escalate(any(UUID.class), eq(id), any())).thenReturn(taskResponse());
+
+    mockMvc
+        .perform(
+            post("/api/v1/tasks/{id}/escalate", id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"assigneeId\":\"" + assignee + "\"}")
+                .with(csrf())
+                .with(user("user").authorities(new SimpleGrantedAuthority("TASK_MANAGE"))))
+        .andExpect(status().isOk());
+
+    verify(taskService)
+        .escalate(
+            any(UUID.class), eq(id), argThat(request -> assignee.equals(request.assigneeId())));
+  }
+
   private TaskResponse taskResponse() {
     return new TaskResponse(
         UUID.randomUUID(),
@@ -154,6 +176,12 @@ class TaskControllerWebMvcTest {
         UUID.randomUUID(),
         "APPROVED",
         0L,
+        null,
+        "GENERIC",
+        false,
+        null,
+        Instant.parse("2026-01-01T00:00:00Z"),
+        Instant.parse("2026-01-01T00:00:00Z"),
         null);
   }
 }

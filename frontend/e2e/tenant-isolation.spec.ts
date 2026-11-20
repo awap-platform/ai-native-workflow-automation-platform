@@ -44,7 +44,7 @@ test("a cross-tenant rejection renders no foreign rows", async ({ page }) => {
 
   await page.goto("/tasks");
 
-  await expect(page.getByRole("heading", { name: "Tasks" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Task inbox" })).toBeVisible();
   await expect.poll(() => headers["x-tenant-id"]).toBe("tenant-b");
   await expect(page.locator("main ul li")).toHaveCount(0);
 });

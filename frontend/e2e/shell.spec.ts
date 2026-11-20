@@ -10,7 +10,7 @@ import { installApiMocks, setSession } from "./a11yFixtures";
 test.describe.configure({ timeout: 120_000 });
 
 const HEADINGS: Record<string, string> = {
-  "/tasks": "Tasks",
+  "/tasks": "Task inbox",
   "/workflows": "Workflows",
   "/workflows/designer": "Workflow Designer",
   "/forms/builder": "Form Builder",
