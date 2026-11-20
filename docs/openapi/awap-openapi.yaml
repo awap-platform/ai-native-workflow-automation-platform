@@ -967,11 +967,31 @@ paths:
     get:
       operationId: listWorkflowInstances
       summary: List workflow instances
-      description: Lists workflow instances in the current tenant.
+      description: >-
+        Lists workflow instances in the current tenant, newest first. Without `limit` the full list
+        is returned; with it the response is one page and `X-Total-Count` carries the full size.
       tags: [Workflow Instances]
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       responses:
         "200":
           description: Workflow instances.
+          headers:
+            X-Total-Count:
+              description: Full instance count when `limit` is supplied.
+              schema:
+                type: integer
           content:
             application/json:
               schema:
@@ -3782,6 +3802,16 @@ components:
           type: string
         currentVersion:
           type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+          format: uuid
+          nullable: true
 
     WorkflowVersionResponse:
       type: object
@@ -3955,6 +3985,13 @@ components:
         createdAt:
           type: string
           format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        parentInstanceId:
+          type: string
+          format: uuid
+          nullable: true
 
     ExecutionLogResponse:
       type: object

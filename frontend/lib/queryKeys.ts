@@ -21,6 +21,9 @@ export const queryKeys = {
   workflowInstances: {
     all: ["instances"] as const,
     list: () => ["instances"] as const,
+    detail: (id: string) => ["instances", "detail", id] as const,
+    logs: (id: string) => ["instances", "logs", id] as const,
+    saga: (id: string) => ["instances", "saga", id] as const,
   },
   documents: {
     all: ["documents"] as const,

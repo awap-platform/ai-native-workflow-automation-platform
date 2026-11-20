@@ -113,7 +113,7 @@ class InternalAiToolControllerTest {
     when(engine.start(eq(tenantId), any(StartWorkflowRequest.class)))
         .thenReturn(
             new WorkflowInstanceResponse(
-                instanceId, tenantId, workflowId, 3, "RUNNING", "{}", "key-1", null));
+                instanceId, tenantId, workflowId, 3, "RUNNING", "{}", "key-1", null, null, null));
 
     Map<String, Object> result =
         controller.createWorkflowInstance(
@@ -409,7 +409,16 @@ class InternalAiToolControllerTest {
     when(engine.start(eq(tenantId), any(StartWorkflowRequest.class)))
         .thenReturn(
             new WorkflowInstanceResponse(
-                instanceId, tenantId, UUID.randomUUID(), 1, "RUNNING", "{}", null, null));
+                instanceId,
+                tenantId,
+                UUID.randomUUID(),
+                1,
+                "RUNNING",
+                "{}",
+                null,
+                null,
+                null,
+                null));
     when(tasks.listMine(tenantId, userId)).thenReturn(List.of());
     when(tasks.complete(tenantId, taskId)).thenReturn(task());
     when(tasks.assign(eq(tenantId), eq(taskId), any(TaskAssignRequest.class))).thenReturn(task());
@@ -481,7 +490,7 @@ class InternalAiToolControllerTest {
   private static WorkflowDefinitionResponse definition(
       String name, String description, String status) {
     return new WorkflowDefinitionResponse(
-        UUID.randomUUID(), UUID.randomUUID(), name, description, status, 1);
+        UUID.randomUUID(), UUID.randomUUID(), name, description, status, 1, null, null, null);
   }
 
   private static TaskResponse task() {

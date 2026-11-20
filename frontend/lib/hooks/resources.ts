@@ -5,9 +5,13 @@ import {
   createDocumentUpload,
   createFormDefinition,
   createWorkflowDefinition,
+  compensateSaga,
   fetchAnalyticsDashboard,
   fetchAnalyticsSummary,
   fetchFormDefinition,
+  fetchInstanceLogs,
+  fetchInstanceSaga,
+  fetchWorkflowInstance,
   fetchFormDefinitions,
   fetchOrganizationTree,
   fetchTenants,
@@ -20,6 +24,10 @@ import {
   listWorkflowInstances,
   registerTenant,
   rejectTask,
+  replayDryRun,
+  replayInstance,
+  retrySagaStep,
+  runInstanceAction,
   runTaskAction,
   startWorkflowInstance,
   submitForm,
@@ -102,6 +110,74 @@ export function useWorkflowInstances(options: { refetchInterval?: number } = {})
   });
 }
 
+/** One instance with polling so operator actions and engine progress converge quickly. */
+export function useWorkflowInstance(id: string, refetchInterval = 0) {
+  return useQuery({
+    queryKey: queryKeys.workflowInstances.detail(id),
+    queryFn: () => fetchWorkflowInstance(id),
+    refetchInterval,
+  });
+}
+
+/** Execution log rows for the instance timeline; redacted in the view, never in the cache. */
+export function useInstanceLogs(id: string) {
+  return useQuery({
+    queryKey: queryKeys.workflowInstances.logs(id),
+    queryFn: () => fetchInstanceLogs(id),
+  });
+}
+
+/** Saga projection; a 404 from the API means the instance has no saga yet. */
+export function useInstanceSaga(id: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.workflowInstances.saga(id),
+    queryFn: () => fetchInstanceSaga(id),
+    enabled,
+    retry: false,
+  });
+}
+
+/** Every operator action on one instance; the response replaces the cached detail. */
+export function useInstanceAction(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (action: Parameters<typeof runInstanceAction>[1]) => runInstanceAction(id, action),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.workflowInstances.all });
+    },
+  });
+}
+
+/** Dry-run replay projection; never mutates the cached instance. */
+export function useReplayDryRun(id: string) {
+  return useMutation({ mutationFn: () => replayDryRun(id) });
+}
+
+/** Applies the reference replay and refreshes the monitor. */
+export function useReplayInstance(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => replayInstance(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.workflowInstances.all }),
+  });
+}
+
+export function useCompensateSaga(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => compensateSaga(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.workflowInstances.all }),
+  });
+}
+
+export function useRetrySagaStep(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (stepId: string) => retrySagaStep(id, stepId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.workflowInstances.all }),
+  });
+}
+
 /** Starts an instance and refreshes every instance view (dashboard, instances). */
 export function useStartWorkflow() {
   const queryClient = useQueryClient();
@@ -109,10 +185,15 @@ export function useStartWorkflow() {
     mutationFn: ({
       workflowDefinitionId,
       contextJson,
+      idempotencyKey,
     }: {
       workflowDefinitionId: string;
       contextJson: string;
-    }) => startWorkflowInstance(workflowDefinitionId, contextJson),
+      idempotencyKey?: string;
+    }) =>
+      idempotencyKey
+        ? startWorkflowInstance(workflowDefinitionId, contextJson, idempotencyKey)
+        : startWorkflowInstance(workflowDefinitionId, contextJson),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.workflowInstances.all }),
   });
 }
