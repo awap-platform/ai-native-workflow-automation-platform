@@ -9,6 +9,7 @@ import AxeBuilder from "@axe-core/playwright";
 const CREATE_URL = /\/api\/v1\/workflow-definitions$/;
 const VALIDATE_URL = /\/api\/v1\/workflow-definitions\/validate-expression$/;
 const ORIGIN = process.env.E2E_BASE_URL ?? "http://localhost:3000";
+const VERSIONS_URL = /\/api\/v1\/workflow-definitions\/[^/]+\/versions$/;
 
 async function openDesigner(page: Page): Promise<void> {
   await page.context().addCookies([
@@ -23,6 +24,9 @@ async function openDesigner(page: Page): Promise<void> {
       contentType: "application/json",
       body: JSON.stringify({ valid: true, errors: [] }),
     }),
+  );
+  await page.route(VERSIONS_URL, (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
   );
   await page.goto("/workflows/designer");
   await expect(page.getByRole("heading", { name: "Workflow Designer" })).toBeVisible();

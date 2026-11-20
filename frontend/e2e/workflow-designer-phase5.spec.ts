@@ -216,14 +216,15 @@ async function mockApi(page: Page, options: MockOptions = {}): Promise<MockState
       });
       return;
     }
-    if (url.pathname.endsWith("/def-1") && method === "GET") {
+    if (url.pathname.startsWith(`${API}/`) && method === "GET") {
+      const id = url.pathname.slice(API.length + 1);
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "def-1",
+          id,
           tenantId: "tenant-a",
-          name: "Expense",
+          name: id === "def-1" ? "Expense" : "Phase 5 flow",
           description: null,
           status: "PUBLISHED",
           currentVersion: 2,

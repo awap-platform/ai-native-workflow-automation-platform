@@ -7,6 +7,7 @@ import AxeBuilder from "@axe-core/playwright";
  */
 const VALIDATE_URL = /\/api\/v1\/workflow-definitions\/validate-expression$/;
 const CREATE_URL = /\/api\/v1\/workflow-definitions$/;
+const VERSIONS_URL = /\/api\/v1\/workflow-definitions\/[^/]+\/versions$/;
 const ORIGIN = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 
 async function openDesigner(page: Page): Promise<void> {
@@ -16,6 +17,9 @@ async function openDesigner(page: Page): Promise<void> {
     // A readable CSRF cookie keeps the mocked POST paths from bootstrapping against the API.
     { name: "XSRF-TOKEN", value: "e2e-csrf", url: "http://localhost:8080" },
   ]);
+  await page.route(VERSIONS_URL, (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+  );
   await page.goto("/workflows/designer");
   await expect(page.getByRole("heading", { name: "Workflow Designer" })).toBeVisible();
 }

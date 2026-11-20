@@ -168,7 +168,9 @@ function DesignerCanvas() {
   const urlDefinitionId = useMemo(() => new URLSearchParams(search).get("id"), [search]);
   const definitionId = createdDefinitionId ?? urlDefinitionId;
 
-  const definitionQuery = useWorkflowDefinition(definitionId);
+  // Only an opened definition needs a metadata lookup; a draft created in this session already
+  // carries its own name and must not trigger an extra request after saving.
+  const definitionQuery = useWorkflowDefinition(urlDefinitionId);
   const versionsQuery = useWorkflowVersions(definitionId);
   const versions = useMemo(() => versionsQuery.data ?? [], [versionsQuery.data]);
 
