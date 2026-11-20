@@ -33,6 +33,9 @@ export interface WorkflowDefinitionDto {
   description: string | null;
   status: string;
   currentVersion: number;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  createdBy?: string | null;
 }
 
 export interface WorkflowInstanceDto {
@@ -44,6 +47,68 @@ export interface WorkflowInstanceDto {
   contextJson: string;
   idempotencyKey: string | null;
   createdAt: string;
+  updatedAt?: string | null;
+  parentInstanceId?: string | null;
+}
+
+export interface ExecutionLogDto {
+  id: string;
+  workflowInstanceId: string;
+  nodeId: string | null;
+  nodeType: string | null;
+  action: string;
+  payload: string | null;
+  createdAt: string;
+}
+
+export interface SagaStepDto {
+  id: string;
+  stepOrder: number;
+  nodeId: string;
+  nodeType: string;
+  actionType: string;
+  compensationType: string | null;
+  status: string;
+  attempts: number;
+  maxAttempts: number;
+  retryBackoffMs: number;
+  timeoutSeconds: number;
+  nextAttemptAt: string | null;
+  lastError: string | null;
+  compensatedAt: string | null;
+}
+
+export interface SagaDto {
+  id: string;
+  tenantId: string;
+  workflowInstanceId: string;
+  sagaKey: string;
+  status: string;
+  failureReason: string | null;
+  compensationStartedAt: string | null;
+  compensationCompletedAt: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+  steps: SagaStepDto[];
+}
+
+export interface ReplayReportDto {
+  instanceId: string;
+  dryRun: boolean;
+  result: string;
+  errorCode?: string | null;
+  projection: {
+    instanceId: string;
+    state: string;
+    currentNodeId: string | null;
+    nodeStatuses: Record<string, string>;
+    appliedActions: number;
+  } | null;
+  divergences: Array<{ type: string; nodeId: string | null; detail: string | null }>;
+  logRows: number;
+  logPages: number;
+  durationMs: number;
+  stateHash: string;
 }
 
 export interface FormDefinitionDto {
@@ -537,6 +602,43 @@ export function listWorkflowInstances(): Promise<WorkflowInstanceDto[]> {
   return authFetch<WorkflowInstanceDto[]>("/api/v1/workflow-instances");
 }
 
+export function fetchWorkflowInstance(id: string): Promise<WorkflowInstanceDto> {
+  return authFetch<WorkflowInstanceDto>(`/api/v1/workflow-instances/${id}`);
+}
+
+export function fetchInstanceLogs(id: string): Promise<ExecutionLogDto[]> {
+  return authFetch<ExecutionLogDto[]>(`/api/v1/workflow-instances/${id}/logs`);
+}
+
+export function fetchInstanceSaga(id: string): Promise<SagaDto> {
+  return authFetch<SagaDto>(`/api/v1/workflow-instances/${id}/saga`);
+}
+
+export type InstanceAction = "retry" | "pause" | "resume" | "cancel" | "fail" | "recover";
+
+/** Operator action on one instance; the response is the authoritative new state. */
+export function runInstanceAction(id: string, action: InstanceAction): Promise<WorkflowInstanceDto> {
+  return authPost<WorkflowInstanceDto>(`/api/v1/workflow-instances/${id}/${action}`, undefined);
+}
+
+/** Deterministic replay projection; writes only the audit row. */
+export function replayDryRun(id: string): Promise<ReplayReportDto> {
+  return authPost<ReplayReportDto>(`/api/v1/workflow-instances/${id}/replay?dryRun=true`, undefined);
+}
+
+/** Applies the reference replay after a matching projection. */
+export function replayInstance(id: string): Promise<WorkflowInstanceDto> {
+  return authPost<WorkflowInstanceDto>(`/api/v1/workflow-instances/${id}/replay`, undefined);
+}
+
+export function compensateSaga(id: string): Promise<SagaDto> {
+  return authPost<SagaDto>(`/api/v1/workflow-instances/${id}/saga/compensate`, undefined);
+}
+
+export function retrySagaStep(id: string, stepId: string): Promise<SagaDto> {
+  return authPost<SagaDto>(`/api/v1/workflow-instances/${id}/saga/steps/${stepId}/retry`, undefined);
+}
+
 export function createWorkflowDefinition(
   payload: CreateWorkflowPayload,
 ): Promise<WorkflowDefinitionDto> {
@@ -629,10 +731,12 @@ export function runTaskAction({ id, action, comment, assigneeId }: TaskActionInp
 export function startWorkflowInstance(
   workflowDefinitionId: string,
   contextJson = "{}",
+  idempotencyKey?: string,
 ): Promise<WorkflowInstanceDto> {
   return authPost<WorkflowInstanceDto>("/api/v1/workflow-instances", {
     workflowDefinitionId,
     contextJson,
+    ...(idempotencyKey ? { idempotencyKey } : {}),
   });
 }
 

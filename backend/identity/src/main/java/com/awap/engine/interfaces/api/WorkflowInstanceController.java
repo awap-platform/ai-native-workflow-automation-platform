@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** Workflow instance endpoints: start, list, get, logs and state transitions. */
@@ -45,10 +46,25 @@ public class WorkflowInstanceController {
         .body(engineService.start(currentTenantId(), request));
   }
 
+  /**
+   * Lists instances newest first. Without {@code limit} the full tenant list is returned (existing
+   * callers); with it the response is one page and {@code X-Total-Count} carries the full size so
+   * the monitor can paginate without a second request.
+   */
   @GetMapping
   @PreAuthorize("hasAuthority('INSTANCE_READ')")
-  public ResponseEntity<List<WorkflowInstanceResponse>> list() {
-    return ResponseEntity.ok(engineService.list(currentTenantId()));
+  public ResponseEntity<List<WorkflowInstanceResponse>> list(
+      @RequestParam(required = false) Integer limit,
+      @RequestParam(required = false) Integer offset) {
+    List<WorkflowInstanceResponse> all = engineService.list(currentTenantId());
+    if (limit == null) {
+      return ResponseEntity.ok(all);
+    }
+    int size = Math.max(0, limit);
+    int from = Math.min(all.size(), Math.max(0, offset == null ? 0 : offset));
+    int to = Math.min(all.size(), from + size);
+    List<WorkflowInstanceResponse> page = List.copyOf(all.subList(from, to));
+    return ResponseEntity.ok().header("X-Total-Count", String.valueOf(all.size())).body(page);
   }
 
   @GetMapping("/{id}")

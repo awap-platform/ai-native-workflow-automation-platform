@@ -29,6 +29,7 @@ const VISUAL_SCREEN_NAMES = new Set([
   "task-detail",
   "workflows",
   "instances",
+  "instance-detail",
   "organizations",
   "notifications",
 ]);

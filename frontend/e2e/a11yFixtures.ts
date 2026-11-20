@@ -216,6 +216,50 @@ export function responseFor(pathname: string, populated: boolean): unknown {
   if (pathname.endsWith("/api/v1/workflow-instances")) {
     return populated ? [instanceFixture] : [];
   }
+  if (pathname.endsWith("/api/v1/workflow-instances/inst-1/logs")) {
+    return populated
+      ? [
+          {
+            id: "log-1",
+            workflowInstanceId: "inst-1",
+            nodeId: "start",
+            nodeType: "START",
+            action: "NODE_STARTED",
+            payload: "{}",
+            createdAt: now,
+          },
+          {
+            id: "log-2",
+            workflowInstanceId: "inst-1",
+            nodeId: "end",
+            nodeType: "END",
+            action: "NODE_COMPLETED",
+            payload: '{"result":"ok"}',
+            createdAt: now,
+          },
+        ]
+      : [];
+  }
+  if (pathname.endsWith("/api/v1/workflow-instances/inst-1/saga")) {
+    return populated
+      ? {
+          id: "saga-1",
+          tenantId: "tenant-a",
+          workflowInstanceId: "inst-1",
+          sagaKey: "saga-key",
+          status: "COMPLETED",
+          failureReason: null,
+          compensationStartedAt: null,
+          compensationCompletedAt: null,
+          createdAt: now,
+          updatedAt: now,
+          steps: [],
+        }
+      : [];
+  }
+  if (pathname.endsWith("/api/v1/workflow-instances/inst-1")) {
+    return instanceFixture;
+  }
   if (pathname.endsWith("/api/v1/workflow-definitions")) {
     return populated ? [workflowFixture] : [];
   }
@@ -434,6 +478,13 @@ export const SCREENS: ScreenDefinition[] = [
     heading: "Workflow Instances",
     protected: true,
     states: ["empty", "populated"],
+  },
+  {
+    name: "instance-detail",
+    path: "/instances/inst-1",
+    heading: "Instance detail",
+    protected: true,
+    states: ["populated"],
   },
   {
     name: "organizations",

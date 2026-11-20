@@ -6,7 +6,9 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -62,6 +64,65 @@ class WorkflowInstanceReplayWebMvcTest {
     TenantContext.clear();
   }
 
+  private WorkflowInstanceResponse instance(String state) {
+    return new WorkflowInstanceResponse(
+        UUID.randomUUID(),
+        UUID.randomUUID(),
+        UUID.randomUUID(),
+        1,
+        state,
+        "{}",
+        null,
+        Instant.parse("2026-01-01T00:00:00Z"),
+        Instant.parse("2026-01-01T00:00:00Z"),
+        null);
+  }
+
+  @Test
+  void listWithoutLimitReturnsEveryInstanceAndNoTotalHeader() throws Exception {
+    when(engineService.list(any(UUID.class))).thenReturn(List.of(instance("RUNNING")));
+
+    mockMvc
+        .perform(
+            get("/api/v1/workflow-instances")
+                .with(user("u").authorities(new SimpleGrantedAuthority("INSTANCE_READ"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(1))
+        .andExpect(header().doesNotExist("X-Total-Count"));
+  }
+
+  @Test
+  void listWithLimitReturnsOnePageAndTheTotalCount() throws Exception {
+    when(engineService.list(any(UUID.class)))
+        .thenReturn(List.of(instance("RUNNING"), instance("COMPLETED"), instance("FAILED")));
+
+    mockMvc
+        .perform(
+            get("/api/v1/workflow-instances")
+                .param("limit", "1")
+                .param("offset", "1")
+                .with(user("u").authorities(new SimpleGrantedAuthority("INSTANCE_READ"))))
+        .andExpect(status().isOk())
+        .andExpect(header().string("X-Total-Count", "3"))
+        .andExpect(jsonPath("$.length()").value(1))
+        .andExpect(jsonPath("$[0].state").value("COMPLETED"));
+  }
+
+  @Test
+  void listPageBeyondTheEndReturnsAnEmptyPage() throws Exception {
+    when(engineService.list(any(UUID.class))).thenReturn(List.of(instance("RUNNING")));
+
+    mockMvc
+        .perform(
+            get("/api/v1/workflow-instances")
+                .param("limit", "10")
+                .param("offset", "50")
+                .with(user("u").authorities(new SimpleGrantedAuthority("INSTANCE_READ"))))
+        .andExpect(status().isOk())
+        .andExpect(header().string("X-Total-Count", "1"))
+        .andExpect(jsonPath("$.length()").value(0));
+  }
+
   private ReplayReport report(String result, List<ReplayDivergenceView> divergences) {
     return new ReplayReport(
         INSTANCE,
@@ -114,7 +175,9 @@ class WorkflowInstanceReplayWebMvcTest {
             "RUNNING",
             "{}",
             null,
-            Instant.parse("2026-01-01T00:00:00Z"));
+            Instant.parse("2026-01-01T00:00:00Z"),
+            Instant.parse("2026-01-01T00:00:00Z"),
+            null);
     when(replayService.replay(any(UUID.class), eq(INSTANCE), any())).thenReturn(response);
 
     mockMvc

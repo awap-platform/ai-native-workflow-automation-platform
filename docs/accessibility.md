@@ -18,7 +18,7 @@ uses the shared fixtures in
 | AI Copilot | `/copilot` | ✅ | ✅ | Natural-language request, HITL warning and tool-call list |
 | Task inbox | `/tasks` | ✅ | ✅ | Split pane: filters, saved views, bulk toolbar, J/K/Enter/A/R shortcuts |
 | Work item 360 | `/tasks?task=…` | — | ✅ | Detail tabs: context, decision, history, attachments, variables |
-| Workflows | `/workflows` | ✅ | ✅ | Populated state opens the start dialog |
+| Workflow catalogue | `/workflows` | ✅ | ✅ | Cards/table, filters and the start dialog with a JSON preview |
 | Workflow designer | `/workflows/designer` | ✅ | ✅ | Populated state adds a TASK node |
 | Form builder | `/forms/builder` | ✅ | ✅ | Populated state adds a TEXT field inspector |
 | Form fill | `/forms/fill` | ✅ | ✅ | Populated state selects the form and renders its fields |
@@ -26,7 +26,8 @@ uses the shared fixtures in
 | Notifications | `/notifications` | ✅ | ✅ | Unread live region |
 | Notification templates | `/notification-templates` | ✅ | ✅ | List + editor |
 | Analytics | `/analytics` | ✅ | ✅ | Empty and aggregate tables |
-| Workflow instances | `/instances` | ✅ | ✅ | State labels |
+| Workflow instances | `/instances` | ✅ | ✅ | State filter, export and deep links |
+| Instance detail | `/instances/{id}` | — | ✅ | Timeline, redacted logs, saga and guarded operator actions |
 | Organizations | `/organizations` | ✅ | ✅ | Empty and nested tree |
 | CSP reports | `/admin/csp` | ✅ | — | Redacted aggregate dashboard |
 | Design system | `/design-system` | ✅ | — | 32-component catalogue; light + dark axe |

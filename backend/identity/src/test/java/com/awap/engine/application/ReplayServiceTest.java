@@ -237,7 +237,7 @@ class ReplayServiceTest {
     happyPathNodes();
     WorkflowInstanceResponse response =
         new WorkflowInstanceResponse(
-            INSTANCE, TENANT, UUID.randomUUID(), 1, "RUNNING", "{}", null, Instant.now());
+            INSTANCE, TENANT, UUID.randomUUID(), 1, "RUNNING", "{}", null, Instant.now(), Instant.now(), null);
     when(engineService.replay(TENANT, INSTANCE)).thenReturn(response);
 
     WorkflowInstanceResponse result = service().replay(TENANT, INSTANCE, Optional.empty());
