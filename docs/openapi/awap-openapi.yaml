@@ -994,6 +994,10 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "413":
           description: The BPMN XML exceeds the one-megabyte limit.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
 
   /api/v1/workflow-definitions/bpmn/export:
     post:

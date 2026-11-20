@@ -130,6 +130,19 @@ class WorkflowBpmnControllerWebMvcTest {
   }
 
   @Test
+  void importRequiresATenantContext() throws Exception {
+    TenantContext.clear();
+    mockMvc
+        .perform(
+            post("/api/v1/workflow-definitions/bpmn/import")
+                .with(csrf())
+                .contentType(APPLICATION_JSON)
+                .content(json("bpmnXml", START_END_BPMN))
+                .with(user("u").authorities(new SimpleGrantedAuthority("WORKFLOW_CREATE"))))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
   void importRejectsABlankBodyField() throws Exception {
     mockMvc
         .perform(

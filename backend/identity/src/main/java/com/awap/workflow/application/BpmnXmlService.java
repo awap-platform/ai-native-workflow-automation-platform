@@ -31,7 +31,6 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import org.xml.sax.ErrorHandler;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
@@ -178,7 +177,7 @@ public class BpmnXmlService {
           "BPMN XML exceeds the maximum size of " + MAX_XML_LENGTH + " characters.");
     }
 
-    Document document = parse(bpmnXml);
+    Document document = parse(new InputSource(new StringReader(bpmnXml)));
     Element root = document.getDocumentElement();
     if (root == null || !"definitions".equals(localName(root))) {
       throw invalidBpmn(1, "The root element must be bpmn:definitions.");
@@ -287,7 +286,7 @@ public class BpmnXmlService {
     element.appendChild(extension);
   }
 
-  private NodeType nodeType(Element element, String localName, String bpmnXml) {
+  NodeType nodeType(Element element, String localName, String bpmnXml) {
     String explicit = extensionText(element, "nodeType");
     if (explicit != null && !explicit.isBlank()) {
       try {
@@ -367,27 +366,10 @@ public class BpmnXmlService {
     }
   }
 
-  private Document parse(String xml) {
+  Document parse(InputSource source) {
     try {
       DocumentBuilder builder = hardenedFactory().newDocumentBuilder();
-      builder.setErrorHandler(
-          new ErrorHandler() {
-            @Override
-            public void warning(SAXParseException exception) {
-              // Warnings do not make the document invalid.
-            }
-
-            @Override
-            public void error(SAXParseException exception) throws SAXException {
-              throw exception;
-            }
-
-            @Override
-            public void fatalError(SAXParseException exception) throws SAXException {
-              throw exception;
-            }
-          });
-      return builder.parse(new InputSource(new StringReader(xml)));
+      return builder.parse(source);
     } catch (SAXParseException ex) {
       throw invalidBpmn(ex.getLineNumber(), "XML is not well-formed: " + ex.getMessage());
     } catch (SAXException | IOException | ParserConfigurationException ex) {
@@ -399,7 +381,7 @@ public class BpmnXmlService {
    * Builds a parser that never resolves a DTD or an external entity. The disallow-doctype feature
    * rejects XXE payloads outright; the access restrictions are a second, independent guard.
    */
-  private DocumentBuilderFactory hardenedFactory() throws ParserConfigurationException {
+  DocumentBuilderFactory hardenedFactory() throws ParserConfigurationException {
     DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
     factory.setNamespaceAware(true);
     factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
@@ -414,13 +396,9 @@ public class BpmnXmlService {
     return factory;
   }
 
-  private String serialize(Document document) {
+  String serialize(Document document) {
     try {
-      TransformerFactory factory = TransformerFactory.newInstance();
-      factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-      factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-      factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
-      Transformer transformer = factory.newTransformer();
+      Transformer transformer = newTransformer();
       transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
       transformer.setOutputProperty(OutputKeys.INDENT, "yes");
       transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no");
@@ -430,6 +408,14 @@ public class BpmnXmlService {
     } catch (TransformerException | IllegalArgumentException ex) {
       throw new IllegalStateException("The BPMN document could not be serialized.", ex);
     }
+  }
+
+  Transformer newTransformer() throws TransformerException {
+    TransformerFactory factory = TransformerFactory.newInstance();
+    factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+    factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+    factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
+    return factory.newTransformer();
   }
 
   private String elementName(NodeType type) {
@@ -464,13 +450,7 @@ public class BpmnXmlService {
   }
 
   private String localName(Node node) {
-    String local = node.getLocalName();
-    if (local != null) {
-      return local;
-    }
-    String name = node.getNodeName();
-    int colon = name.indexOf(':');
-    return colon < 0 ? name : name.substring(colon + 1);
+    return node.getLocalName() == null ? node.getNodeName() : node.getLocalName();
   }
 
   private List<Element> childElements(Element parent) {
@@ -496,15 +476,7 @@ public class BpmnXmlService {
 
   private Element firstDescendant(Element parent, String localName) {
     NodeList descendants = parent.getElementsByTagNameNS("*", localName);
-    if (descendants.getLength() > 0) {
-      return (Element) descendants.item(0);
-    }
-    for (Element child : childElements(parent)) {
-      if (localName.equals(localName(child))) {
-        return child;
-      }
-    }
-    return null;
+    return descendants.getLength() > 0 ? (Element) descendants.item(0) : null;
   }
 
   private int lineOfElement(String xml, Element element) {
