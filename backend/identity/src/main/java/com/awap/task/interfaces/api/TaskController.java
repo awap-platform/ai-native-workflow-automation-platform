@@ -64,6 +64,17 @@ public class TaskController {
     return ResponseEntity.ok(taskService.claim(currentTenantId(), id, currentUserId()));
   }
 
+  /**
+   * Escalates a task to another assignee and restarts its one-hour SLA window. The UI shows the new
+   * deadline from the response instead of computing it locally.
+   */
+  @PostMapping("/{id}/escalate")
+  @PreAuthorize("hasAuthority('TASK_MANAGE')")
+  public ResponseEntity<TaskResponse> escalate(
+      @PathVariable UUID id, @Valid @RequestBody TaskAssignRequest request) {
+    return ResponseEntity.ok(taskService.escalate(currentTenantId(), id, request));
+  }
+
   @PostMapping("/{id}/approve")
   @PreAuthorize("hasAuthority('TASK_APPROVE')")
   public ResponseEntity<TaskResponse> approve(

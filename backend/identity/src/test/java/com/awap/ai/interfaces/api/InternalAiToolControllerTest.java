@@ -494,6 +494,12 @@ class InternalAiToolControllerTest {
         UUID.randomUUID(),
         "PENDING",
         0L,
+        null,
+        "APPROVAL",
+        false,
+        null,
+        null,
+        null,
         null);
   }
 }

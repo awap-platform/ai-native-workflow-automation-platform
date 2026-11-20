@@ -129,6 +129,8 @@ test("double submit sends exactly one login request", async ({ page }) => {
   let calls = 0;
   await page.route(`${API}auth/login`, async (route) => {
     calls += 1;
+    // Hold the response so both clicks land while the first request is still in flight.
+    await new Promise((resolve) => setTimeout(resolve, 150));
     await route.fulfill({
       status: 200,
       contentType: "application/json",

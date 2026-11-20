@@ -593,6 +593,16 @@
     background: var(--awap-surface);
   }
 
+  /*
+   * Inbox rows (phase 3): the browser skips layout and paint for rows outside the viewport, which
+   * keeps a 1000-row inbox interactive without a virtual scroller or inline heights (R3-04).
+   */
+  .awap-task-row {
+    min-height: 92px;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 92px;
+  }
+
   .awap-badge {
     display: inline-flex;
     align-items: center;

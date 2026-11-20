@@ -1,5 +1,6 @@
 import { clearSessionExpiry, setSessionExpiry } from "./auth";
 import { safeReturnTo } from "./redirect";
+import { recordServerClock } from "./serverClock";
 
 function apiBase(): string {
   return process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8080";
@@ -15,6 +16,14 @@ export interface TaskDto {
   status: string;
   version: number;
   decisionComment: string | null;
+  /** `APPROVAL` or `GENERIC`; older payloads may omit it. */
+  taskType?: string | null;
+  escalated?: boolean;
+  /** Server-side SLA deadline; the countdown never invents one. */
+  escalateAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  completedAt?: string | null;
 }
 
 export interface WorkflowDefinitionDto {
@@ -404,6 +413,7 @@ async function apiRequest<T>(
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   logApi(method, path, response.status, started);
+  recordServerClock(response);
 
   if (response.status === 401 && !retried && (await refreshSession())) {
     return apiRequest<T>(method, path, body, true, extraHeaders);
@@ -514,6 +524,11 @@ export function listTasks(): Promise<TaskDto[]> {
   return authFetch<TaskDto[]>("/api/v1/tasks");
 }
 
+/** Tasks assigned to the signed-in user; the inbox "mine" view reads this contract directly. */
+export function listMyTasks(): Promise<TaskDto[]> {
+  return authFetch<TaskDto[]>("/api/v1/tasks/mine");
+}
+
 export function listWorkflowDefinitions(): Promise<WorkflowDefinitionDto[]> {
   return authFetch<WorkflowDefinitionDto[]>("/api/v1/workflow-definitions");
 }
@@ -558,6 +573,57 @@ export function approveTask(id: string, comment?: string): Promise<TaskDto> {
 
 export function rejectTask(id: string, comment?: string): Promise<TaskDto> {
   return authPost<TaskDto>(`/api/v1/tasks/${id}/reject`, { comment });
+}
+
+/** Assigns (or reassigns) a task; the response carries the authoritative status and version. */
+export function assignTask(id: string, assigneeId: string): Promise<TaskDto> {
+  return authPost<TaskDto>(`/api/v1/tasks/${id}/assign`, { assigneeId });
+}
+
+/** Claims an unassigned task for the signed-in user. */
+export function claimTask(id: string): Promise<TaskDto> {
+  return authPost<TaskDto>(`/api/v1/tasks/${id}/claim`, undefined);
+}
+
+/** Completes an assigned or in-progress task. */
+export function completeTask(id: string): Promise<TaskDto> {
+  return authPost<TaskDto>(`/api/v1/tasks/${id}/complete`, undefined);
+}
+
+/** Escalates to another assignee and restarts the one-hour SLA window on the server. */
+export function escalateTask(id: string, assigneeId: string): Promise<TaskDto> {
+  return authPost<TaskDto>(`/api/v1/tasks/${id}/escalate`, { assigneeId });
+}
+
+export type TaskActionKind = "approve" | "reject" | "complete" | "claim" | "assign" | "escalate";
+
+export interface TaskActionInput {
+  id: string;
+  action: TaskActionKind;
+  comment?: string;
+  assigneeId?: string;
+}
+
+/** Single seam for every work item action so bulk execution reuses the same behaviour. */
+export function runTaskAction({ id, action, comment, assigneeId }: TaskActionInput): Promise<TaskDto> {
+  switch (action) {
+    case "approve":
+      return approveTask(id, comment);
+    case "reject":
+      return rejectTask(id, comment);
+    case "complete":
+      return completeTask(id);
+    case "claim":
+      return claimTask(id);
+    case "assign":
+    case "escalate":
+      if (!assigneeId) {
+        return Promise.reject(new ApiError(400, "Choose an assignee first."));
+      }
+      return action === "assign"
+        ? assignTask(id, assigneeId)
+        : escalateTask(id, assigneeId);
+  }
 }
 
 export function startWorkflowInstance(

@@ -16,7 +16,8 @@ uses the shared fixtures in
 | Tenant selection | `/select-tenant` | — | ✅ | Two memberships shown as cards |
 | Dashboard | `/dashboard` | ✅ | ✅ | Tasks/instances counts |
 | AI Copilot | `/copilot` | ✅ | ✅ | Natural-language request, HITL warning and tool-call list |
-| Tasks | `/tasks` | ✅ | ✅ | Populated state opens the task detail panel |
+| Task inbox | `/tasks` | ✅ | ✅ | Split pane: filters, saved views, bulk toolbar, J/K/Enter/A/R shortcuts |
+| Work item 360 | `/tasks?task=…` | — | ✅ | Detail tabs: context, decision, history, attachments, variables |
 | Workflows | `/workflows` | ✅ | ✅ | Populated state opens the start dialog |
 | Workflow designer | `/workflows/designer` | ✅ | ✅ | Populated state adds a TASK node |
 | Form builder | `/forms/builder` | ✅ | ✅ | Populated state adds a TEXT field inspector |
@@ -32,6 +33,11 @@ uses the shared fixtures in
 
 Keyboard focus is exercised on every screen. Form-label, live-region and
 error-announcement checks run for login, register, documents and notifications.
+
+The task inbox adds a dedicated keyboard contract: `J`/`K` move the row cursor,
+`Enter` focuses the detail heading, `A` opens the approval confirmation and `R`
+opens the rejection confirmation (which still requires a comment). The phone
+layout moves the work item to `/tasks/[id]` instead of shrinking the split pane.
 
 ## Gate
 

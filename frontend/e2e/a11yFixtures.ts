@@ -19,9 +19,15 @@ export const taskFixture = {
   title: "Approve expense",
   description: "Approve the Q4 expense report.",
   assigneeId: "user-1",
-  status: "OPEN",
+  status: "ASSIGNED",
   version: 1,
   decisionComment: null,
+  taskType: "APPROVAL",
+  escalated: false,
+  escalateAt: "2026-11-20T23:00:00Z",
+  createdAt: "2026-11-20T08:00:00Z",
+  updatedAt: "2026-11-20T08:30:00Z",
+  completedAt: null,
 };
 
 export const instanceFixture = {
@@ -201,6 +207,9 @@ export function responseFor(pathname: string, populated: boolean): unknown {
   if (pathname.endsWith("/api/v1/auth/csrf")) {
     return {};
   }
+  if (pathname.endsWith("/api/v1/tasks/mine")) {
+    return populated ? [taskFixture] : [];
+  }
   if (pathname.endsWith("/api/v1/tasks")) {
     return populated ? [taskFixture] : [];
   }
@@ -352,9 +361,16 @@ export const SCREENS: ScreenDefinition[] = [
   {
     name: "tasks",
     path: "/tasks",
-    heading: "Tasks",
+    heading: "Task inbox",
     protected: true,
     states: ["empty", "populated"],
+  },
+  {
+    name: "task-detail",
+    path: "/tasks?task=task-1",
+    heading: "Task inbox",
+    protected: true,
+    states: ["populated"],
   },
   {
     name: "workflows",
