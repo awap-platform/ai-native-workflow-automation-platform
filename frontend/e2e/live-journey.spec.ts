@@ -207,12 +207,16 @@ test("completes the live product journey against the real API", async ({ page })
   await page.goto("/tasks");
   await expect(page.getByRole("heading", { name: "Task inbox" })).toBeVisible();
   const taskRow = page.getByRole("listitem").filter({ hasText: taskTitle });
-  await expect(taskRow).toContainText("ASSIGNED");
+  await expect(taskRow).toContainText("Assigned");
   await taskRow.getByRole("button", { name: taskTitle }).click();
   await expect(page.getByRole("heading", { name: taskTitle })).toBeVisible();
+  await page.getByRole("tab", { name: "Decision" }).click();
   await page.getByLabel("Decision comment").fill("Approved by the live E2E journey.");
   await page.getByRole("button", { name: "Approve", exact: true }).click();
-  await expect(taskRow).toContainText("APPROVED", { timeout: 30_000 });
+  await page.getByRole("button", { name: "Confirm" }).click();
+  // The approved row leaves the default open filter; assert it under Completed.
+  await page.getByTestId("task-filter-completed").click();
+  await expect(taskRow).toContainText("Approved", { timeout: 30_000 });
   await expect
     .poll(
       async () => {
