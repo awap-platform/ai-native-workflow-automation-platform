@@ -108,8 +108,15 @@ test("double submit creates exactly one tenant (U2-07)", async ({ page }) => {
   });
 
   await toSummary(page);
-  const submit = page.getByTestId("register-submit");
-  await Promise.all([submit.click(), submit.click().catch(() => undefined)]);
+  // Dispatch both clicks synchronously: a Playwright click would wait for the button to become
+  // enabled again and time out once the first click disables it.
+  const clicked = await page.evaluate(() => {
+    const button = document.querySelector<HTMLButtonElement>('[data-testid="register-submit"]');
+    button?.click();
+    button?.click();
+    return button !== null;
+  });
+  expect(clicked).toBe(true);
   await page.waitForTimeout(500);
   expect(posts).toBe(1);
 });

@@ -147,8 +147,17 @@ test("double submit sends exactly one login request", async ({ page }) => {
 
   await page.goto("/");
   await fillLogin(page, "Str0ng-Passw0rd!");
-  const button = page.getByRole("button", { name: "Sign in" });
-  await Promise.all([button.click(), button.click().catch(() => undefined)]);
+  // Two synchronous DOM clicks exercise the in-flight guard; Playwright's second click would wait
+  // for the button to re-enable and hide a genuine double-submit.
+  const clicked = await page.evaluate(() => {
+    const button = Array.from(document.querySelectorAll("button")).find(
+      (candidate) => candidate.textContent?.trim() === "Sign in",
+    );
+    button?.click();
+    button?.click();
+    return button !== undefined;
+  });
+  expect(clicked).toBe(true);
   await page.waitForTimeout(500);
   expect(calls).toBe(1);
 });
