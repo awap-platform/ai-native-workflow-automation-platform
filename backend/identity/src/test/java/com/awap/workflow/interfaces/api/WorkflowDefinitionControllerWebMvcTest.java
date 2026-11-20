@@ -202,7 +202,15 @@ class WorkflowDefinitionControllerWebMvcTest {
   void getReturnsTheDefinitionForTheCurrentTenant() throws Exception {
     WorkflowDefinitionResponse response =
         new WorkflowDefinitionResponse(
-            UUID.randomUUID(), UUID.randomUUID(), "Approval", null, "PUBLISHED", 2, null, null, null);
+            UUID.randomUUID(),
+            UUID.randomUUID(),
+            "Approval",
+            null,
+            "PUBLISHED",
+            2,
+            null,
+            null,
+            null);
     when(service.get(any(UUID.class), eq(response.id()))).thenReturn(response);
 
     mockMvc
@@ -218,7 +226,15 @@ class WorkflowDefinitionControllerWebMvcTest {
   void publishDelegatesToTheService() throws Exception {
     WorkflowDefinitionResponse response =
         new WorkflowDefinitionResponse(
-            UUID.randomUUID(), UUID.randomUUID(), "Approval", null, "PUBLISHED", 1, null, null, null);
+            UUID.randomUUID(),
+            UUID.randomUUID(),
+            "Approval",
+            null,
+            "PUBLISHED",
+            1,
+            null,
+            null,
+            null);
     when(service.publish(any(UUID.class), eq(response.id()))).thenReturn(response);
 
     mockMvc
@@ -234,7 +250,15 @@ class WorkflowDefinitionControllerWebMvcTest {
   void rollbackDelegatesToTheServiceWithTheTargetVersion() throws Exception {
     WorkflowDefinitionResponse response =
         new WorkflowDefinitionResponse(
-            UUID.randomUUID(), UUID.randomUUID(), "Approval", null, "PUBLISHED", 1, null, null, null);
+            UUID.randomUUID(),
+            UUID.randomUUID(),
+            "Approval",
+            null,
+            "PUBLISHED",
+            1,
+            null,
+            null,
+            null);
     when(service.rollback(any(UUID.class), eq(response.id()), eq(1))).thenReturn(response);
 
     mockMvc

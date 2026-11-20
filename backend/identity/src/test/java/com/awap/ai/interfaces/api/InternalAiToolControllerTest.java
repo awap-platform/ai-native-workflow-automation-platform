@@ -409,7 +409,16 @@ class InternalAiToolControllerTest {
     when(engine.start(eq(tenantId), any(StartWorkflowRequest.class)))
         .thenReturn(
             new WorkflowInstanceResponse(
-                instanceId, tenantId, UUID.randomUUID(), 1, "RUNNING", "{}", null, null, null, null));
+                instanceId,
+                tenantId,
+                UUID.randomUUID(),
+                1,
+                "RUNNING",
+                "{}",
+                null,
+                null,
+                null,
+                null));
     when(tasks.listMine(tenantId, userId)).thenReturn(List.of());
     when(tasks.complete(tenantId, taskId)).thenReturn(task());
     when(tasks.assign(eq(tenantId), eq(taskId), any(TaskAssignRequest.class))).thenReturn(task());
