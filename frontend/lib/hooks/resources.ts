@@ -1,32 +1,39 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   archiveDocumentVersion,
+  archiveWorkflowVersion,
   approveTask,
   createDocumentUpload,
   createFormDefinition,
   createWorkflowDefinition,
   compensateSaga,
+  exportWorkflowBpmn,
   fetchAnalyticsDashboard,
   fetchAnalyticsSummary,
   fetchFormDefinition,
   fetchInstanceLogs,
   fetchInstanceSaga,
+  fetchWorkflowDefinition,
   fetchWorkflowInstance,
+  fetchWorkflowVersions,
   fetchFormDefinitions,
   fetchOrganizationTree,
   fetchTenants,
   getDocumentDownloadUrl,
   healthCheck,
+  importWorkflowBpmn,
   listDocuments,
   listMyTasks,
   listTasks,
   listWorkflowDefinitions,
   listWorkflowInstances,
+  publishWorkflowDefinition,
   registerTenant,
   rejectTask,
   replayDryRun,
   replayInstance,
   retrySagaStep,
+  rollbackWorkflowDefinition,
   runInstanceAction,
   runTaskAction,
   startWorkflowInstance,
@@ -212,6 +219,70 @@ export function useValidateWorkflowExpression() {
   return useMutation({
     mutationFn: (expression: string) => validateWorkflowExpression(expression),
   });
+}
+
+/** One definition, used when the designer opens from `?id=`. */
+export function useWorkflowDefinition(id: string | null) {
+  return useQuery({
+    queryKey: queryKeys.workflowDefinitions.detail(id ?? "none"),
+    queryFn: () => fetchWorkflowDefinition(id as string),
+    enabled: id !== null && id !== "",
+  });
+}
+
+/** Version snapshots for comparison, rollback and archive. */
+export function useWorkflowVersions(id: string | null) {
+  return useQuery({
+    queryKey: queryKeys.workflowDefinitions.versions(id ?? "none"),
+    queryFn: () => fetchWorkflowVersions(id as string),
+    enabled: id !== null && id !== "",
+  });
+}
+
+export function usePublishWorkflowDefinition() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => publishWorkflowDefinition(id),
+    onSuccess: (_result, id) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.versions(id) });
+    },
+  });
+}
+
+export function useRollbackWorkflowDefinition() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, version }: { id: string; version: number }) =>
+      rollbackWorkflowDefinition(id, version),
+    onSuccess: (_result, variables) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.all });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.workflowDefinitions.versions(variables.id),
+      });
+    },
+  });
+}
+
+export function useArchiveWorkflowVersion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, version }: { id: string; version: number }) =>
+      archiveWorkflowVersion(id, version),
+    onSuccess: (_result, variables) =>
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.workflowDefinitions.versions(variables.id),
+      }),
+  });
+}
+
+/** BPMN conversion mutations; both are stateless converters. */
+export function useImportWorkflowBpmn() {
+  return useMutation({ mutationFn: (xml: string) => importWorkflowBpmn(xml) });
+}
+
+export function useExportWorkflowBpmn() {
+  return useMutation({ mutationFn: (definitionJson: string) => exportWorkflowBpmn(definitionJson) });
 }
 
 /* ---------------------------------------------------------- documents */

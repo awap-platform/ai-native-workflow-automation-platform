@@ -42,29 +42,16 @@ export default function ConditionalEdge({
       <BaseEdge
         id={id}
         path={edgePath}
-        style={{ stroke: "#0ea5e9", strokeWidth: selected ? 3 : 2 }}
+        className="awap-designer__edge"
+        style={{ strokeWidth: selected ? 3 : 2 }}
       />
       <EdgeLabelRenderer>
         <div
           data-testid="condition-badge"
           title={condition}
           aria-label={`Conditional transition: ${condition}`}
-          className="nodrag nopan"
-          style={{
-            position: "absolute",
-            transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-            background: "#e0f2fe",
-            color: "#0c4a6e",
-            border: "1px solid #0ea5e9",
-            borderRadius: 999,
-            padding: "2px 8px",
-            fontSize: 12,
-            pointerEvents: "all",
-            maxWidth: 240,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
+          className="nodrag nopan awap-designer__badge"
+          style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
         >
           IF: {display}
         </div>

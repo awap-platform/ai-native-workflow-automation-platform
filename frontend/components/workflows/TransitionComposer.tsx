@@ -15,7 +15,7 @@ function nodeLabel(node: WorkflowNode): string {
 }
 
 /**
- * Keyboard-only way to connect two nodes (issue #198). It mirrors the drag
+ * Keyboard-only way to connect two nodes (issue 198). It mirrors the drag
  * connection so screen-reader and keyboard users never need a pointer.
  */
 export default function TransitionComposer({

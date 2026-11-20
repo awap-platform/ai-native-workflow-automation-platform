@@ -73,13 +73,61 @@ for (const viewport of VIEWPORTS) {
           return;
         }
 
+        // The task SLA chip is a live server-clock countdown; it can differ by a second between
+        // the baseline and a later run. A 1% tolerance covers that text without hiding layout
+        // regressions on the other screens.
+        const dynamicSla = name === "tasks" || name === "task-detail";
         await expect(page).toHaveScreenshot(snapshot, {
           fullPage: true,
           animations: "disabled",
           caret: "hide",
-          maxDiffPixelRatio: 0.001,
+          maxDiffPixelRatio: dynamicSla ? 0.01 : 0.001,
         });
       });
     }
   });
 }
+
+/**
+ * T5-12: even though the React Flow designer is excluded from the full-page matrix above (it is
+ * interaction-tested instead), its canvas has a dedicated element baseline so a layout regression in
+ * the node card, palette or side panels is still caught visually.
+ */
+test("designer canvas matches its element baseline", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.context().addCookies([
+    {
+      name: "awap_session",
+      value: "1",
+      url: process.env.E2E_BASE_URL ?? "http://localhost:3000",
+    },
+    {
+      name: "awap_tenant",
+      value: "tenant-a",
+      url: process.env.E2E_BASE_URL ?? "http://localhost:3000",
+    },
+    { name: "XSRF-TOKEN", value: "e2e-csrf", url: "http://localhost:8080" },
+  ]);
+  await page.goto("/workflows/designer");
+  await expect(page.getByRole("heading", { name: "Workflow Designer" })).toBeVisible();
+  await page.getByRole("button", { name: "START", exact: true }).click();
+  await page.getByRole("button", { name: "END", exact: true }).click();
+  await expect(page.locator(".react-flow__node")).toHaveCount(2);
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(250);
+
+  const canvas = page.getByTestId("designer-canvas");
+  const snapshot = "visual/designer-canvas-1280x900.png";
+  const snapshotPath = testInfo.snapshotPath(snapshot);
+
+  if (!existsSync(snapshotPath)) {
+    await canvas.screenshot({ path: snapshotPath, animations: "disabled" });
+    testInfo.annotations.push({ type: "baseline-created", description: snapshotPath });
+    return;
+  }
+
+  await expect(canvas).toHaveScreenshot(snapshot, {
+    animations: "disabled",
+    maxDiffPixelRatio: 0.001,
+  });
+});

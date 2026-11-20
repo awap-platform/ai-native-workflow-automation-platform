@@ -645,6 +645,66 @@ export function createWorkflowDefinition(
   return authPost<WorkflowDefinitionDto>("/api/v1/workflow-definitions", payload);
 }
 
+export function fetchWorkflowDefinition(id: string): Promise<WorkflowDefinitionDto> {
+  return authFetch<WorkflowDefinitionDto>(`/api/v1/workflow-definitions/${id}`);
+}
+
+export interface WorkflowVersionDto {
+  id?: string;
+  version: number;
+  definitionJson: string;
+  status: string;
+  archived: boolean;
+  current: boolean;
+  createdAt: string;
+}
+
+export function fetchWorkflowVersions(id: string): Promise<WorkflowVersionDto[]> {
+  return authFetch<WorkflowVersionDto[]>(`/api/v1/workflow-definitions/${id}/versions`);
+}
+
+/** Publishes the latest draft version; a 409 means another tab published first. */
+export function publishWorkflowDefinition(id: string): Promise<WorkflowDefinitionDto> {
+  return authPost<WorkflowDefinitionDto>(`/api/v1/workflow-definitions/${id}/publish`, undefined);
+}
+
+export function rollbackWorkflowDefinition(
+  id: string,
+  version: number,
+): Promise<WorkflowDefinitionDto> {
+  return authPost<WorkflowDefinitionDto>(
+    `/api/v1/workflow-definitions/${id}/rollback/${version}`,
+    undefined,
+  );
+}
+
+export function archiveWorkflowVersion(id: string, version: number): Promise<void> {
+  return authPost<void>(
+    `/api/v1/workflow-definitions/${id}/versions/${version}/archive`,
+    undefined,
+  );
+}
+
+export interface BpmnImportResultDto {
+  definitionJson: string;
+  warnings: string[];
+}
+
+export interface BpmnExportResultDto {
+  bpmnXml: string;
+}
+
+/** Converts BPMN XML to a definition; the backend rejects XXE, invalid XML and oversized input. */
+export function importWorkflowBpmn(bpmnXml: string): Promise<BpmnImportResultDto> {
+  return authPost<BpmnImportResultDto>("/api/v1/workflow-definitions/bpmn/import", { bpmnXml });
+}
+
+export function exportWorkflowBpmn(definitionJson: string): Promise<BpmnExportResultDto> {
+  return authPost<BpmnExportResultDto>("/api/v1/workflow-definitions/bpmn/export", {
+    definitionJson,
+  });
+}
+
 export interface ExpressionFieldErrorDto {
   field: string;
   message: string;

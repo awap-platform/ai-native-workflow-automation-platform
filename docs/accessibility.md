@@ -19,7 +19,7 @@ uses the shared fixtures in
 | Task inbox | `/tasks` | ✅ | ✅ | Split pane: filters, saved views, bulk toolbar, J/K/Enter/A/R shortcuts |
 | Work item 360 | `/tasks?task=…` | — | ✅ | Detail tabs: context, decision, history, attachments, variables |
 | Workflow catalogue | `/workflows` | ✅ | ✅ | Cards/table, filters and the start dialog with a JSON preview |
-| Workflow designer | `/workflows/designer` | ✅ | ✅ | Populated state adds a TASK node |
+| Workflow designer | `/workflows/designer` | ✅ | ✅ | Grouped palette, validation panel, navigator and properties; populated state adds a TASK node |
 | Form builder | `/forms/builder` | ✅ | ✅ | Populated state adds a TEXT field inspector |
 | Form fill | `/forms/fill` | ✅ | ✅ | Populated state selects the form and renders its fields |
 | Documents | `/documents` | ✅ | ✅ | Live scan-status region |
@@ -39,6 +39,31 @@ The task inbox adds a dedicated keyboard contract: `J`/`K` move the row cursor,
 `Enter` focuses the detail heading, `A` opens the approval confirmation and `R`
 opens the rejection confirmation (which still requires a comment). The phone
 layout moves the work item to `/tasks/[id]` instead of shrinking the split pane.
+
+## Phase 5 workflow designer
+
+The designer is fully operable without a pointer:
+
+- The palette is a set of grouped native buttons. The search field (`Search node
+  types`) exposes a cursor; `ArrowUp`/`ArrowDown`, `Home` and `End` move it and
+  `Enter` inserts the highlighted type.
+- The transition composer provides labelled source/target selects and an
+  `Add transition` submit button, so an edge can be created with the keyboard.
+- `Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z`, `Ctrl/Cmd+C`, `Ctrl/Cmd+V`, `Ctrl/Cmd+D`
+  and `Delete` operate on the current canvas selection.
+- The Process Navigator is an ordered button list; activating an entry selects
+  and centres the node, matching a canvas click.
+- Validation issues are buttons. Activating one focuses the offending node or
+  transition, so screen-reader users can jump from an error to its cause.
+- Autosave and publish outcomes are announced in `role="status"` live regions;
+  save and publish failures use `role="alert"`.
+- The properties panel labels every field (`Node name`, `Timeout seconds`,
+  `Assignees`, `Form definition ID`, `AI prompt`, `Script expression`,
+  `Gateway condition`, and so on). Labels are React text, never markup.
+- The canvas keeps the React Flow default tab order and adds explicit
+  `Zoom in`, `Zoom out` and `Fit view` buttons next to the mini-map.
+- Unsaved work adds a browser `beforeunload` prompt and asks for confirmation
+  before ordinary same-origin link navigation.
 
 ## Gate
 

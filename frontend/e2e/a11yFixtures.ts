@@ -333,19 +333,22 @@ export async function installApiMocks(page: Page, populated: boolean): Promise<v
   });
 }
 
+/** The suite runs against the dev server or a production preview port; cookies follow it. */
+const SESSION_ORIGIN = process.env.E2E_BASE_URL ?? "http://localhost:3000";
+
 /** Seeds the cookies the middleware, RouteGuard and shell rely on. */
 export async function setSession(
   page: Page,
   options: { tenant?: string | null; role?: string | null; locale?: string | null } = {},
 ): Promise<void> {
   const cookies = [
-    { name: "awap_session", value: "1", url: "http://localhost:3000", sameSite: "Lax" as const },
+    { name: "awap_session", value: "1", url: SESSION_ORIGIN, sameSite: "Lax" as const },
   ];
   if (options.tenant !== null && options.tenant !== undefined) {
     cookies.push({
       name: "awap_tenant",
       value: options.tenant,
-      url: "http://localhost:3000",
+      url: SESSION_ORIGIN,
       sameSite: "Lax" as const,
     });
   }
@@ -353,7 +356,7 @@ export async function setSession(
     cookies.push({
       name: "awap_role",
       value: options.role,
-      url: "http://localhost:3000",
+      url: SESSION_ORIGIN,
       sameSite: "Lax" as const,
     });
   }
@@ -361,7 +364,7 @@ export async function setSession(
     cookies.push({
       name: "awap_locale",
       value: options.locale,
-      url: "http://localhost:3000",
+      url: SESSION_ORIGIN,
       sameSite: "Lax" as const,
     });
   }

@@ -963,6 +963,71 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /api/v1/workflow-definitions/bpmn/import:
+    post:
+      operationId: importWorkflowBpmn
+      summary: Convert BPMN 2.0 XML to a workflow definition
+      description: >-
+        Converts BPMN 2.0 XML into the internal definition JSON without persisting it. The converter
+        supports the engine's node subset and keeps engine-specific settings in the `awap` extension
+        namespace. DTDs and external entities are rejected, malformed input returns 400 with the
+        offending line, and XML over one megabyte returns 413.
+      tags: [Workflow Definitions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BpmnImportRequest"
+      responses:
+        "200":
+          description: Converted definition and ignored-construct warnings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BpmnImportResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          description: The BPMN XML exceeds the one-megabyte limit.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /api/v1/workflow-definitions/bpmn/export:
+    post:
+      operationId: exportWorkflowBpmn
+      summary: Convert a workflow definition to BPMN 2.0 XML
+      description: >-
+        Serializes the internal definition JSON to BPMN 2.0 XML. The conversion is lossless for the
+        supported node subset because node types and configs travel in the `awap` extension
+        namespace; diagram interchange is not emitted.
+      tags: [Workflow Definitions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BpmnExportRequest"
+      responses:
+        "200":
+          description: BPMN 2.0 XML.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BpmnExportResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /api/v1/workflow-instances:
     get:
       operationId: listWorkflowInstances
@@ -3864,6 +3929,42 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ExpressionFieldError"
+
+    BpmnImportRequest:
+      type: object
+      required: [bpmnXml]
+      properties:
+        bpmnXml:
+          type: string
+          maxLength: 1000000
+          example: "<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\">…"
+
+    BpmnImportResponse:
+      type: object
+      required: [definitionJson, warnings]
+      properties:
+        definitionJson:
+          type: string
+          description: Internal definition JSON ready to load into the designer.
+        warnings:
+          type: array
+          items:
+            type: string
+
+    BpmnExportRequest:
+      type: object
+      required: [definitionJson]
+      properties:
+        definitionJson:
+          type: string
+          description: Internal definition JSON from a saved version or an unsaved draft.
+
+    BpmnExportResponse:
+      type: object
+      required: [bpmnXml]
+      properties:
+        bpmnXml:
+          type: string
 
     ExpressionFieldError:
       type: object
