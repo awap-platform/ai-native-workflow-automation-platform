@@ -32,9 +32,7 @@ ERROR_RETRYABLE_HEADER = "ai-error-retryable"
 MAX_MESSAGE_CHARS = 8_000
 MAX_GRPC_MESSAGE_BYTES = 1_048_576
 
-PROTO_RESPONSE_FIELDS = frozenset(
-    copilot_pb2.CopilotResponse.DESCRIPTOR.fields_by_name.keys()
-)
+PROTO_RESPONSE_FIELDS = frozenset(copilot_pb2.CopilotResponse.DESCRIPTOR.fields_by_name.keys())
 
 
 def _proto_projection(payload: dict[str, object]) -> dict[str, object]:

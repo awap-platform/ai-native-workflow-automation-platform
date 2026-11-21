@@ -189,7 +189,7 @@ def summarize_hits(
         chunk = hit.get("chunkIndex", 0)
         try:
             score = float(hit.get("score", 0.0) or 0.0)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             score = 0.0
         if snippet:
             lines.append(f"- {title}: {snippet}")

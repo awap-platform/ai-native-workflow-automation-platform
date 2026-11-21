@@ -179,7 +179,8 @@ public class AiCopilotClient {
                       : response.statusCode() >= 500
                           ? HttpStatus.BAD_GATEWAY
                           : HttpStatus.BAD_REQUEST;
-      // Preserve the AI layer's actionable detail (for example the remaining budget on a 429) so the
+      // Preserve the AI layer's actionable detail (for example the remaining budget on a 429) so
+      // the
       // SPA can explain the failure instead of showing only a generic upstream status.
       String upstreamDetail = "";
       try {

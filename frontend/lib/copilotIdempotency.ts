@@ -11,12 +11,20 @@ export interface CopilotIntent {
   key: string;
 }
 
+let fallbackCounter = 0;
+
 /** Generates a UUID when the runtime supports it and falls back to a collision-resistant key. */
 export function newIdempotencyKey(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
   }
-  return `copilot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    return `copilot-${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+  }
+  // Non-browser test fallback only; monotonic and never used as a security token.
+  fallbackCounter += 1;
+  return `copilot-${Date.now().toString(36)}-${fallbackCounter.toString(36)}`;
 }
 
 /**

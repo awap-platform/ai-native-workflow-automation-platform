@@ -320,9 +320,7 @@ class CopilotAgent:
             f"{security.tenant_id}:{final.get('prompt_hash', '')}:"
             f"{final.get('action', CopilotAction.CHAT).value}"
         )
-        request_id = (
-            request.idempotency_key or security.correlation_id or derived_request_id
-        )
+        request_id = request.idempotency_key or security.correlation_id or derived_request_id
         audit = CopilotAudit(
             request_id=request_id,
             action=final.get("action", CopilotAction.CHAT).value,
