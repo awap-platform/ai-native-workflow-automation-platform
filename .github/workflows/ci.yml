@@ -278,6 +278,12 @@ jobs:
         # UI/UX phase 1 (R1-02): component and shell layers must use tokens.
         run: pnpm lint:colors
         working-directory: frontend
+      - name: Release readiness policy
+        # UI/UX phase 10: canary stages/thresholds, feature-flag expiry, overlay flags and the
+        # rollback runbook anchors must stay consistent with the machine-readable policy.
+        run: |
+          node --test "scripts/test/check-release-policy.test.mjs"
+          node scripts/check-release-policy.mjs
       # The browser suite runs in the dedicated `e2e` job against the Compose stack.
 
   e2e:

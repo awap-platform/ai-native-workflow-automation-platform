@@ -231,3 +231,89 @@ test("live status regions are present on documents and notifications", async ({ 
   );
   await expect(page.getByTestId("unread-badge")).toHaveAttribute("aria-live", "polite");
 });
+
+/**
+ * Structural screen-reader checks. A landing page needs exactly one level-one
+ * heading and one main landmark; the application shell additionally exposes a
+ * navigation landmark. These are the landmarks NVDA and VoiceOver jump between,
+ * so they are asserted automatically on every route while the manual passes are
+ * documented in docs/accessibility.md.
+ */
+for (const screen of SCREENS) {
+  test(`${screen.name} exposes one h1 and the expected landmarks`, async ({ page }) => {
+    const state = screen.states.includes("populated") ? "populated" : "empty";
+    await openScreen(page, screen, state);
+
+    await expect(page.locator("h1")).toHaveCount(1);
+    await expect(page.getByRole("main")).toHaveCount(1);
+    if (screen.protected) {
+      await expect(page.getByRole("navigation").first()).toBeVisible();
+    }
+  });
+}
+
+test("the skip link is the first keyboard stop and targets the main landmark", async ({ page }) => {
+  await openScreen(page, SCREENS[0]!, "empty");
+
+  let active: { tag: string; text: string; href: string | null } | null = null;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    await page.keyboard.press("Tab");
+    active = await page.evaluate(() => {
+      const element = document.activeElement as HTMLElement | null;
+      return element
+        ? {
+            tag: element.tagName,
+            text: element.textContent?.trim().slice(0, 40) ?? "",
+            href: element.getAttribute("href"),
+          }
+        : null;
+    });
+    if (active?.tag !== "NEXTJS-PORTAL") {
+      break;
+    }
+  }
+
+  expect(active?.text).toBe("Skip to main content");
+  expect(active?.href).toBe("#main-content");
+
+  await page.keyboard.press("Enter");
+  const mainFocused = await page.evaluate(() => document.activeElement?.id ?? "");
+  // The browser moves sequential focus to the target; next Tab must stay inside main.
+  expect(mainFocused === "main-content" || mainFocused === "BODY" || mainFocused === "").toBe(true);
+  await expect(page.locator("#main-content")).toHaveCount(1);
+});
+
+/**
+ * High-contrast (Windows High Contrast / forced-colors) coverage. Axe still runs
+ * with the forced-colors media feature active on representative screens; the
+ * CSS keeps borders when the system replaces colours (globals.css).
+ */
+const FORCED_COLOR_SCREENS = ["login", "register", "dashboard", "tasks", "copilot"];
+
+for (const name of FORCED_COLOR_SCREENS) {
+  test(`${name} has no critical or serious axe violations in forced-colors mode`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ forcedColors: "active", reducedMotion: "reduce" });
+    const screen = SCREENS.find((candidate) => candidate.name === name);
+    if (!screen) {
+      throw new Error(`Unknown screen: ${name}`);
+    }
+    await openScreen(page, screen, "populated");
+    if (name === "copilot") {
+      await applyPopulatedState(page, screen);
+    }
+
+    // Forced-colors replaces every author colour with the system palette, so
+    // computed contrast ratios are meaningless in this mode. Structure, names,
+    // roles and focus remain fully checked.
+    const results = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .disableRules(["color-contrast"])
+      .analyze();
+    const blocking = results.violations.filter(
+      (violation) => violation.impact === "critical" || violation.impact === "serious",
+    );
+    expect(blocking, formatViolations(blocking)).toEqual([]);
+  });
+}

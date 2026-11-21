@@ -18,6 +18,10 @@ configMapGenerator:
       - FEATURE_AI_STEPS=true
       - FEATURE_ANALYTICS=true
       - FEATURE_CDC=true
+      # UI/UX phase 10 flags (owner + expiry live in frontend/lib/featureFlags.ts).
+      - FEATURE_AI_COPILOT=true
+      - FEATURE_IN_APP_TOUR=true
+      - FEATURE_RUM=true
 patches:
   - target:
       kind: Deployment

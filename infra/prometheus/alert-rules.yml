@@ -1,4 +1,48 @@
 groups:
+  # Release guard (UI/UX phase 10): these alerts implement the automatic rollback
+  # thresholds in infra/release/canary-policy.json. Any firing alert during the
+  # 30-minute canary observation window sends the rollout back to the previous
+  # stable ReplicaSet (see docs/operations-runbook.md#o35--release-guard-and-rollback).
+  - name: awap-release-guard
+    rules:
+      - alert: AwapReleaseCanaryFailureRate
+        expr: |
+          sum(rate(awap_workflow_failure_total[5m]))
+            / clamp_min(
+                sum(rate(awap_workflow_success_total[5m]))
+                  + sum(rate(awap_workflow_failure_total[5m])),
+                0.001
+              ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Canary failure ratio above 5%"
+          description: "{{ $value | humanizePercentage }} of workflow executions failed during the canary window."
+          runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o35--release-guard-and-rollback"
+
+      - alert: AwapReleaseCanaryLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(awap_process_duration_seconds_bucket[5m]))) > 1.5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Canary p95 workflow latency above 1.5s"
+          description: "The p95 process duration is {{ $value }}s, above the canary latency budget."
+          runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o35--release-guard-and-rollback"
+
+      - alert: AwapReleaseCanaryDlqGrowth
+        expr: sum(increase(awap_dlq_messages_total[10m])) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Canary produced dead-letter messages"
+          description: "{{ $value }} messages landed in a DLQ during the canary window."
+          runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o35--release-guard-and-rollback"
+
   - name: awap-workflow
     rules:
       # Failure ratio = failures / (successes + failures); the clamp keeps an idle

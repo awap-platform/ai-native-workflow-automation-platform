@@ -57,3 +57,26 @@ curl -fsS https://dev.awap.dev/actuator/health
 
 > Note: secret material is provisioned from Sealed Secrets/Vault and is never
 > committed in plain text (see [`infra/k8s/README.md`](../infra/k8s/README.md)).
+
+## UI/UX programme gates
+
+The release candidate additionally passes the phase-10 gates, all of which run
+in the `Frontend`, `End-to-End Tests` or `Observability Checks` jobs:
+
+- `pnpm typecheck`, `pnpm lint`, `pnpm jest`, `pnpm lint:inline`,
+  `pnpm lint:colors`, `pnpm budget` and `pnpm build`.
+- `node --test scripts/test/check-release-policy.test.mjs` and
+  `node scripts/check-release-policy.mjs` (canary stages, thresholds, flag
+  expiry, overlay flags and runbook anchors).
+- Playwright on the production stack: axe zero critical/serious, zero console
+  errors, keyboard journeys, 320–1920 px matrix, 200 % zoom, reduced motion,
+  forced colors, JS-disabled and slow-network notices.
+- Visual snapshots for route × state × viewport are regenerated and compared.
+- Lighthouse budgets with performance ≥ 90, LCP < 2.5 s, CLS < 0.1, TBT < 200 ms
+  and an INP warning.
+- Prometheus release-guard rules are validated with `promtool` and their tests.
+
+The phase-by-phase evidence map and the global Definition of Done are in
+[`ui-ux/programme-completion.md`](ui-ux/programme-completion.md). UAT, the
+screen-reader passes and the live rollback drill are process steps and are not
+claimed by the pipeline.

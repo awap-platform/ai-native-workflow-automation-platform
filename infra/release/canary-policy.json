@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "owner": "release-engineering",
+  "stages": [5, 25, 100],
+  "observationWindowMinutes": 30,
+  "automaticRollback": true,
+  "thresholds": {
+    "errorRate": 0.01,
+    "p95LatencyMs": 1500,
+    "lcpMs": 2500,
+    "cls": 0.1,
+    "tbtMs": 200,
+    "inpMs": 200
+  },
+  "notes": "Canary traffic is raised 5% -> 25% -> 100% only after a clean 30-minute observation window. Any breach of a threshold in the window triggers an automatic rollback to the previous stable ReplicaSet, and the on-call follows docs/operations-runbook.md#o35--release-guard-and-rollback. The values are validated by frontend/lib/__tests__/releaseReadiness.test.ts and scripts/check-release-policy.mjs."
+}

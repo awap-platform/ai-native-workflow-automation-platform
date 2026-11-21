@@ -95,6 +95,63 @@ for (const viewport of VIEWPORTS) {
 }
 
 /**
+ * UI/UX phase 10: route × state × viewport matrix (320 px to 1920 px).
+ *
+ * The set above fixes one state per route at four laptop-class widths. This
+ * matrix adds the empty *and* populated state of the core operational routes at
+ * the narrow and wide extremes, so a regression that only appears at 320 px or
+ * on a populated table is caught. Snapshots are written on first run and
+ * compared afterwards.
+ */
+const MATRIX_VIEWPORTS = [
+  { width: 320, height: 800 },
+  { width: 768, height: 1024 },
+  { width: 1280, height: 800 },
+  { width: 1920, height: 1080 },
+];
+
+const MATRIX_SCREEN_NAMES = [
+  "dashboard",
+  "tasks",
+  "workflows",
+  "documents",
+  "analytics",
+  "admin",
+];
+
+for (const viewport of MATRIX_VIEWPORTS) {
+  test.describe(`visual matrix (${viewport.width}px)`, () => {
+    for (const name of MATRIX_SCREEN_NAMES) {
+      const screen = screenFor(name);
+      for (const state of screen.states) {
+        test(`${name} (${state}) at ${viewport.width}px`, async ({ page }, testInfo) => {
+          await page.setViewportSize({ width: viewport.width, height: viewport.height });
+          await openScreen(page, screen, state);
+          await waitForStableLayout(page);
+
+          const snapshot = `visual/matrix/${name}-${state}-${viewport.width}x${viewport.height}.png`;
+          const snapshotPath = testInfo.snapshotPath(snapshot);
+
+          if (!existsSync(snapshotPath)) {
+            await page.screenshot({ path: snapshotPath, fullPage: true, animations: "disabled" });
+            testInfo.annotations.push({ type: "baseline-created", description: snapshotPath });
+            return;
+          }
+
+          const dynamicSla = name === "tasks";
+          await expect(page).toHaveScreenshot(snapshot, {
+            fullPage: true,
+            animations: "disabled",
+            caret: "hide",
+            maxDiffPixelRatio: dynamicSla ? 0.01 : 0.001,
+          });
+        });
+      }
+    }
+  });
+}
+
+/**
  * T5-12: even though the React Flow designer is excluded from the full-page matrix above (it is
  * interaction-tested instead), its canvas has a dedicated element baseline so a layout regression in
  * the node card, palette or side panels is still caught visually.

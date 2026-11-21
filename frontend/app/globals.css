@@ -591,6 +591,11 @@
     border: 1px solid var(--awap-border);
     border-radius: var(--awap-radius-md);
     background: var(--awap-surface);
+    /* A blocked URI or any long token must wrap instead of widening the page at 320px. */
+    overflow-wrap: anywhere;
+  }
+  .awap-list-row > * {
+    min-width: 0;
   }
 
   /*
@@ -802,6 +807,7 @@
     padding: var(--awap-space-2);
     text-align: left;
     border-bottom: 1px solid var(--awap-border);
+    overflow-wrap: anywhere;
   }
   .awap-table th {
     font-size: var(--awap-text-xs);
@@ -871,6 +877,26 @@
     border-bottom: 1px solid var(--awap-border);
     background: var(--awap-surface-raised);
     color: var(--awap-text);
+  }
+
+  .awap-noscript {
+    margin: var(--awap-space-4);
+    padding: var(--awap-space-3) var(--awap-space-4);
+    border: 1px solid var(--awap-border);
+    border-radius: var(--awap-radius-md);
+    background: var(--awap-surface-raised);
+    color: var(--awap-text);
+  }
+
+  .awap-tour {
+    margin-top: var(--awap-space-6);
+  }
+
+  .awap-tour__steps {
+    display: grid;
+    gap: var(--awap-space-1);
+    margin: var(--awap-space-2) 0;
+    padding-left: var(--awap-space-5);
   }
 }
 
@@ -1190,6 +1216,29 @@
   border: 1px solid var(--awap-border);
   border-radius: var(--awap-radius-md);
   background: var(--awap-surface);
+}
+
+/* Below the tablet breakpoint the fixed palette/side columns would force a
+   document-level horizontal scrollbar at 320-390px; stack them instead. */
+@media (max-width: 1023px) {
+  .awap-designer__layout {
+    flex-direction: column;
+  }
+  .awap-designer__palette,
+  .awap-designer__side {
+    flex: 1 1 auto;
+    max-height: none;
+    width: 100%;
+  }
+  .awap-designer__palette {
+    border-right: 0;
+    border-bottom: 1px solid var(--awap-border);
+    padding-right: 0;
+    padding-bottom: var(--awap-space-3);
+  }
+  .awap-designer__canvas {
+    width: 100%;
+  }
 }
 
 .awap-designer__side {

@@ -71,3 +71,23 @@ and the polling/cleanup paths with a fake kubectl.
 - Quarterly: revisit HPA bounds with load-test results and traffic forecasts.
 - After every incident: check whether throttling, OOMKilled or PDB disruptions
   contributed, and adjust the budget through this document.
+
+## Phase 10 performance budgets
+
+The release-readiness phase adds client-side ceilings that the HPA does not
+cover:
+
+| Signal | Budget | Where enforced |
+|---|---:|---|
+| Route JavaScript (gzip) | ≤ 250 KB | `pnpm budget` |
+| Lighthouse performance | ≥ 90 | `.github/lighthouse/lighthouserc.json` |
+| LCP | < 2.5 s | Lighthouse + canary policy |
+| CLS | < 0.1 | Lighthouse + canary policy |
+| TBT | < 200 ms | Lighthouse + canary policy |
+| INP | ≤ 200 ms | Lighthouse warning + canary policy |
+
+RUM adds no third-party request and no server-side compute beyond one log line
+per sample; the ingest route is flag-gated and returns 204. When the flag is
+enabled in staging/prod, the additional log volume is a few hundred bytes per
+navigation and is accounted for by the frontend replica budget (256 MiB
+request / 512 MiB limit).
