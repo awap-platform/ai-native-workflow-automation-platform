@@ -65,6 +65,39 @@ The designer is fully operable without a pointer:
 - Unsaved work adds a browser `beforeunload` prompt and asks for confirmation
   before ordinary same-origin link navigation.
 
+## Phase 6 form builder and fill
+
+Both form screens are covered by the axe matrix (`form-builder` and `form-fill`
+in [`e2e/a11yFixtures.ts`](../frontend/e2e/a11yFixtures.ts)) and add a keyboard
+contract of their own:
+
+- The palette is a group of native buttons named after the field type (`TEXT`,
+  `TEXTAREA`, …). Enter appends the field; the search box (`Search field types`)
+  filters the list and announces an empty result in a live region.
+- Canvas rows expose `Select <label>`, `Move <label> up`, `Move <label> down` and
+  `Remove <label>` buttons, so reordering never requires a pointer. Screen
+  readers get the position number, the field type and any condition/calculation
+  as text inside the row button.
+- The properties panel labels every control (`Field id`, `Label`, `Help text`,
+  `Required`, `Minimum length`, `Maximum length`, `Pattern (regular
+  expression)`, `Calculated expression`, `Options (one per line)`, condition
+  `Field`/`Operator`/`Value`).
+- Validation problems are listed in a “Schema problems” list and inline on the
+  row; saving is blocked while any problem exists.
+- On submit, `FormErrorSummary` (`role="alert"`, `tabIndex={-1}`) receives focus
+  and announces “N fields need attention”. Each entry is a button that focuses
+  the control it describes, and controls carry `aria-invalid` plus
+  `aria-describedby` pointing at the help and error text.
+- MULTI_SELECT is a `fieldset`/`legend` group; BOOLEAN uses a single checkbox
+  whose label is the field label; calculated NUMBER inputs are `readOnly` with
+  `aria-readonly="true"`.
+- Builder autosave, save outcomes and draft restore are announced in live
+  regions; preview validation reuses the same summary.
+- Focus indicators come from the shared `:focus-visible` outline on every form
+  control, palette button, canvas button and summary link.
+- Labels, help text and options are React text; the hostile-label test asserts an
+  `<img onerror>` label renders as literal text and no element is created.
+
 ## Gate
 
 - axe tags: `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`.
