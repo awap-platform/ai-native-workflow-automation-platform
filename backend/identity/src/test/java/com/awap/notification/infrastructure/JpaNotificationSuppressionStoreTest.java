@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import com.awap.notification.application.NotificationSuppressionStore;
 import com.awap.notification.domain.NotificationChannel;
 import com.awap.notification.domain.NotificationSuppression;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -70,6 +71,15 @@ class JpaNotificationSuppressionStoreTest {
     store.suppress(TENANT, NotificationChannel.EMAIL, RECIPIENT, "SMTP_BOUNCE");
 
     verify(repository, never()).save(any());
+  }
+
+  @Test
+  void listsOnlyTheRequestedTenantNewestFirst() {
+    NotificationSuppression email =
+        new NotificationSuppression(TENANT, NotificationChannel.EMAIL, RECIPIENT, "SMTP_BOUNCE");
+    when(repository.findAllByTenantIdOrderByCreatedAtDesc(TENANT)).thenReturn(List.of(email));
+
+    assertThat(store.list(TENANT)).containsExactly(email);
   }
 
   @Test

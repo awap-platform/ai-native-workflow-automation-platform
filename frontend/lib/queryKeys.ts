@@ -30,6 +30,7 @@ export const queryKeys = {
   documents: {
     all: ["documents"] as const,
     list: () => ["documents"] as const,
+    versions: (fileId: string) => ["documents", "versions", fileId] as const,
   },
   forms: {
     all: ["forms"] as const,
@@ -63,6 +64,7 @@ export const queryKeys = {
     all: ["notifications"] as const,
     list: (unreadOnly = false) => ["notifications", unreadOnly] as const,
     unreadCount: () => ["notifications", "unread-count"] as const,
+    suppressions: () => ["notifications", "suppressions"] as const,
   },
   notificationTemplates: {
     all: ["notification-templates"] as const,

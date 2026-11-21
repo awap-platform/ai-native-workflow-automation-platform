@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { NotificationTemplateDto, NotificationTemplatePreviewDto } from "../../lib/api";
 import {
   useActivateNotificationTemplate,
@@ -11,7 +11,12 @@ import {
   useUpdateNotificationTemplate,
 } from "../../lib/hooks/useNotificationTemplates";
 import {
+  describeTemplateError,
+  emptyVariables,
   parseVariables,
+  templatePlaceholders,
+  unusedVariables,
+  validateTemplateLength,
   validateTemplateText,
   validateTemplateVariables,
 } from "../../lib/notificationTemplates";
@@ -42,7 +47,10 @@ function snapshot(template: NotificationTemplateDto): EditorState {
   };
 }
 
-/** Creates and edits tenant templates with validation, preview and an unsaved-change guard. */
+/**
+ * Creates and edits tenant templates with placeholder validation, a substitute-variable preview, a
+ * stored-template preview, optimistic version checks and an unsaved-change guard.
+ */
 export default function NotificationTemplateEditor() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedActive, setSelectedActive] = useState(false);
@@ -54,6 +62,7 @@ export default function NotificationTemplateEditor() {
   const [initial, setInitial] = useState<EditorState>(EMPTY_TEMPLATE);
   const [variablesJson, setVariablesJson] = useState('{\n  "name": "Ada"\n}');
   const [previewResult, setPreviewResult] = useState<NotificationTemplatePreviewDto | null>(null);
+  const [previewSource, setPreviewSource] = useState<"draft" | "stored" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -71,6 +80,26 @@ export default function NotificationTemplateEditor() {
     subject !== initial.subject ||
     body !== initial.body;
 
+  const parsedVariables = useMemo(() => parseVariables(variablesJson), [variablesJson]);
+  const placeholders = useMemo(
+    () => templatePlaceholders(`${subject}\n${body}`),
+    [body, subject],
+  );
+  const warnings = useMemo(() => {
+    if ("error" in parsedVariables) {
+      return [];
+    }
+    const combined = `${subject}\n${body}`;
+    return [
+      ...emptyVariables(combined, parsedVariables.variables).map(
+        (key) => `Variable "${key}" is empty; the preview renders a blank.`,
+      ),
+      ...unusedVariables(combined, parsedVariables.variables).map(
+        (key) => `Variable "${key}" is supplied but never used by this template.`,
+      ),
+    ];
+  }, [body, parsedVariables, subject]);
+
   useEffect(() => {
     if (!dirty) {
       return;
@@ -86,6 +115,10 @@ export default function NotificationTemplateEditor() {
   const validationError = (): string | null => {
     if (!LOCALE_PATTERN.test(locale.trim())) {
       return "Locale must look like 'en' or 'en-US'.";
+    }
+    const length = validateTemplateLength(body);
+    if (length) {
+      return length;
     }
     const syntax = validateTemplateText(subject) ?? validateTemplateText(body);
     if (syntax) {
@@ -128,6 +161,7 @@ export default function NotificationTemplateEditor() {
     setBody(next.body);
     setInitial(next);
     setPreviewResult(null);
+    setPreviewSource(null);
     setError(null);
     setNotice(null);
   };
@@ -145,6 +179,7 @@ export default function NotificationTemplateEditor() {
     setBody(EMPTY_TEMPLATE.body);
     setInitial(EMPTY_TEMPLATE);
     setPreviewResult(null);
+    setPreviewSource(null);
     setError(null);
     setNotice(null);
   };
@@ -153,6 +188,7 @@ export default function NotificationTemplateEditor() {
     setError(null);
     setNotice(null);
     setPreviewResult(null);
+    setPreviewSource(null);
     const problem = validationError();
     if (problem) {
       setError(problem);
@@ -172,8 +208,44 @@ export default function NotificationTemplateEditor() {
         variablesJson: JSON.stringify(parsed.variables),
       },
       {
-        onSuccess: (data) => setPreviewResult(data),
-        onError: (cause) => setError(cause instanceof Error ? cause.message : "Preview failed."),
+        onSuccess: (data) => {
+          setPreviewResult(data);
+          setPreviewSource("draft");
+        },
+        onError: (cause) =>
+          setError(describeTemplateError(cause, templateKey.trim(), locale.trim())),
+      },
+    );
+  };
+
+  /** Previews the stored revision, which is how an unknown key/locale becomes visible. */
+  const onPreviewStored = () => {
+    setError(null);
+    setNotice(null);
+    setPreviewResult(null);
+    setPreviewSource(null);
+    const key = templateKey.trim();
+    if (!KEY_PATTERN.test(key)) {
+      setError("Template key must use lowercase letters, digits, '.', '_' or '-'.");
+      return;
+    }
+    if (!LOCALE_PATTERN.test(locale.trim())) {
+      setError("Locale must look like 'en' or 'en-US'.");
+      return;
+    }
+    const parsed = parseVariables(variablesJson);
+    if ("error" in parsed) {
+      setError(parsed.error);
+      return;
+    }
+    preview.mutate(
+      { templateKey: key, locale: locale.trim(), variablesJson: JSON.stringify(parsed.variables) },
+      {
+        onSuccess: (data) => {
+          setPreviewResult(data);
+          setPreviewSource("stored");
+        },
+        onError: (cause) => setError(describeTemplateError(cause, key, locale.trim())),
       },
     );
   };
@@ -196,7 +268,7 @@ export default function NotificationTemplateEditor() {
         { id: selectedId, payload: { expectedVersion, subject, body } },
         {
           onSuccess: (template) => applySaved(template, "Template saved."),
-          onError: (cause) => setError(cause instanceof Error ? cause.message : "Save failed."),
+          onError: (cause) => setError(describeTemplateError(cause, key, locale.trim())),
         },
       );
       return;
@@ -205,7 +277,7 @@ export default function NotificationTemplateEditor() {
       { templateKey: key, locale, subject, body },
       {
         onSuccess: (template) => applySaved(template, "Template saved."),
-        onError: (cause) => setError(cause instanceof Error ? cause.message : "Save failed."),
+        onError: (cause) => setError(describeTemplateError(cause, key, locale.trim())),
       },
     );
   };
@@ -218,7 +290,7 @@ export default function NotificationTemplateEditor() {
     archive.mutate(selectedId, {
       onSuccess: (template) =>
         applySaved(template, "Template archived. Deliveries fall back to the built-in default."),
-      onError: (cause) => setError(cause instanceof Error ? cause.message : "Archive failed."),
+      onError: (cause) => setError(describeTemplateError(cause, templateKey, locale)),
     });
   };
 
@@ -229,36 +301,46 @@ export default function NotificationTemplateEditor() {
     setError(null);
     activate.mutate(selectedId, {
       onSuccess: (template) => applySaved(template, "Template activated."),
-      onError: (cause) => setError(cause instanceof Error ? cause.message : "Activation failed."),
+      onError: (cause) => setError(describeTemplateError(cause, templateKey, locale)),
     });
   };
 
   return (
-    <section aria-labelledby="template-editor-heading" style={{ maxWidth: 720 }}>
-      <h1 id="template-editor-heading" style={{ fontSize: 24, fontWeight: 700 }}>
+    <section aria-labelledby="template-editor-heading" className="awap-page awap-form-wide">
+      <h1 id="template-editor-heading" className="awap-page-title">
         Notification templates
       </h1>
 
-      {error ? <p role="alert">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="awap-alert awap-alert-danger m-0">
+          {error}
+        </p>
+      ) : null}
       {notice ? (
-        <p role="status" aria-live="polite">
+        <p role="status" aria-live="polite" className="awap-alert m-0">
           {notice}
         </p>
       ) : null}
 
-      <section aria-labelledby="template-list-heading" style={{ marginBottom: 16 }}>
-        <h2 id="template-list-heading" style={{ fontSize: 18 }}>
+      <section aria-labelledby="template-list-heading" className="awap-stack">
+        <h2 id="template-list-heading" className="awap-section-title">
           Existing templates
         </h2>
         {templatesQuery.isLoading ? <p>Loading templates…</p> : null}
-        {available.length === 0 ? (
-          <p>No tenant templates yet. The built-in EN/TR fallbacks stay active.</p>
+        {templatesQuery.isError ? (
+          <p role="alert" className="awap-error">
+            Templates could not be loaded.
+          </p>
         ) : null}
-        <ul aria-label="Existing notification templates" style={{ paddingLeft: 20 }}>
+        {templatesQuery.isSuccess && available.length === 0 ? (
+          <p className="awap-muted">No tenant templates yet. The built-in EN/TR fallbacks stay active.</p>
+        ) : null}
+        <ul className="awap-list" aria-label="Existing notification templates">
           {available.map((template) => (
             <li key={template.id}>
               <button
                 type="button"
+                className="awap-button awap-button-ghost"
                 onClick={() => chooseTemplate(template)}
                 aria-pressed={selectedId === template.id}
               >
@@ -268,65 +350,142 @@ export default function NotificationTemplateEditor() {
             </li>
           ))}
         </ul>
-        <button type="button" onClick={startNewTemplate}>
-          New template
-        </button>
+        <div>
+          <button type="button" className="awap-button" onClick={startNewTemplate}>
+            New template
+          </button>
+        </div>
       </section>
 
-      <div style={{ display: "grid", gap: 8 }}>
-        <label htmlFor="template-key">Template key</label>
-        <input
-          id="template-key"
-          value={templateKey}
-          disabled={selectedId !== null}
-          onChange={(event) => setTemplateKey(event.target.value)}
-        />
-        <label htmlFor="template-locale">Locale</label>
-        <input
-          id="template-locale"
-          list="template-locale-options"
-          value={locale}
-          disabled={selectedId !== null}
-          onChange={(event) => setLocale(event.target.value)}
-        />
+      <div className="awap-form">
+        <label className="awap-label" htmlFor="template-key">
+          Template key
+          <input
+            id="template-key"
+            className="awap-input"
+            value={templateKey}
+            disabled={selectedId !== null}
+            onChange={(event) => setTemplateKey(event.target.value)}
+          />
+        </label>
+        <label className="awap-label" htmlFor="template-locale">
+          Locale
+          <input
+            id="template-locale"
+            className="awap-input"
+            list="template-locale-options"
+            value={locale}
+            disabled={selectedId !== null}
+            onChange={(event) => setLocale(event.target.value)}
+          />
+        </label>
         <datalist id="template-locale-options">
           <option value="en" />
           <option value="tr" />
         </datalist>
-        <label htmlFor="template-subject">Subject</label>
-        <input
-          id="template-subject"
-          value={subject}
-          onChange={(event) => setSubject(event.target.value)}
-        />
-        <label htmlFor="template-body">Body</label>
-        <textarea
-          id="template-body"
-          rows={4}
-          value={body}
-          onChange={(event) => setBody(event.target.value)}
-        />
-        <label htmlFor="template-variables">Variables JSON</label>
-        <textarea
-          id="template-variables"
-          rows={4}
-          value={variablesJson}
-          onChange={(event) => setVariablesJson(event.target.value)}
-        />
-        <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" onClick={onPreview} aria-label="Preview template">
+        <label className="awap-label" htmlFor="template-subject">
+          Subject
+          <input
+            id="template-subject"
+            className="awap-input"
+            value={subject}
+            onChange={(event) => setSubject(event.target.value)}
+          />
+        </label>
+        <label className="awap-label" htmlFor="template-body">
+          Body
+          <textarea
+            id="template-body"
+            className="awap-textarea"
+            rows={4}
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
+          />
+        </label>
+        <label className="awap-label" htmlFor="template-variables">
+          Variables JSON
+          <textarea
+            id="template-variables"
+            className="awap-textarea"
+            rows={4}
+            value={variablesJson}
+            onChange={(event) => setVariablesJson(event.target.value)}
+          />
+        </label>
+
+        <section aria-labelledby="template-placeholders-heading" data-testid="template-placeholders">
+          <h2 id="template-placeholders-heading" className="awap-section-title">
+            Placeholders
+          </h2>
+          <p className="awap-muted m-0">
+            {placeholders.length === 0
+              ? "No placeholders detected."
+              : "Detected placeholders:"}
+          </p>
+          {placeholders.length > 0 ? (
+            <ul className="awap-inline" aria-label="Detected placeholders">
+              {placeholders.map((placeholder) => (
+                <li key={placeholder} className="awap-chip">{`{{${placeholder}}}`}</li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+
+        {warnings.length > 0 ? (
+          <div role="status" aria-live="polite" data-testid="template-warnings" className="awap-alert awap-alert-warning">
+            <p className="m-0 font-semibold">Check the preview variables</p>
+            <ul className="m-0">
+              {warnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {expectedVersion !== null ? (
+          <p className="awap-muted m-0" data-testid="template-version">
+            Editing revision v{expectedVersion}. Saving requires that exact revision; a concurrent
+            edit is rejected instead of overwriting it.
+          </p>
+        ) : null}
+
+        <div className="awap-inline">
+          <button
+            type="button"
+            className="awap-button awap-button-primary"
+            onClick={onPreview}
+            aria-label="Preview template"
+          >
             Preview
           </button>
-          <button type="button" onClick={onSave} aria-label="Save template">
+          <button
+            type="button"
+            className="awap-button"
+            onClick={onPreviewStored}
+            aria-label="Preview saved template"
+          >
+            Preview saved
+          </button>
+          <button type="button" className="awap-button" onClick={onSave} aria-label="Save template">
             Save
           </button>
           {selectedId ? (
-            <button type="button" onClick={onArchive} aria-label="Archive template">
+            <button
+              type="button"
+              className="awap-button"
+              onClick={onArchive}
+              aria-label="Archive template"
+            >
               Archive
             </button>
           ) : null}
           {selectedId && !selectedActive ? (
-            <button type="button" onClick={onActivate} aria-label="Activate template">
+            <button
+              type="button"
+              className="awap-button"
+              onClick={onActivate}
+              aria-label="Activate template"
+            >
               Activate
             </button>
           ) : null}
@@ -334,15 +493,19 @@ export default function NotificationTemplateEditor() {
       </div>
 
       {previewResult ? (
-        <section aria-labelledby="template-preview-heading" style={{ marginTop: 16 }}>
-          <h2 id="template-preview-heading" style={{ fontSize: 18 }}>
-            Preview
+        <section aria-labelledby="template-preview-heading" className="awap-stack" data-testid="template-preview">
+          <h2 id="template-preview-heading" className="awap-section-title">
+            Preview {previewSource === "stored" ? "(stored template)" : "(draft)"}
           </h2>
-          <p data-testid="preview-subject">{previewResult.subject}</p>
-          <p data-testid="preview-body" aria-live="polite">
+          <p data-testid="preview-subject" className="m-0 font-semibold">
+            {previewResult.subject}
+          </p>
+          <p data-testid="preview-body" aria-live="polite" className="m-0">
             {previewResult.body}
           </p>
-          <p>Placeholders: {previewResult.placeholders.join(", ") || "none"}</p>
+          <p className="m-0">
+            Placeholders: {previewResult.placeholders.join(", ") || "none"}
+          </p>
         </section>
       ) : null}
     </section>

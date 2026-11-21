@@ -68,6 +68,18 @@ only the returned file id in the form value. Submitting stays enabled while the
 scan is pending; the server returns `409` and the response includes the promoted
 status once the file is ready.
 
+The documents screen uses the same quarantine contract through
+[`UploadDropzone`](../frontend/components/documents/UploadDropzone.tsx) and
+[`documentUpload.ts`](../frontend/lib/documentUpload.ts):
+
+- progress is reported by XHR and rendered in a native `<progress>` element;
+- cancelling aborts the PUT and soft-deletes the pending version created by the
+  presign call, so an interrupted transfer does not leave a ghost row;
+- a 413 or 415 is rejected locally before any byte is sent, and a server-side
+  413/415 is surfaced as an alert;
+- only `PROMOTED` rows expose Download, and a `SCAN_FAILED` row offers an explicit
+  re-queue action (`POST /api/v1/documents/{fileId}/retry-scan`).
+
 ## Download and rendering (phase 6)
 
 Submissions render through the same `FormRenderer` as the builder preview, and

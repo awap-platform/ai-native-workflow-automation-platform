@@ -3,6 +3,7 @@ package com.awap.notification.infrastructure;
 import com.awap.notification.application.NotificationSuppressionStore;
 import com.awap.notification.domain.NotificationChannel;
 import com.awap.notification.domain.NotificationSuppression;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -42,5 +43,10 @@ public class JpaNotificationSuppressionStore implements NotificationSuppressionS
       // A concurrent bounce recorded the same recipient; the unique constraint wins.
       log.debug("Suppression for channel={} was already recorded.", channel);
     }
+  }
+
+  @Override
+  public List<NotificationSuppression> list(UUID tenantId) {
+    return repository.findAllByTenantIdOrderByCreatedAtDesc(tenantId);
   }
 }

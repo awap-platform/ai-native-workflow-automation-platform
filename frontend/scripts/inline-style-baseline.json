@@ -2,17 +2,8 @@
   "app/(app)/analytics/page.tsx": {
     "count": 57
   },
-  "app/(app)/documents/page.tsx": {
-    "count": 4
-  },
-  "components/documents/DocumentScanTable.tsx": {
-    "count": 15
-  },
   "components/forms/FormFileField.tsx": {
     "count": 3
-  },
-  "components/notifications/NotificationTemplateEditor.tsx": {
-    "count": 9
   },
   "components/workflows/ConditionalEdge.tsx": {
     "count": 2

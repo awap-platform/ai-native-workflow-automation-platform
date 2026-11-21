@@ -107,6 +107,19 @@ public class DocumentController {
         Map.of("downloadUrl", fileService.downloadUrl(currentTenantId(), fileId)));
   }
 
+  /**
+   * Re-queues a {@code SCAN_FAILED} file. The uploader owns the retry action, and the response
+   * carries the refreshed scan projection so the client can render the new state without waiting
+   * for the next SSE event.
+   */
+  @PostMapping("/{fileId}/retry-scan")
+  @PreAuthorize("hasAuthority('FILE_UPLOAD')")
+  public ResponseEntity<ScanRetryResponse> retryScan(@PathVariable UUID fileId) {
+    FileScanInfo info = fileService.retryScan(currentTenantId(), fileId);
+    return ResponseEntity.ok(
+        new ScanRetryResponse(info.fileId(), info.status().name(), info.lastScanError()));
+  }
+
   @PostMapping("/versions/{versionId}/archive")
   @PreAuthorize("hasAuthority('FILE_UPLOAD')")
   public ResponseEntity<DocumentVersionResponse> archive(@PathVariable UUID versionId) {
@@ -217,6 +230,9 @@ public class DocumentController {
   /** Upload slot + registered pending version. */
   public record CreateDocumentResponse(
       UUID fileId, String uploadUrl, DocumentVersionResponse version) {}
+
+  /** Refreshed scan projection after an operator re-queued a failed scan. */
+  public record ScanRetryResponse(UUID fileId, String scanStatus, String detail) {}
 
   /** Public representation of a document version, projected with its live scan status. */
   public record DocumentVersionResponse(

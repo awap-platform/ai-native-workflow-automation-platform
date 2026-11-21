@@ -74,6 +74,27 @@ The deterministic suite runs in the `e2e` CI job (`Knowledge search and analytic
 in the `backend` job; the Testcontainers variant runs in the `backend` job and skips itself when
 Docker is unavailable.
 
+## Phase 7 documents, notifications and templates
+
+All Phase 7 journeys are deterministic Playwright tests with mocked HTTP/SSE transports, so they run
+in the dependency-free PR `e2e` job:
+
+| Acceptance criterion | Test | Mode |
+|---|---|---|
+| T7-01 upload → QUARANTINED → SCANNING → CLEAN → PROMOTED, download only at PROMOTED | [`phase-7-documents-notifications.spec.ts`](../frontend/e2e/phase-7-documents-notifications.spec.ts) — `T7-01` | PR |
+| Interrupted upload aborts the PUT and deletes the pending version | same spec — `cancels an interrupted upload` | PR |
+| T7-02 INFECTED alert, download blocked | same spec — `T7-02` | PR |
+| T7-03 unsupported format (415) rejected locally and server 413 surfaced | same spec — `T7-03` | PR |
+| T7-04 version list and archive | same spec — `T7-04` | PR |
+| SCAN_FAILED re-queue | same spec — `re-queues a SCAN_FAILED scan` | PR |
+| T7-05 read/unread transition decrements the badge | same spec — `T7-05` | PR |
+| Filters and bulk read | same spec — `filters notifications and performs a bulk read` | PR |
+| T7-06 template preview with variables | same spec — `T7-06` | PR |
+| Empty-variable warning does not block preview | same spec — `warns about an empty variable` | PR |
+| T7-08 axe on the INFECTED alert | same spec — `T7-02` AxeBuilder assertion | PR |
+| T7-09 SSE drop → polling fallback | same spec — `T7-09` | PR |
+| T7-10 timeline/inbox visual diff < 0.1% | [`visual-baseline.spec.ts`](../frontend/e2e/visual-baseline.spec.ts) — `documents`, `notifications` | PR |
+
 ## Conventions
 
 - Seed values come from [`lib/e2eSeed.ts`](../frontend/lib/e2eSeed.ts); the live journey and the

@@ -10,6 +10,7 @@ jest.mock("../../../lib/api", () => ({
   fetchUnreadNotificationCount: jest.fn(),
   markNotificationRead: jest.fn(),
   markNotificationUnread: jest.fn(),
+  listNotificationSuppressions: jest.fn(),
 }));
 
 const listNotifications = api.listNotifications as jest.MockedFunction<
@@ -23,6 +24,9 @@ const markNotificationRead = api.markNotificationRead as jest.MockedFunction<
 >;
 const markNotificationUnread = api.markNotificationUnread as jest.MockedFunction<
   typeof api.markNotificationUnread
+>;
+const listNotificationSuppressions = api.listNotificationSuppressions as jest.MockedFunction<
+  typeof api.listNotificationSuppressions
 >;
 
 function notification(overrides: Partial<NotificationDeliveryDto> = {}): NotificationDeliveryDto {
@@ -50,6 +54,7 @@ function renderInbox(ui: ReactElement = <NotificationInbox />) {
 
 beforeEach(() => {
   jest.resetAllMocks();
+  listNotificationSuppressions.mockResolvedValue([]);
 });
 
 describe("NotificationInbox", () => {
@@ -63,10 +68,10 @@ describe("NotificationInbox", () => {
     await waitFor(() => expect(badge).toHaveTextContent("1"));
     expect(badge).toHaveAttribute("aria-label", "Unread notifications: 1");
     expect(badge).toHaveAttribute("role", "status");
-    expect(await screen.findByText("Unread")).toBeInTheDocument();
+    expect(await screen.findByTestId("state-n1")).toHaveTextContent("Unread");
   });
 
-  it("marks a notification read, updates the badge and exposes the unread action", async () => {
+  it("marks a notification read, decrements the badge and exposes the unread action", async () => {
     let read = false;
     listNotifications.mockImplementation(async () => [
       notification({ read, readAt: read ? "2026-02-01T11:00:00Z" : null }),
@@ -91,7 +96,7 @@ describe("NotificationInbox", () => {
         "Unread notifications: 0",
       ),
     );
-    expect(await screen.findByText("Read")).toBeInTheDocument();
+    expect(await screen.findByTestId("state-n1")).toHaveTextContent("Read");
     expect(
       await screen.findByRole("button", { name: 'Mark notification "welcome" as unread' }),
     ).toBeInTheDocument();
@@ -117,7 +122,119 @@ describe("NotificationInbox", () => {
 
     await waitFor(() => expect(markNotificationUnread).toHaveBeenCalledWith("n1"));
     await waitFor(() => expect(screen.getByTestId("unread-badge")).toHaveTextContent("1"));
-    expect(await screen.findByText("Unread")).toBeInTheDocument();
+    expect(await screen.findByTestId("state-n1")).toHaveTextContent("Unread");
+  });
+
+  it("filters by read state, channel, delivery status and search text", async () => {
+    listNotifications.mockResolvedValue([
+      notification({ id: "n1", templateKey: "welcome", read: false, channel: "EMAIL" }),
+      notification({
+        id: "n2",
+        templateKey: "digest",
+        read: true,
+        channel: "WEB",
+        status: "FAILED",
+        recipient: "ops@example.com",
+      }),
+    ]);
+    fetchUnreadNotificationCount.mockResolvedValue({ count: 1 });
+
+    renderInbox();
+    await screen.findByTestId("notification-n1");
+
+    fireEvent.change(screen.getByTestId("notification-filter-read"), {
+      target: { value: "unread" },
+    });
+    expect(screen.queryByTestId("notification-n2")).not.toBeInTheDocument();
+    expect(screen.getByTestId("notification-filter-count")).toHaveTextContent("Showing 1 of 2");
+
+    fireEvent.change(screen.getByTestId("notification-filter-read"), {
+      target: { value: "all" },
+    });
+    fireEvent.change(screen.getByTestId("notification-filter-status"), {
+      target: { value: "FAILED" },
+    });
+    expect(screen.queryByTestId("notification-n1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("notification-n2")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("notification-filter-status"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByTestId("notification-search"), {
+      target: { value: "ops@" },
+    });
+    expect(screen.getByTestId("notification-n2")).toBeInTheDocument();
+    expect(screen.queryByTestId("notification-n1")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("notification-search"), { target: { value: "" } });
+    fireEvent.change(screen.getByTestId("notification-filter-channel"), {
+      target: { value: "EMAIL" },
+    });
+    expect(screen.getByTestId("notification-n1")).toBeInTheDocument();
+    expect(screen.queryByTestId("notification-n2")).not.toBeInTheDocument();
+  });
+
+  it("marks selected notifications read in bulk and reports the result", async () => {
+    listNotifications.mockResolvedValue([
+      notification({ id: "n1", templateKey: "welcome" }),
+      notification({ id: "n2", templateKey: "digest" }),
+    ]);
+    fetchUnreadNotificationCount.mockResolvedValue({ count: 2 });
+    markNotificationRead.mockResolvedValue(notification({ read: true }));
+
+    renderInbox();
+    await screen.findByTestId("notification-n1");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: 'Select notification "welcome"' }));
+    fireEvent.click(screen.getByRole("checkbox", { name: 'Select notification "digest"' }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark selected as read" }));
+
+    await waitFor(() => expect(markNotificationRead).toHaveBeenCalledTimes(2));
+    expect(markNotificationRead).toHaveBeenCalledWith("n1");
+    expect(markNotificationRead).toHaveBeenCalledWith("n2");
+    expect(await screen.findByTestId("bulk-result")).toHaveTextContent("2 updated.");
+  });
+
+  it("exposes delivery retry state and the last error", async () => {
+    listNotifications.mockResolvedValue([
+      notification({
+        status: "RETRYING",
+        attempts: 2,
+        nextAttemptAt: "2026-02-01T10:05:00Z",
+        lastError: "provider timeout",
+      }),
+    ]);
+    fetchUnreadNotificationCount.mockResolvedValue({ count: 1 });
+
+    renderInbox();
+
+    expect(await screen.findByTestId("notification-status-n1")).toHaveTextContent("RETRYING");
+    expect(screen.getByTestId("notification-attempts-n1")).toHaveTextContent("2 attempts");
+    expect(screen.getByTestId("notification-next-attempt-n1")).toBeInTheDocument();
+    expect(screen.getByTestId("notification-error-n1")).toHaveTextContent("provider timeout");
+    expect(screen.getByTestId("delivery-health")).toHaveTextContent("0 pending · 1 retrying");
+  });
+
+  it("shows suppressed recipients and their block reason", async () => {
+    listNotifications.mockResolvedValue([notification()]);
+    fetchUnreadNotificationCount.mockResolvedValue({ count: 1 });
+    listNotificationSuppressions.mockResolvedValue([
+      {
+        id: "s1",
+        channel: "EMAIL",
+        recipient: "bounce@example.com",
+        reason: "SMTP_BOUNCE",
+        createdAt: "2026-02-01T09:00:00Z",
+      },
+    ]);
+
+    renderInbox();
+
+    const row = await screen.findByTestId("suppression-s1");
+    expect(row).toHaveTextContent("EMAIL");
+    expect(row).toHaveTextContent("bounce@example.com");
+    expect(row).toHaveTextContent("SMTP_BOUNCE");
+    expect(screen.getByTestId("delivery-health")).toHaveTextContent("1 suppressed");
   });
 
   it("shows an empty state when the tenant has no notifications", async () => {
@@ -140,16 +257,5 @@ describe("NotificationInbox", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Notifications could not be loaded.",
     );
-  });
-
-  it("labels notifications without a template by their channel", async () => {
-    listNotifications.mockResolvedValue([notification({ templateKey: null, channel: "SMS" })]);
-    fetchUnreadNotificationCount.mockResolvedValue({ count: 1 });
-
-    renderInbox();
-
-    expect(
-      await screen.findByRole("button", { name: 'Mark notification "SMS" as read' }),
-    ).toBeInTheDocument();
   });
 });

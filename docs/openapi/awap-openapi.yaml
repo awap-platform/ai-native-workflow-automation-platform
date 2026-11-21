@@ -2021,6 +2021,35 @@ paths:
         "403":
           $ref: "#/components/responses/Unauthorized"
 
+  /api/v1/documents/{fileId}/retry-scan:
+    post:
+      operationId: retryDocumentScan
+      summary: Re-queue a failed antivirus scan
+      description: >-
+        Re-queues a file whose scan ended in SCAN_FAILED, resets its retry budget and publishes a
+        fresh QUARANTINED scan event. A promoted or infected file is terminal and answers 409.
+      tags: [Documents]
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Refreshed scan projection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanRetryResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
   /api/v1/documents/versions/{versionId}/archive:
     post:
       operationId: archiveDocumentVersion
@@ -2110,6 +2139,28 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UnreadNotificationCountResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/notifications/suppressions:
+    get:
+      operationId: listNotificationSuppressions
+      summary: List suppressed recipients
+      description: >-
+        Delivery-operations view of the tenant bounce/complaint suppression list. A suppressed
+        recipient is never contacted again on that channel; rows are newest first.
+      tags: [Notifications]
+      responses:
+        "200":
+          description: Suppressed recipients.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NotificationSuppressionResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -4293,6 +4344,21 @@ components:
         version:
           $ref: "#/components/schemas/DocumentVersionResponse"
 
+    ScanRetryResponse:
+      type: object
+      description: Refreshed scan projection after an operator re-queued a failed scan.
+      properties:
+        fileId:
+          type: string
+          format: uuid
+        scanStatus:
+          type: string
+          enum: [QUARANTINED, SCANNING, CLEAN, PROMOTED, INFECTED, SCAN_FAILED]
+        detail:
+          type: string
+          nullable: true
+          description: Last scan failure detail, cleared when the retry was accepted.
+
     NotificationDeliveryResponse:
       type: object
       properties:
@@ -4352,6 +4418,25 @@ components:
           type: integer
           format: int64
           minimum: 0
+
+    NotificationSuppressionResponse:
+      type: object
+      description: A recipient permanently blocked on one channel after a bounce or complaint.
+      properties:
+        id:
+          type: string
+          format: uuid
+        channel:
+          type: string
+          enum: [EMAIL, SMS, PUSH, WEB, WEBHOOK]
+        recipient:
+          type: string
+        reason:
+          type: string
+          description: Bounce/complaint classification recorded by the dispatcher.
+        createdAt:
+          type: string
+          format: date-time
 
     WebhookDeliveryResponse:
       type: object

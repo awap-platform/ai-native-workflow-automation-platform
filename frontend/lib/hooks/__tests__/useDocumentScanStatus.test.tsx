@@ -66,6 +66,33 @@ describe("useDocumentScanStatus", () => {
     );
     expect(result.current.lastEvent?.status).toBe("SCANNING");
     expect(result.current.transport).toBe("sse");
+    expect(result.current.history["file-1"]?.map((event) => event.status)).toEqual(["SCANNING"]);
+  });
+
+  it("builds a per-file history and ignores a duplicate event", async () => {
+    restore = installFakeEventSource();
+    const queryClient = newQueryClient();
+    queryClient.setQueryData(DOCUMENTS_QUERY_KEY, [documentDto()]);
+    const { result } = renderHook(() => useDocumentScanStatus(), {
+      wrapper: wrapper(queryClient),
+    });
+    act(() => FakeEventSource.instances[0]!.open());
+
+    const scanning = scanEvent({ status: "SCANNING", occurredAt: "2026-01-01T00:00:01Z" });
+    act(() => FakeEventSource.instances[0]!.emit(scanning));
+    act(() => FakeEventSource.instances[0]!.emit(scanning));
+    act(() =>
+      FakeEventSource.instances[0]!.emit(
+        scanEvent({ status: "PROMOTED", occurredAt: "2026-01-01T00:00:02Z" }),
+      ),
+    );
+
+    await waitFor(() =>
+      expect(result.current.history["file-1"]?.map((event) => event.status)).toEqual([
+        "SCANNING",
+        "PROMOTED",
+      ]),
+    );
   });
 
   it("reconnects with backoff after a network drop and resumes updates", async () => {

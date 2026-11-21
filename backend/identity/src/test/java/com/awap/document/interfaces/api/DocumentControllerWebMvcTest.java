@@ -3,9 +3,11 @@ package com.awap.document.interfaces.api;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -124,6 +126,50 @@ class DocumentControllerWebMvcTest {
             get("/api/v1/documents/" + fileId + "/events")
                 .with(user("manager").authorities(new SimpleGrantedAuthority("INSTANCE_READ"))))
         .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void retryScanReturnsTheRequeuedProjection() throws Exception {
+    UUID fileId = UUID.randomUUID();
+    when(fileService.retryScan(TENANT, fileId))
+        .thenReturn(new FileScanInfo(fileId, "a.pdf", FileScanStatus.QUARANTINED, null));
+
+    mockMvc
+        .perform(
+            post("/api/v1/documents/" + fileId + "/retry-scan")
+                .with(csrf())
+                .with(user("uploader").authorities(new SimpleGrantedAuthority("FILE_UPLOAD"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.fileId").value(fileId.toString()))
+        .andExpect(jsonPath("$.scanStatus").value("QUARANTINED"));
+  }
+
+  @Test
+  void retryScanRequiresTheUploadAuthority() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/documents/" + UUID.randomUUID() + "/retry-scan")
+                .with(csrf())
+                .with(user("reader").authorities(new SimpleGrantedAuthority("INSTANCE_READ"))))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void retryScanOfANonFailedFileIsAConflict() throws Exception {
+    UUID fileId = UUID.randomUUID();
+    when(fileService.retryScan(TENANT, fileId))
+        .thenThrow(
+            new AwapException(
+                ErrorCode.FILE_STATE_CONFLICT,
+                HttpStatus.CONFLICT,
+                "Only a failed antivirus scan can be retried."));
+
+    mockMvc
+        .perform(
+            post("/api/v1/documents/" + fileId + "/retry-scan")
+                .with(csrf())
+                .with(user("uploader").authorities(new SimpleGrantedAuthority("FILE_UPLOAD"))))
+        .andExpect(status().isConflict());
   }
 
   @Test

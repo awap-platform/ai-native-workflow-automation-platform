@@ -22,9 +22,9 @@ uses the shared fixtures in
 | Workflow designer | `/workflows/designer` | ✅ | ✅ | Grouped palette, validation panel, navigator and properties; populated state adds a TASK node |
 | Form builder | `/forms/builder` | ✅ | ✅ | Populated state adds a TEXT field inspector |
 | Form fill | `/forms/fill` | ✅ | ✅ | Populated state selects the form and renders its fields |
-| Documents | `/documents` | ✅ | ✅ | Live scan-status region |
-| Notifications | `/notifications` | ✅ | ✅ | Unread live region |
-| Notification templates | `/notification-templates` | ✅ | ✅ | List + editor |
+| Documents | `/documents` | ✅ | ✅ | Live scan-status region, upload progress, scan timeline and infected alert |
+| Notifications | `/notifications` | ✅ | ✅ | Unread live region, labelled filters, bulk toolbar and suppression table |
+| Notification templates | `/notification-templates` | ✅ | ✅ | List + editor, placeholder chips and warning live region |
 | Analytics | `/analytics` | ✅ | ✅ | Empty and aggregate tables |
 | Workflow instances | `/instances` | ✅ | ✅ | State filter, export and deep links |
 | Instance detail | `/instances/{id}` | — | ✅ | Timeline, redacted logs, saga and guarded operator actions |
@@ -108,6 +108,35 @@ contract of their own:
   are skipped because they do not exist in production.
 - Every scan is written to `frontend/a11y-report/report.json`; CI uploads it as
   the `a11y-report` artifact even when a screen fails.
+
+## Phase 7 documents, notifications and templates
+
+The documents and notification screens stay in the axe matrix and gain an explicit keyboard and
+live-region contract:
+
+- The upload dropzone is a labelled file input with `Upload a document` as its accessible name. The
+  progress element carries `Upload progress for <file>`, and the percentage text is a `role="status"`
+  live region. `Cancel upload` is a normal button; cancelling announces whether the pending version
+  was removed.
+- Each document row renders a `Scan timeline for <file>` ordered list. A scan status change is
+  announced through the atomic `role="status"` announcer, and an `INFECTED` result adds a
+  `role="alert"` banner. The Phase 7 E2E test runs axe against that alert and requires zero serious or
+  critical violations.
+- Download stays disabled until the row is promoted, so a keyboard or screen-reader user cannot
+  request a URL for a quarantined file.
+- `Show versions` is an `aria-expanded` toggle; the resulting table is named
+  `Version history for <file>`.
+- The notification filters are labelled native selects and an input inside a `role="search"` region.
+  The visible/total count and the unread badge are polite live regions.
+- Bulk selection uses native checkboxes with per-row accessible names. The bulk toolbar is a labelled
+  group; a partial failure is announced instead of claiming success.
+- The suppression table has labelled columns and states the channel, recipient, reason and timestamp.
+- Template placeholders are text chips (never markup). The variables text area has a labelled
+  description, empty/unused variable warnings use `role="status"`, and a save or preview failure uses
+  `role="alert"`.
+
+See [`ui-ux/phase-7-documents-notifications.md`](ui-ux/phase-7-documents-notifications.md) for the
+behaviour, test map and honest limitations (including the session-scoped scan timeline).
 
 ## Local commands
 
