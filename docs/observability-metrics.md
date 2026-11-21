@@ -149,3 +149,20 @@ so a broken template or a removed runbook link fails CI as well.
   `DocumentScanMetrics`; it tracks open streams across all tenants on the replica. The status
   latency timer runs from the file status transition (`occurredAt`) to the successful SSE write, so
   it includes any in-process fan-out delay but excludes client render time.
+
+## Release guard and RUM (phase 10)
+
+The release-guard alerts use existing catalogued series, so no new backend
+instrumentation is required:
+
+| Alert | Series | Budget |
+|---|---|---|
+| `AwapReleaseCanaryFailureRate` | `awap_workflow_failure_total`, `awap_workflow_success_total` | failure ratio ≤ 5% during the canary window |
+| `AwapReleaseCanaryLatencyP95` | `awap_process_duration_seconds_bucket` | p95 ≤ 1.5 s |
+| `AwapReleaseCanaryDlqGrowth` | `awap_dlq_messages_total` | zero new dead letters |
+
+Real-user monitoring is separate: browser Web Vitals arrive at
+`POST /api/rum` as a structured `rum-vital` log line. The schema, redaction,
+flag (`rum_vitals`) and the step-by-step integration with Prometheus/Grafana are
+documented in [`observability-rum.md`](observability-rum.md). No RUM dashboard
+or alert is claimed until the log pipeline exports the metric.

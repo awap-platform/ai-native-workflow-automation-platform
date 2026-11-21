@@ -115,11 +115,10 @@ export default function LoginCard() {
 
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[1fr_420px] lg:items-center">
-      <section className="awap-card hidden gap-4 lg:grid" aria-labelledby="login-brand-heading">
+      <section className="awap-card hidden gap-4 lg:grid" aria-label={t("app.name")}>
         <p className="awap-brand">{t("app.name")}</p>
-        <h1 id="login-brand-heading" className="text-3xl font-bold">
-          {t("auth.signInTitle")}
-        </h1>
+        {/* The card below owns the page's only h1 (duplicate h1s fail axe). */}
+        <p className="text-3xl font-bold">{t("auth.signInTitle")}</p>
         <p className="awap-muted">{t("auth.signInSubtitle")}</p>
         <ul className="awap-list">
           <li className="flex items-start gap-2">
@@ -244,11 +243,12 @@ export default function LoginCard() {
         </form>
 
         <div className="mt-4 grid gap-2">
-          <div className="flex items-center gap-2">
-            <Button variant="outline" className="flex-1" disabled>
+          {/* Two nowrap buttons exceed a 320px viewport when placed side by side. */}
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Button variant="outline" className="w-full" disabled>
               {t("auth.ssoGoogle")}
             </Button>
-            <Button variant="outline" className="flex-1" disabled>
+            <Button variant="outline" className="w-full" disabled>
               {t("auth.ssoMicrosoft")}
             </Button>
           </div>

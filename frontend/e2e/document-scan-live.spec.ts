@@ -6,6 +6,10 @@ import { expect, test, type Page } from "@playwright/test";
  * row rendering and download gating) runs through the real page.
  */
 const API = "**/api/v1/**";
+// The presigned upload URL must be same-origin with the page that issued it, otherwise the
+// browser applies CORS to the PUT. Deriving it from E2E_BASE_URL keeps the suite runnable on the
+// production preview port (3100) as well as the default dev/CI port (3000).
+const WEB_ORIGIN = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 
 interface UploadCalls {
   post: number;
@@ -74,7 +78,7 @@ async function openDocuments(
         contentType: "application/json",
         body: JSON.stringify({
           fileId: "file-1",
-          uploadUrl: "http://localhost:3000/upload/file-1",
+          uploadUrl: `${WEB_ORIGIN}/upload/file-1`,
           version: {
             id: "version-1",
             fileId: "file-1",
@@ -116,7 +120,7 @@ async function openDocuments(
       ]),
     });
   });
-  await page.route("http://localhost:3000/upload/file-1", async (route) => {
+  await page.route(`${WEB_ORIGIN}/upload/file-1`, async (route) => {
     calls.put++;
     await route.fulfill({
       status: 200,

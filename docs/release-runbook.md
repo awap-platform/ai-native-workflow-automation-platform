@@ -4,6 +4,11 @@ This runbook covers the release flow required by issue #179: releases are produc
 from Conventional Commits, the version bump and `CHANGELOG.md` entry are reviewable, and a tag
 is created only after the release pull request is merged and the full CI run on `main` is green.
 
+The phase-10 sections below cover the canary rollout, the rollback runbook (RTO < 30 minutes)
+and the rollback drill. The machine-readable policy is
+[`infra/release/canary-policy.json`](../infra/release/canary-policy.json), validated by
+`scripts/check-release-policy.mjs` and `frontend/lib/__tests__/releaseReadiness.test.ts`.
+
 ## Flow
 
 1. A pull request with Conventional Commit messages is merged to `main`.
@@ -152,3 +157,81 @@ Prefer a forward fix. A published tag must never be moved, and `main` must never
 | `Release` says `main advanced` | The next green CI run releases the newer main commit; nothing to do. |
 | Release PR is not opened | Check the `Release` workflow run for the green `CI` run of the merge commit and the token preflight. |
 | Tag exists but CD did not run | Run the `CD` workflow with the tag, or re-run the release job; `release_created` guards duplicate dispatches. |
+
+## Canary rollout
+
+Canary traffic is raised only after a clean observation window. The stages and
+thresholds are the committed policy, not a spreadsheet:
+
+| Stage | Traffic | Observation | Advance only when |
+|---|---:|---:|---|
+| 1 | 5% | 30 minutes | every release-guard alert is silent |
+| 2 | 25% | 30 minutes | every release-guard alert is silent |
+| 3 | 100% | 30 minutes | every release-guard alert is silent |
+
+Automatic rollback thresholds (tighten-only relative to the global budgets):
+
+| Signal | Budget |
+|---|---:|
+| Error rate | ≤ 1% |
+| p95 server latency | ≤ 1.5 s |
+| LCP | ≤ 2.5 s |
+| CLS | ≤ 0.1 |
+| TBT | ≤ 200 ms |
+| INP | ≤ 200 ms |
+| DLQ growth | 0 messages |
+
+The alerts `AwapReleaseCanaryFailureRate`, `AwapReleaseCanaryLatencyP95` and
+`AwapReleaseCanaryDlqGrowth` fire during the window and point at
+[`operations-runbook.md#o35--release-guard-and-rollback`](operations-runbook.md#o35--release-guard-and-rollback).
+The deployment mechanism shifts traffic between ReplicaSets (service weights or
+an Argo Rollouts-style controller); the policy file is the source of truth for
+the percentages and thresholds.
+
+> Status: the canary has **not** been executed. No traffic was shifted and no
+> live rollback was triggered in this change.
+
+## Rollback runbook (RTO < 30 minutes)
+
+The recovery time objective is **under 30 minutes** from the rollback decision
+to verified healthy traffic. The procedure is intentionally short:
+
+1. **Decide (0–2 min).** A release-guard alert, a failed UAT step or a P1
+   incident is enough. Do not wait for a second confirmation on a critical
+   signal.
+2. **Freeze (2–3 min).** Stop the rollout; no new stage may start. Record the
+   decision, the alert and the current traffic weight in the incident ticket.
+3. **Shift traffic back (3–10 min).** Point the service at the previous stable
+   ReplicaSet/image digest (roll the deployment back to the last good tag). If
+   Argo CD manages the app, `argocd app rollback awap <previous-revision>`.
+4. **Verify (10–20 min).** Confirm `GET /actuator/health` is `UP`, the
+   release-guard alerts resolve, error rate returns below 1%, and p95 latency
+   returns below 1.5 s. Check `/api/rum` has no spike in error-shaped samples.
+5. **Communicate (20–25 min).** Post the incident update with the previous
+   digest, the failed digest and the alert evidence.
+6. **Follow up (≤ 30 min).** Open a defect with the triggering metric and add a
+   regression test or threshold adjustment through review. Never edit the
+   running policy in place.
+
+If the rollback itself fails, escalate to the database/CDC runbooks and use the
+previous release tag; the release-please flow produces a patch release from the
+reverted change.
+
+## Rollback drill
+
+The drill proves the runbook, not the product. Run it on staging before a major
+release and after any change to the rollout mechanism.
+
+1. Deploy the current staging tag and note the stable digest.
+2. Deploy the next candidate to 5% and confirm both revisions are healthy.
+3. Trigger a controlled failure (for example a synthetic 5xx or a temporary
+   latency injection) and verify the release-guard alert fires.
+4. Execute the rollback runbook from step 3 and time every phase.
+5. Record the timestamps: decision, traffic shift, health verification and
+   alert resolution. The total must stay under 30 minutes.
+6. File the drill record in the release ticket, including any step that needed
+   clarification.
+
+> Status: the drill has **not** been executed for this change. The procedure and
+> the RTO are documented; the drill record is a required release-ticket
+> attachment.

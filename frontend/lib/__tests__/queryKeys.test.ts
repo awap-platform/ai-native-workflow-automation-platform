@@ -94,8 +94,11 @@ describe("server state guard", () => {
       .flatMap((directory) => collectFiles(join(process.cwd(), directory)))
       .filter((file) => {
         const source = readFileSync(file, "utf8");
-        // Next.js route handlers legitimately forward a CSP report; everything else must use lib/api.
-        if (file.endsWith(join("app", "api", "csp-report", "route.ts"))) {
+        // Server-only route handlers legitimately forward telemetry; everything else must use lib/api.
+        if (
+          file.endsWith(join("app", "api", "csp-report", "route.ts")) ||
+          file.endsWith(join("app", "api", "rum", "route.ts"))
+        ) {
           return false;
         }
         return /\bfetch\s*\(/.test(source);

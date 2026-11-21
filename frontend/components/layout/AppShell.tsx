@@ -10,6 +10,7 @@ import { breadcrumbForPath, requiredRolesForPath, visibleNavGroups } from "../..
 import { ForbiddenState } from "../ui/states";
 import type { BreadcrumbItem } from "../ui/data-display";
 import GlobalCommandPalette from "./GlobalCommandPalette";
+import InAppTour from "./InAppTour";
 import MobileDrawer from "./MobileDrawer";
 import SessionTimeoutWarning from "./SessionTimeoutWarning";
 import Sidebar from "./Sidebar";
@@ -63,6 +64,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         />
         <main id="main-content" className="awap-main" tabIndex={-1}>
           {forbidden ? <ForbiddenState message={t("state.forbidden")} /> : children}
+          {forbidden || pathname !== "/dashboard" ? null : <InAppTour />}
         </main>
       </div>
       <MobileDrawer

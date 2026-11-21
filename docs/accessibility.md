@@ -219,3 +219,53 @@ keyboard/live-region contract:
 
 See [`ui-ux/phase-8-analytics-admin.md`](ui-ux/phase-8-analytics-admin.md) for the behaviour, test
 map and honest limitations.
+
+## Phase 10 release-readiness additions
+
+[`ui-ux/phase-10-release-readiness.md`](ui-ux/phase-10-release-readiness.md)
+extends the automated net and documents the manual passes.
+
+### Automated
+
+- Every screen is scanned in its empty and populated state with axe
+  (`wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`); only `critical`/`serious`
+  impact fails. The full report is uploaded as the `a11y-report` artifact.
+- Forced-colors (`forcedColors: active`) scans cover login, register, dashboard,
+  tasks and Copilot. `color-contrast` is disabled there because the operating
+  system owns the palette; structure, names, roles and focus are still checked.
+- Structural checks per route: exactly one `h1`, one `main` landmark, and a
+  navigation landmark on protected screens.
+- The skip link is asserted as the first keyboard stop and must target
+  `#main-content`.
+- A keyboard-only journey uses Tab to reach the sidebar and Enter to navigate.
+- A 640 px viewport (200 % of 1280 px) must not scroll horizontally on the
+  reflow-critical screens.
+- Every transition/animation collapses under `prefers-reduced-motion: reduce`.
+- Enabled controls keep a visible border under `forced-colors: active`.
+
+### Manual screen-reader procedures (not executed here)
+
+CI has no screen reader. These are the exact passes a reviewer must run and
+record in the release ticket.
+
+**NVDA + Firefox/Chrome (Windows)**
+
+1. Start NVDA, open the application.
+2. `H`: one level-1 heading per route; section headings in order.
+3. `D`: banner, navigation and main landmarks announced once each.
+4. Sign in with `Tab` only: labels, live-region errors and the skip link.
+5. Task inbox `J`/`K` cursor announcements; `A`/`R` confirmation dialogs.
+6. Documents and notifications: scan-status and unread live regions announce
+   without moving focus.
+7. Copilot: transcript streaming and citation reachability.
+
+**VoiceOver + Safari (macOS/iOS)**
+
+1. `Cmd+F5`, open the rotor with `VO+U`.
+2. Landmarks rotor: banner, navigation, main.
+3. Headings rotor: exactly one level-1 heading.
+4. Forms rotor: every field labelled, errors announced.
+5. iOS: swipe through the inbox; the tour dismiss button has a distinct label.
+
+A failed step is a release blocker. The manual passes have **not** been run for
+this PR; only the automated checks above are evidence.

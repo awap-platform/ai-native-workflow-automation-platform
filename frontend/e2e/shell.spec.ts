@@ -105,6 +105,68 @@ test("an unknown route renders the 404 screen with a way back", async ({ page })
   );
 });
 
+/**
+ * JS-disabled fallback (UI/UX phase 10). The server-rendered `<noscript>` notice
+ * in the root layout must explain the requirement instead of showing a blank
+ * page.
+ */
+test.describe("fallbacks with JavaScript disabled", () => {
+  test.use({ javaScriptEnabled: false });
+
+  test("the noscript notice explains that JavaScript is required", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByText(/This application needs JavaScript/)).toBeVisible();
+    await expect(page.locator("noscript")).toHaveCount(1);
+  });
+});
+
+test("the in-app tour appears on the dashboard and the dismissal persists", async ({ page }) => {
+  await setSession(page, { tenant: "tenant-a", role: "TENANT_ADMIN" });
+  await installApiMocks(page, false);
+  await page.goto("/dashboard");
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+
+  await page.evaluate(() => window.localStorage.clear());
+  await page.reload();
+  const tour = page.getByTestId("in-app-tour");
+  await expect(tour).toBeVisible();
+  await expect(tour.getByRole("heading", { name: "Getting started" })).toBeVisible();
+
+  await page.getByTestId("dismiss-tour").click();
+  await expect(tour).toHaveCount(0);
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByTestId("in-app-tour")).toHaveCount(0);
+});
+
+test("keyboard-only: Tab reaches the sidebar and Enter navigates", async ({ page }) => {
+  await setSession(page, { tenant: "tenant-a", role: "TENANT_ADMIN" });
+  await installApiMocks(page, false);
+  await page.goto("/dashboard");
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+
+  let inboxReached = false;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    await page.keyboard.press("Tab");
+    const active = await page.evaluate(() => {
+      const element = document.activeElement as HTMLElement | null;
+      return {
+        tag: element?.tagName ?? "",
+        text: element?.textContent?.trim() ?? "",
+      };
+    });
+    if (active.tag === "A" && active.text === "Inbox") {
+      inboxReached = true;
+      break;
+    }
+  }
+  expect(inboxReached, "the sidebar Inbox link must be reachable with Tab").toBe(true);
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/tasks$/);
+  await expect(page.getByRole("heading", { name: "Task inbox" })).toBeVisible();
+});
+
 test("the shell does not scroll horizontally at 320px", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 640 });
   await setSession(page, { tenant: "tenant-a", role: "TENANT_ADMIN" });

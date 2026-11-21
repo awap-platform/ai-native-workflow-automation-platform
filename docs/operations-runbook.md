@@ -1357,3 +1357,36 @@ separate SLO by design (see [`ai-latency-and-async-jobs.md`](ai-latency-and-asyn
    Do not raise the AI timeout without re-running the golden-set gate.
 7. After changing any latency budget, re-run the isolation proof:
    `node --test "load-test/test/*.test.mjs"`.
+
+## O35 — Release guard and rollback
+
+The release-guard alerts implement the canary policy in
+[`infra/release/canary-policy.json`](../infra/release/canary-policy.json). They
+fire during the 5% → 25% → 100% rollout and mean "stop the rollout and roll
+back", not "investigate later".
+
+| Alert | Meaning | First action |
+|---|---|---|
+| `AwapReleaseCanaryFailureRate` | Workflow failure ratio above 5% during the window | Stop the rollout; check recent backend errors and dependencies. |
+| `AwapReleaseCanaryLatencyP95` | p95 process duration above 1.5 s | Stop the rollout; check database, CDC and external providers. |
+| `AwapReleaseCanaryDlqGrowth` | New dead letters during the window | Stop the rollout; inspect the DLQ topic and consumer lag. |
+
+**Rollback (target < 30 minutes):**
+
+1. Freeze the canary; do not advance the traffic percentage.
+2. Roll the deployment back to the previous stable ReplicaSet/image digest
+   (`argocd app rollback awap <previous-revision>` or the previous digest in the
+   manifest). Kubernetes keeps the previous ReplicaSet, so the shift is a
+   rollout undo, not a rebuild.
+3. Verify health, error rate < 1%, p95 < 1.5 s, and that the release-guard
+   alerts resolve. Check `rum-vital` log samples for error-shaped values.
+4. Record the incident with the alert, the previous digest and the time of each
+   step.
+5. If the rollback fails, escalate to the database/CDC runbooks and deploy the
+   previous release tag.
+
+The canary itself is driven by the release workflow; this runbook is the
+on-call contract. The full procedure, including the drill, lives in
+[`release-runbook.md`](release-runbook.md#rollback-runbook-rto--30-minutes).
+
+> Status: no live canary or rollback drill has been executed for this change.
