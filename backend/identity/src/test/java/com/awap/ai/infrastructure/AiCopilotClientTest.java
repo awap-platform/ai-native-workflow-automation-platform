@@ -183,6 +183,18 @@ class AiCopilotClientTest {
   }
 
   @Test
+  void keepsTheStatusOnlyMessageWhenTheErrorBodyIsNotJson() throws Exception {
+    TenantContext.set(tenantId, userId, "EMPLOYEE");
+    respond(500, "not-json");
+
+    assertThatThrownBy(
+            () -> client().forward("/api/v1/copilot/chat", objectMapper.createObjectNode()))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("status 500")
+        .satisfies(ex -> assertThat(((AwapException) ex).status().value()).isEqualTo(502));
+  }
+
+  @Test
   void preservesTheBudgetRemainingDetailOnA429() throws Exception {
     TenantContext.set(tenantId, userId, "EMPLOYEE");
     respond(
