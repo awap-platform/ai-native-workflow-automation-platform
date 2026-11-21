@@ -729,6 +729,15 @@ export function createFormDefinition(name: string, schemaJson: string): Promise<
   return authPost<FormDefinitionDto>("/api/v1/forms", { name, schemaJson });
 }
 
+/** Saves a new version of an existing form; the server increments `version`. */
+export function updateFormDefinition(
+  id: string,
+  name: string,
+  schemaJson: string,
+): Promise<FormDefinitionDto> {
+  return authPut<FormDefinitionDto>(`/api/v1/forms/${id}`, { name, schemaJson });
+}
+
 export function approveTask(id: string, comment?: string): Promise<TaskDto> {
   return authPost<TaskDto>(`/api/v1/tasks/${id}/approve`, { comment });
 }
@@ -861,6 +870,8 @@ export interface FormSubmissionFileDto {
 export interface FormSubmissionDto {
   id: string;
   formId: string;
+  /** Version of the form definition that was answered (phase 6). */
+  formVersion?: number;
   workflowInstanceId: string | null;
   dataJson: string;
   submittedBy: string | null;

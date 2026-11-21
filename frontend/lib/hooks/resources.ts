@@ -38,6 +38,7 @@ import {
   runTaskAction,
   startWorkflowInstance,
   submitForm,
+  updateFormDefinition,
   validateWorkflowExpression,
   type CreateWorkflowPayload,
   type RegisterTenantPayload,
@@ -360,6 +361,24 @@ export function useCreateFormDefinition() {
     mutationFn: ({ name, schemaJson }: { name: string; schemaJson: string }) =>
       createFormDefinition(name, schemaJson),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.forms.all }),
+  });
+}
+
+/** Saves a new version of an existing form definition (server bumps `version`). */
+export function useUpdateFormDefinition() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      name,
+      schemaJson,
+    }: {
+      id: string;
+      name: string;
+      schemaJson: string;
+    }) => updateFormDefinition(id, name, schemaJson),
+    onSuccess: (updated) =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.forms.detail(updated.id) }),
   });
 }
 

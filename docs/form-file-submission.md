@@ -67,3 +67,20 @@ quarantine slot, PUTs the bytes with progress, polls the scan status and stores
 only the returned file id in the form value. Submitting stays enabled while the
 scan is pending; the server returns `409` and the response includes the promoted
 status once the file is ready.
+
+## Download and rendering (phase 6)
+
+Submissions render through the same `FormRenderer` as the builder preview, and
+FILE values render through
+[`FormAttachment`](../frontend/components/forms/FormAttachment.tsx):
+
+| Scan status | UI behaviour |
+|---|---|
+| `PROMOTED` | The download button calls `GET /api/v1/documents/{fileId}/download` and opens the presigned URL |
+| `INFECTED` | The button is disabled and the row states that the antivirus scan rejected the file; the endpoint is never called |
+| `QUARANTINED`, `SCANNING`, `CLEAN`, `SCAN_FAILED` | Disabled with “becomes downloadable once scanning promotes it” |
+
+A hidden FILE field (`visibleWhen` not satisfied) is skipped when the server
+resolves file ids, so a client cannot attach a file through an invisible field.
+The 500 MB and extension checks still run when the id is resolved; the browser
+does not pre-validate the size, it surfaces the server’s `413`/`415`.

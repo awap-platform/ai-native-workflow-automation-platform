@@ -5,12 +5,6 @@
   "app/(app)/documents/page.tsx": {
     "count": 4
   },
-  "app/(app)/forms/builder/page.tsx": {
-    "count": 23
-  },
-  "app/(app)/forms/fill/page.tsx": {
-    "count": 7
-  },
   "components/documents/DocumentScanTable.tsx": {
     "count": 15
   },

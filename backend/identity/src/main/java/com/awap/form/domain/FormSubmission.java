@@ -23,6 +23,10 @@ public class FormSubmission {
   @Column(name = "form_id", nullable = false)
   private UUID formId;
 
+  /** Version of the form definition the respondent answered. */
+  @Column(name = "form_version", nullable = false)
+  private int formVersion;
+
   @Column(name = "workflow_instance_id")
   private UUID workflowInstanceId;
 
@@ -42,14 +46,26 @@ public class FormSubmission {
   protected FormSubmission() {}
 
   public FormSubmission(
-      UUID tenantId, UUID formId, UUID workflowInstanceId, String dataJson, UUID submittedBy) {
+      UUID tenantId,
+      UUID formId,
+      int formVersion,
+      UUID workflowInstanceId,
+      String dataJson,
+      UUID submittedBy) {
     this.id = UUID.randomUUID();
     this.tenantId = tenantId;
     this.formId = formId;
+    this.formVersion = formVersion;
     this.workflowInstanceId = workflowInstanceId;
     this.dataJson = dataJson;
     this.submittedBy = submittedBy;
     this.createdAt = Instant.now();
+  }
+
+  /** Convenience constructor for callers that do not track a definition version. */
+  public FormSubmission(
+      UUID tenantId, UUID formId, UUID workflowInstanceId, String dataJson, UUID submittedBy) {
+    this(tenantId, formId, 1, workflowInstanceId, dataJson, submittedBy);
   }
 
   public UUID getId() {
@@ -62,6 +78,10 @@ public class FormSubmission {
 
   public UUID getFormId() {
     return formId;
+  }
+
+  public int getFormVersion() {
+    return formVersion;
   }
 
   public UUID getWorkflowInstanceId() {

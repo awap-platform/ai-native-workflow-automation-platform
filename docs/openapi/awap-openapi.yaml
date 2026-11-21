@@ -1707,10 +1707,14 @@ paths:
       operationId: submitForm
       summary: Submit a form
       description: >-
-        Validates and stores a submission against a form definition. A FILE field value is either
-        a single `fileId` string or a `fileIds` array; every id must reference a tenant-owned file
-        in `PROMOTED` state (404 for foreign/missing, 403 for infected, 409 for not promoted, 415
-        for an unsupported format and 413 above 500 MB).
+        Validates and stores a submission against a form definition, recording the answered
+        `formVersion`. Required, length, regex, numeric bound and option rules are enforced
+        server-side; a field hidden by its `visibleWhen` rule is neither required nor validated.
+        A calculated field must equal the server-side recomputation of its expression. A FILE
+        field value is either a single `fileId` string or a `fileIds` array; every id must
+        reference a tenant-owned file in `PROMOTED` state (404 for foreign/missing, 403 for
+        infected, 409 for not promoted, 415 for an unsupported format and 413 above 500 MB).
+        Submission data above 1 MB and schemas above 200 KB are rejected with 413.
       tags: [Forms]
       parameters:
         - $ref: "#/components/parameters/FormId"
@@ -4198,6 +4202,9 @@ components:
         formId:
           type: string
           format: uuid
+        formVersion:
+          type: integer
+          description: Version of the form definition that the respondent answered.
         workflowInstanceId:
           type: string
           format: uuid

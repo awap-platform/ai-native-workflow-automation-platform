@@ -8,6 +8,7 @@ import java.util.UUID;
 public record FormSubmissionResponse(
     UUID id,
     UUID formId,
+    int formVersion,
     UUID workflowInstanceId,
     String dataJson,
     UUID submittedBy,
@@ -16,6 +17,13 @@ public record FormSubmissionResponse(
 
   public FormSubmissionResponse withFiles(List<FormSubmissionFileResponse> acceptedFiles) {
     return new FormSubmissionResponse(
-        id, formId, workflowInstanceId, dataJson, submittedBy, createdAt, acceptedFiles);
+        id,
+        formId,
+        formVersion,
+        workflowInstanceId,
+        dataJson,
+        submittedBy,
+        createdAt,
+        acceptedFiles);
   }
 }

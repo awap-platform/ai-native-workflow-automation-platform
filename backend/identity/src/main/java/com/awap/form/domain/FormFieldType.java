@@ -1,6 +1,6 @@
 package com.awap.form.domain;
 
-/** Field types supported by the Form Service in Phase 0. */
+/** Field types supported by the Form Service; SECTION and DIVIDER are layout-only. */
 public enum FormFieldType {
   TEXT,
   TEXTAREA,
@@ -12,5 +12,9 @@ public enum FormFieldType {
   BOOLEAN,
   SELECT,
   MULTI_SELECT,
-  FILE
+  FILE,
+  /** Layout heading; never takes a value. */
+  SECTION,
+  /** Visual separator; never takes a value. */
+  DIVIDER
 }
