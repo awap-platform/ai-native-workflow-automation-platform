@@ -108,4 +108,8 @@ public class Invitation {
   public UUID getInvitedBy() {
     return invitedBy;
   }
+
+  public Instant getCreatedAt() {
+    return createdAt;
+  }
 }

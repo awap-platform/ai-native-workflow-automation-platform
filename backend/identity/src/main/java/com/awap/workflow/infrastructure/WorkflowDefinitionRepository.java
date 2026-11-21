@@ -1,6 +1,7 @@
 package com.awap.workflow.infrastructure;
 
 import com.awap.workflow.domain.WorkflowDefinition;
+import com.awap.workflow.domain.WorkflowStatus;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -14,4 +15,6 @@ public interface WorkflowDefinitionRepository extends JpaRepository<WorkflowDefi
   Optional<WorkflowDefinition> findByIdAndTenantIdAndDeletedFalse(UUID id, UUID tenantId);
 
   long countByTenantIdAndDeletedFalse(UUID tenantId);
+
+  long countByTenantIdAndStatusAndDeletedFalse(UUID tenantId, WorkflowStatus status);
 }

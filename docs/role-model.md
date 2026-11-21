@@ -83,3 +83,21 @@ limited to `awap_app`).
 The OpenAPI contract is in
 [`docs/openapi/awap-openapi.yaml`](openapi/awap-openapi.yaml) and is checked for controller
 coverage and breaking changes in CI.
+
+## Phase 8 admin console
+
+The identity console uses the same role authority order:
+
+- A role select offers only the caller's role and lower roles; the backend independently rejects
+  an escalation with `403`. A self-escalation is rejected explicitly.
+- The last `TENANT_ADMIN` or `SYSTEM_ADMIN` cannot be demoted or deleted (`409`), so a tenant
+  cannot lock itself out.
+- Role changes and user deletions write an immutable `organization_audit_events` row with the
+  actor, old value and new value. The audit console reads that trail with keyset pagination.
+- A tenant administrator can only read its own tenant. Requesting another tenant returns `403`;
+  only `SYSTEM_ADMIN` may cross tenants.
+- Invitations enforce the tenant `maxUsers` quota before creating a row (`429`), and the one-time
+  token is returned only by the creation response.
+
+See [`ui-ux/phase-8-analytics-admin.md`](ui-ux/phase-8-analytics-admin.md) for the console
+behaviour and test map.

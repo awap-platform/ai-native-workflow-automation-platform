@@ -126,6 +126,27 @@ export const NAV_GROUPS: NavGroup[] = [
     headingKey: "nav.admin",
     items: [
       {
+        href: "/admin",
+        labelKey: "nav.identityConsole",
+        icon: "organization",
+        keywords: ["users", "groups", "roles", "permissions", "invitations", "quota"],
+        requiredRoles: ADMIN_ROLES,
+      },
+      {
+        href: "/admin/operate",
+        labelKey: "nav.operateConsole",
+        icon: "instances",
+        keywords: ["health", "outbox", "dlq", "jobs", "operations"],
+        requiredRoles: ADMIN_ROLES,
+      },
+      {
+        href: "/admin/audit",
+        labelKey: "nav.auditLog",
+        icon: "shield",
+        keywords: ["audit", "break-glass", "export"],
+        requiredRoles: ADMIN_ROLES,
+      },
+      {
         href: "/admin/csp",
         labelKey: "nav.cspReports",
         icon: "shield",

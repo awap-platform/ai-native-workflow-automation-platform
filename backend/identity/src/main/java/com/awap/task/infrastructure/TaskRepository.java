@@ -15,6 +15,10 @@ public interface TaskRepository extends JpaRepository<Task, UUID> {
 
   List<Task> findByTenantIdAndDeletedFalse(UUID tenantId);
 
+  long countByTenantIdAndDeletedFalse(UUID tenantId);
+
+  long countByTenantIdAndStatusAndDeletedFalse(UUID tenantId, TaskStatus status);
+
   List<Task> findByTenantIdAndAssigneeIdAndDeletedFalse(UUID tenantId, UUID assigneeId);
 
   Optional<Task> findByIdAndTenantIdAndDeletedFalse(UUID id, UUID tenantId);

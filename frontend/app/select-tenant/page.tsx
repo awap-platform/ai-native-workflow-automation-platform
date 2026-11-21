@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -7,14 +8,16 @@ import AuthShell from "../../components/layout/AuthShell";
 import { EmptyState, ErrorState, LoadingState } from "../../components/ui/QueryState";
 import { Button } from "../../components/ui/button";
 import { Avatar, Badge } from "../../components/ui/surface";
-import { logout, setActiveTenant } from "../../lib/auth";
+import { logout } from "../../lib/auth";
 import { useTenantMemberships } from "../../lib/hooks/resources";
 import { useI18n } from "../../lib/locale";
 import { errorStatus } from "../../lib/api";
 import { safeReturnTo } from "../../lib/redirect";
+import { switchTenant } from "../../lib/tenantSwitch";
 
 export default function SelectTenantPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { t } = useI18n();
   const memberships = useTenantMemberships();
   const tenants = memberships.data;
@@ -34,11 +37,11 @@ export default function SelectTenantPage() {
   useEffect(() => {
     const single = tenants?.[0];
     if (tenants && tenants.length === 1 && single) {
-      setActiveTenant(single.tenantId);
+      switchTenant(queryClient, single.tenantId);
       // Full reload clears all client-side caches, preventing stale cross-tenant data.
       window.location.replace(destination());
     }
-  }, [tenants]);
+  }, [queryClient, tenants]);
 
   // Only an unauthenticated lookup bounces to login. A 403 keeps the forbidden
   // state visible, and a 5xx renders the retryable ErrorState instead of a loop.
@@ -49,7 +52,7 @@ export default function SelectTenantPage() {
   }, [memberships.isError, memberships.error, router]);
 
   const choose = (tenantId: string) => {
-    setActiveTenant(tenantId);
+    switchTenant(queryClient, tenantId);
     // Full reload clears all client-side caches, preventing stale cross-tenant data.
     // `replace` keeps the tenant picker out of the back stack (U2-09).
     window.location.replace(destination());

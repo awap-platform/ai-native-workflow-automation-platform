@@ -98,6 +98,12 @@ public class User {
     this.updatedAt = Instant.now();
   }
 
+  /** Soft-deletes the account. The row is retained for audit and foreign-key integrity. */
+  public void markDeleted() {
+    this.deleted = true;
+    this.updatedAt = Instant.now();
+  }
+
   public UUID getId() {
     return id;
   }
@@ -124,5 +130,9 @@ public class User {
 
   public boolean isDeleted() {
     return deleted;
+  }
+
+  public Instant getCreatedAt() {
+    return createdAt;
   }
 }

@@ -53,3 +53,22 @@ An empty sample set returns `null` percentiles and `sampleCount = 0`, never a fa
 - Repository queries always include `tenant_id`; PostgreSQL row-level security enforces the same
   boundary with `FORCE ROW LEVEL SECURITY`.
 - Raw-event samples contain identifiers and durations only, never free-form payloads or PII.
+
+## Phase 8 console projection
+
+`GET /api/v1/analytics/overview` is the single metric source used by the Phase 8 screen. It
+returns the advanced dashboard plus `eventTotals`, folded per event type by the server, and
+`totalEvents`. Cards, chart labels, totals tables and drill-down all read this projection, so a
+client-side sum can never disagree with the API.
+
+`GET /api/v1/analytics/drilldown` pages the bounded raw samples for one event type
+(`page`/`size`, maximum 50). A failure from the raw-event store returns `partial=true` with an
+explanatory `detail` and no rows; it never returns an empty page as if the window were genuinely
+empty.
+
+`GET /api/v1/analytics/export` returns the authoritative daily rows as CSV. The query uses the same
+366-day bound and the same `AnalyticsDashboardQuery` validation as the dashboard, so a reversed or
+oversized range is a `400`.
+
+The Phase 8 behaviour, test map and honest limitations are documented in
+[`ui-ux/phase-8-analytics-admin.md`](ui-ux/phase-8-analytics-admin.md).

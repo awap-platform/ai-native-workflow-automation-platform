@@ -65,3 +65,14 @@ further merge. Every future single-maintainer break-glass must:
    table in the same PR;
 3. restore protection with `--apply` and `--verify` immediately after each merge; and
 4. attach the restore output, the final drift run and the green `main` CI run before closing it.
+
+## Runtime visibility (Phase 8)
+
+The Phase 8 audit console reads a backend classpath copy of this log at
+`/api/v1/admin/break-glass` and renders the incident, owner, reason, scope, expiry and merge table.
+The copy is kept byte-identical to the reviewed source by
+[`BreakGlassLogServiceTest`](../backend/identity/src/test/java/com/awap/identity/application/BreakGlassLogServiceTest.java).
+An unreadable snapshot reports `available=false` and the console renders an explicit unavailable
+state; it never implies that no exception exists.
+
+This view is read-only. It does not authorise a merge, and the closure rules above remain in force.

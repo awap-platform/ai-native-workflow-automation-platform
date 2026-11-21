@@ -22,6 +22,9 @@ const HEADINGS: Record<string, string> = {
   "/notification-templates": "Notification templates",
   "/organizations": "Organizations",
   "/copilot": "AI Copilot",
+  "/admin": "Identity console",
+  "/admin/operate": "Operate console",
+  "/admin/audit": "Audit log",
   "/admin/csp": "CSP reports",
   "/design-system": "Design system",
 };

@@ -43,6 +43,8 @@ tags:
     description: Tenant notification inbox and delivery history.
   - name: Analytics
     description: Process, task and approval analytics aggregates.
+  - name: Admin
+    description: Tenant identity administration, operate health and audit console.
   - name: Webhooks
     description: Durable webhook delivery queue and dead-letter inspection.
   - name: Copilot
@@ -3314,6 +3316,724 @@ paths:
               schema:
                 type: object
 
+  /api/v1/admin/identity:
+    get:
+      operationId: getAdminIdentity
+      summary: Read the tenant identity administration projection
+      description: >-
+        Returns users, teams, roles, permissions, invitations and plan usage for the active tenant.
+        A tenant administrator can only read its own tenant; a different tenant returns 403 unless
+        the caller is a system administrator.
+      tags: [Admin]
+      parameters:
+        - name: tenantId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Identity administration projection.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tenantId:
+                    type: string
+                    format: uuid
+                  plan:
+                    type: string
+                  maxUsers:
+                    type: integer
+                  maxWorkflows:
+                    type: integer
+                  maxAiCallsPerMonth:
+                    type: integer
+                    format: int64
+                  usersUsed:
+                    type: integer
+                    format: int64
+                  workflowsUsed:
+                    type: integer
+                    format: int64
+                  users:
+                    type: array
+                    items:
+                      type: object
+                  groups:
+                    type: array
+                    items:
+                      type: object
+                  roles:
+                    type: array
+                    items:
+                      type: object
+                  permissions:
+                    type: array
+                    items:
+                      type: object
+                  invitations:
+                    type: array
+                    items:
+                      type: object
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The caller is not a tenant administrator or requested another tenant.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /api/v1/admin/operate:
+    get:
+      operationId: getAdminOperate
+      summary: Read operate health cards
+      description: >-
+        Returns tenant workflow, instance, task, outbox, dead-letter and scheduled-pipeline health.
+        Every counter is a server-side aggregate.
+      tags: [Admin]
+      parameters:
+        - name: tenantId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Operate health projection.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tenantId:
+                    type: string
+                    format: uuid
+                  generatedAt:
+                    type: string
+                    format: date-time
+                  workflows:
+                    type: object
+                  instances:
+                    type: object
+                  tasks:
+                    type: object
+                  outbox:
+                    type: object
+                  dlq:
+                    type: object
+                  jobs:
+                    type: array
+                    items:
+                      type: object
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The caller is not a tenant administrator or requested another tenant.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /api/v1/admin/audit:
+    get:
+      operationId: getAdminAudit
+      summary: Page the immutable tenant audit trail
+      description: >-
+        Keyset pagination on an opaque cursor. The page size is bounded to 100 so a million-row
+        trail stays constant-time instead of scanning to an offset.
+      tags: [Admin]
+      parameters:
+        - name: tenantId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        "200":
+          description: One audit page.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                  nextCursor:
+                    type: string
+                    nullable: true
+                  hasMore:
+                    type: boolean
+        "400":
+          description: The cursor or page size is invalid.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The caller is not a tenant administrator or requested another tenant.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /api/v1/admin/audit/export:
+    get:
+      operationId: exportAdminAudit
+      summary: Export an audit window as CSV
+      description: Bounded to 10,000 rows; truncation is reported by the X-AWAP-Export-Truncated header.
+      tags: [Admin]
+      parameters:
+        - name: tenantId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: CSV export.
+          content:
+            text/csv:
+              schema:
+                type: string
+        "400":
+          description: The date range is invalid.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The caller is not a tenant administrator or requested another tenant.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /api/v1/admin/users/{userId}/role:
+    put:
+      operationId: changeAdminUserRole
+      summary: Change a tenant user's role
+      description: >-
+        A caller can only assign its own role or a lower one, and the last tenant administrator
+        cannot be demoted. The change is audited.
+      tags: [Admin]
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tenantId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  type: string
+                  enum: [SYSTEM_ADMIN, TENANT_ADMIN, MANAGER, OPERATIONS, EMPLOYEE]
+      responses:
+        "200":
+          description: Updated user.
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: The requested role is unknown.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Self-escalation or another tenant was requested.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: The user was not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: The last tenant administrator cannot be demoted.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /api/v1/admin/users/{userId}:
+    delete:
+      operationId: deleteAdminUser
+      summary: Soft-delete a tenant user
+      description: The account is retained for audit and foreign-key integrity. The last administrator cannot be deleted.
+      tags: [Admin]
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tenantId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: The user was soft-deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Another tenant was requested.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: The user was not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: The last tenant administrator cannot be deleted.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /api/v1/admin/invitations:
+    post:
+      operationId: createAdminInvitation
+      summary: Invite a tenant user
+      description: Enforces the user quota and returns the one-time invitation token.
+      tags: [Admin]
+      parameters:
+        - name: tenantId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email:
+                  type: string
+                  format: email
+                role:
+                  type: string
+                  enum: [SYSTEM_ADMIN, TENANT_ADMIN, MANAGER, OPERATIONS, EMPLOYEE]
+      responses:
+        "201":
+          description: Invitation created; the token is returned once.
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: The email or role is invalid.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Another tenant was requested.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: An active invitation already exists.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: The tenant user quota is exhausted.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /api/v1/admin/dlq:
+    get:
+      operationId: getAdminDlq
+      summary: List retryable dead-letter deliveries
+      description: >-
+        Terminally failed notification deliveries. Kafka dead-letter records are quarantined and
+        never re-published, so they are not part of this retryable projection.
+      tags: [Admin]
+      parameters:
+        - name: tenantId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Failed deliveries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Another tenant was requested.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /api/v1/admin/dlq/{deliveryId}/retry:
+    post:
+      operationId: retryAdminDlq
+      summary: Re-queue a dead-letter delivery
+      description: Only a terminally failed delivery can be retried. The action is audited.
+      tags: [Admin]
+      parameters:
+        - name: deliveryId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tenantId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The delivery was re-queued.
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Another tenant was requested.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: The delivery is not terminally failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /api/v1/admin/break-glass:
+    get:
+      operationId: getAdminBreakGlass
+      summary: Read the committed break-glass governance log
+      description: Returns the reviewed settings/break-glass-log.json copy; an unreadable resource reports available=false.
+      tags: [Admin]
+      responses:
+        "200":
+          description: Break-glass log or an explicit unavailable state.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available:
+                    type: boolean
+                  log:
+                    type: object
+                    nullable: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The caller is not a tenant administrator.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /api/v1/analytics/overview:
+    get:
+      operationId: getAnalyticsOverview
+      summary: Get the single analytics metric projection
+      description: >-
+        Returns the advanced dashboard plus server-folded per-event totals. Cards, chart and
+        drill-down read this projection so the browser never recomputes a count.
+      tags: [Analytics]
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: granularity
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [DAY, WEEK, MONTH]
+            default: DAY
+        - name: groupBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [EVENT_TYPE, NODE, WORKFLOW]
+            default: EVENT_TYPE
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        "200":
+          description: Analytics overview.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dashboard:
+                    type: object
+                  eventTotals:
+                    type: array
+                    items:
+                      type: object
+                  totalEvents:
+                    type: integer
+                    format: int64
+        "400":
+          description: The date range or parameters are invalid.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The caller lacks INSTANCE_READ.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /api/v1/analytics/drilldown:
+    get:
+      operationId: getAnalyticsDrilldown
+      summary: Page the raw events behind one analytics total
+      description: >-
+        Returns a bounded page of sampled events. A raw-event source failure returns
+        partial=true with no rows instead of an empty-result claim.
+      tags: [Analytics]
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: eventType
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: One drill-down page.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  from:
+                    type: string
+                    format: date
+                  to:
+                    type: string
+                    format: date
+                  eventType:
+                    type: string
+                    nullable: true
+                  page:
+                    type: integer
+                  size:
+                    type: integer
+                  totalElements:
+                    type: integer
+                    format: int64
+                  totalPages:
+                    type: integer
+                  partial:
+                    type: boolean
+                  detail:
+                    type: string
+                    nullable: true
+                  rows:
+                    type: array
+                    items:
+                      type: object
+        "400":
+          description: The page, size or date range is invalid.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The caller lacks INSTANCE_READ.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /api/v1/analytics/export:
+    get:
+      operationId: exportAnalytics
+      summary: Export the daily analytics table as CSV
+      description: The export uses the same bounded dashboard query and never exceeds the 366-day window.
+      tags: [Analytics]
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: granularity
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [DAY, WEEK, MONTH]
+            default: DAY
+        - name: groupBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [EVENT_TYPE, NODE, WORKFLOW]
+            default: EVENT_TYPE
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        "200":
+          description: CSV export.
+          content:
+            text/csv:
+              schema:
+                type: string
+        "400":
+          description: The date range or parameters are invalid.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The caller lacks INSTANCE_READ.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
 components:
   securitySchemes:
     bearerAuth:

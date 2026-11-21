@@ -1,7 +1,4 @@
 {
-  "app/(app)/analytics/page.tsx": {
-    "count": 57
-  },
   "components/forms/FormFileField.tsx": {
     "count": 3
   },
