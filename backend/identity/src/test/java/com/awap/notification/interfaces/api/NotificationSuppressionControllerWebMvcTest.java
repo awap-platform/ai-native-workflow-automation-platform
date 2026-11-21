@@ -77,4 +77,15 @@ class NotificationSuppressionControllerWebMvcTest {
   void requiresAuthentication() throws Exception {
     mockMvc.perform(get("/api/v1/notifications/suppressions")).andExpect(status().isUnauthorized());
   }
+
+  @Test
+  void anAuthenticatedCallWithoutATenantContextIsUnauthorized() throws Exception {
+    TenantContext.clear();
+
+    mockMvc
+        .perform(
+            get("/api/v1/notifications/suppressions")
+                .with(user("u").authorities(new SimpleGrantedAuthority("INSTANCE_READ"))))
+        .andExpect(status().isUnauthorized());
+  }
 }
