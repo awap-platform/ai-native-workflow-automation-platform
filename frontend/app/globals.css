@@ -1996,3 +1996,166 @@
     max-height: none;
   }
 }
+
+/* ------------------------------------------------------------------------- */
+/* Phase 8: analytics and admin/IDM console                                   */
+/* ------------------------------------------------------------------------- */
+@layer components {
+  .awap-grid {
+    display: grid;
+    gap: var(--awap-space-3);
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+
+  .awap-stat {
+    display: grid;
+    gap: var(--awap-space-1);
+    padding: var(--awap-space-4);
+    border: 1px solid var(--awap-border);
+    border-radius: var(--awap-radius-lg);
+    background: var(--awap-surface);
+    box-shadow: var(--awap-shadow-1);
+  }
+  .awap-stat-label {
+    color: var(--awap-muted);
+    font-size: var(--awap-text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .awap-stat-value {
+    font-size: var(--awap-text-xl);
+    font-weight: 700;
+    line-height: 1.1;
+  }
+  .awap-stat-detail {
+    color: var(--awap-muted);
+    font-size: var(--awap-text-xs);
+  }
+
+  .awap-panel {
+    display: grid;
+    gap: var(--awap-space-3);
+    padding: var(--awap-space-4);
+    border: 1px solid var(--awap-border);
+    border-radius: var(--awap-radius-lg);
+    background: var(--awap-surface);
+  }
+  .awap-panel-title {
+    margin: 0;
+    font-size: var(--awap-text-md);
+    font-weight: 700;
+  }
+
+  .awap-toolbar-end {
+    margin-left: auto;
+  }
+
+  .awap-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--awap-space-1);
+    padding: 2px var(--awap-space-2);
+    border-radius: var(--awap-radius-full);
+    border: 1px solid var(--awap-border);
+    background: var(--awap-surface-raised);
+    font-size: var(--awap-text-xs);
+    font-weight: 700;
+  }
+  .awap-status-up {
+    border-color: var(--awap-success);
+    color: var(--awap-success);
+  }
+  .awap-status-down {
+    border-color: var(--awap-danger);
+    color: var(--awap-danger);
+  }
+  .awap-status-unknown,
+  .awap-status-idle {
+    border-color: var(--awap-warning);
+    color: var(--awap-warning);
+  }
+  .awap-status-backlog {
+    border-color: var(--awap-warning);
+    color: var(--awap-warning);
+    background: color-mix(in oklch, var(--awap-warning) 12%, var(--awap-surface));
+  }
+
+  .awap-chart {
+    display: block;
+    width: 100%;
+    height: 180px;
+    border: 1px solid var(--awap-border);
+    border-radius: var(--awap-radius-lg);
+    background: var(--awap-surface-raised);
+  }
+  .awap-chart-bar {
+    fill: var(--awap-primary);
+  }
+  .awap-chart-bar-active {
+    fill: var(--awap-danger);
+  }
+  .awap-chart-axis {
+    stroke: var(--awap-border);
+    stroke-width: 1;
+  }
+
+  .awap-chart-labels {
+    display: grid;
+    grid-auto-flow: column;
+    gap: var(--awap-space-1);
+    overflow-x: auto;
+    font-size: var(--awap-text-xs);
+    color: var(--awap-muted);
+  }
+
+  .awap-confirm {
+    display: grid;
+    gap: var(--awap-space-2);
+    padding: var(--awap-space-4);
+    border: 1px solid var(--awap-warning);
+    border-radius: var(--awap-radius-md);
+    background: color-mix(in oklch, var(--awap-warning) 9%, var(--awap-surface));
+  }
+  .awap-confirm-danger {
+    border-color: var(--awap-danger);
+    background: color-mix(in oklch, var(--awap-danger) 9%, var(--awap-surface));
+  }
+  .awap-confirm-title {
+    margin: 0;
+    font-size: var(--awap-text-md);
+    font-weight: 700;
+  }
+  .awap-confirm-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--awap-space-2);
+  }
+
+  .awap-mono {
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: var(--awap-text-xs);
+    word-break: break-all;
+  }
+
+  .awap-permission-yes {
+    color: var(--awap-success);
+    font-weight: 700;
+  }
+  .awap-permission-no {
+    color: var(--awap-muted);
+  }
+
+  .awap-bar-track {
+    position: relative;
+    height: 8px;
+    border-radius: var(--awap-radius-full);
+    background: var(--awap-surface-raised);
+    overflow: hidden;
+  }
+  .awap-bar-fill {
+    display: block;
+    height: 100%;
+    width: var(--awap-fill, 0%);
+    background: var(--awap-primary);
+  }
+}

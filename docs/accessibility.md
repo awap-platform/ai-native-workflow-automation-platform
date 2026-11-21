@@ -196,3 +196,26 @@ The suite is expected to fail when:
 A focus trap is only meaningful for a modal. The current UI uses inline detail
 panels and dialogs without a modal overlay; when a real modal is introduced, add
 a keyboard trap test to this suite.
+
+## Phase 8 analytics and admin consoles
+
+The analytics, identity, operate and audit screens are in the axe matrix and add an explicit
+keyboard/live-region contract:
+
+- Analytics filters are labelled native date inputs and selects. A reversed range is announced
+  through a `role="alert"` message and no request is sent.
+- The bar chart is a single labelled SVG image. Every value it draws is repeated in the accessible
+  totals and daily tables, so no information depends on the visual bars alone.
+- Drill-down rows are a labelled table; previous/next controls are native buttons with a disabled
+  boundary at the first and last page.
+- Every privileged mutation opens an inline `role="alertdialog"` confirmation that names the
+  target and states that the action is audited. Focus moves into the panel when it opens.
+- Role, deletion, invitation, DLQ retry and export outcomes are announced in `role="status"` live
+  regions; failures use `role="alert"` and keep the server's message.
+- The permission matrix is a real table with a caption, column headers and row headers; grants
+  carry an accessible `granted`/`not granted` label.
+- The break-glass log is a definition list plus a captioned table; an unavailable snapshot is
+  announced instead of rendering an empty table.
+
+See [`ui-ux/phase-8-analytics-admin.md`](ui-ux/phase-8-analytics-admin.md) for the behaviour, test
+map and honest limitations.

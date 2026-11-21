@@ -1326,3 +1326,333 @@ export function copilotTaskDecision(
 export function copilotKnowledgeSearch(query: string): Promise<CopilotResponseDto> {
   return authPost<CopilotResponseDto>("/api/v1/copilot/knowledge/search", { query, limit: 10 });
 }
+
+/* ------------------------------------------------------- phase 8 admin */
+
+export interface AdminUserDto {
+  id: string;
+  email: string;
+  fullName: string;
+  role: string;
+  deleted: boolean;
+  createdAt: string;
+}
+
+export interface AdminGroupDto {
+  id: string;
+  name: string;
+  memberCount: number;
+}
+
+export interface AdminRoleDto {
+  name: string;
+  rank: number;
+  permissions: string[];
+}
+
+export interface AdminPermissionDto {
+  name: string;
+}
+
+export interface AdminInvitationDto {
+  id: string;
+  email: string;
+  role: string;
+  consumed: boolean;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface AdminIdentityDto {
+  tenantId: string;
+  plan: string;
+  maxUsers: number;
+  maxWorkflows: number;
+  maxAiCallsPerMonth: number;
+  usersUsed: number;
+  workflowsUsed: number;
+  users: AdminUserDto[];
+  groups: AdminGroupDto[];
+  roles: AdminRoleDto[];
+  permissions: AdminPermissionDto[];
+  invitations: AdminInvitationDto[];
+}
+
+export interface AdminOperateDto {
+  tenantId: string;
+  generatedAt: string;
+  workflows: { total: number; published: number; draft: number };
+  instances: { total: number; running: number; failed: number; completed: number };
+  tasks: { total: number; open: number; completed: number };
+  outbox: { pending: number; exhausted: number };
+  dlq: { failed: number };
+  jobs: Array<{ name: string; status: string; detail: string }>;
+}
+
+export interface AdminAuditEntryDto {
+  id: string;
+  entityType: string;
+  entityId: string;
+  action: string;
+  oldValue: string | null;
+  newValue: string | null;
+  actorId: string | null;
+  createdAt: string;
+}
+
+export interface AdminAuditPageDto {
+  items: AdminAuditEntryDto[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+export interface AdminDlqDeliveryDto {
+  id: string;
+  channel: string;
+  recipient: string;
+  templateKey: string | null;
+  attempts: number;
+  lastError: string | null;
+  createdAt: string;
+}
+
+export interface AdminDlqRetryDto {
+  id: string;
+  status: string;
+  attempts: number;
+  detail: string;
+}
+
+export interface AdminInvitationCreatedDto {
+  id: string;
+  email: string;
+  role: string;
+  expiresAt: string;
+  token: string;
+}
+
+export interface BreakGlassLogDto {
+  available: boolean;
+  log: Record<string, unknown> | null;
+}
+
+export interface UsageMetricDto {
+  key: string;
+  unit: string;
+  total: number;
+  limit: number;
+  remaining: number;
+  days: Array<{ day: string; value: number }>;
+}
+
+export interface TenantUsageDto {
+  tenantId: string;
+  from: string;
+  to: string;
+  metrics: UsageMetricDto[];
+}
+
+function tenantQuery(tenantId?: string): string {
+  return tenantId ? `?tenantId=${encodeURIComponent(tenantId)}` : "";
+}
+
+export function fetchAdminIdentity(tenantId?: string): Promise<AdminIdentityDto> {
+  return authFetch<AdminIdentityDto>(`/api/v1/admin/identity${tenantQuery(tenantId)}`);
+}
+
+export function fetchAdminOperate(tenantId?: string): Promise<AdminOperateDto> {
+  return authFetch<AdminOperateDto>(`/api/v1/admin/operate${tenantQuery(tenantId)}`);
+}
+
+export function fetchAdminAudit(
+  tenantId?: string,
+  cursor?: string,
+  limit = 25,
+): Promise<AdminAuditPageDto> {
+  const params = new URLSearchParams();
+  if (tenantId) {
+    params.set("tenantId", tenantId);
+  }
+  if (cursor) {
+    params.set("cursor", cursor);
+  }
+  params.set("limit", String(limit));
+  return authFetch<AdminAuditPageDto>(`/api/v1/admin/audit?${params.toString()}`);
+}
+
+export function updateAdminUserRole(
+  tenantId: string | undefined,
+  userId: string,
+  role: string,
+): Promise<AdminUserDto> {
+  return authPut<AdminUserDto>(
+    `/api/v1/admin/users/${encodeURIComponent(userId)}/role${tenantQuery(tenantId)}`,
+    { role },
+  );
+}
+
+export function deleteAdminUser(tenantId: string | undefined, userId: string): Promise<void> {
+  return authDelete<void>(
+    `/api/v1/admin/users/${encodeURIComponent(userId)}${tenantQuery(tenantId)}`,
+  );
+}
+
+export function createAdminInvitation(
+  tenantId: string | undefined,
+  email: string,
+  role: string,
+): Promise<AdminInvitationCreatedDto> {
+  return authPost<AdminInvitationCreatedDto>(
+    `/api/v1/admin/invitations${tenantQuery(tenantId)}`,
+    { email, role },
+  );
+}
+
+export function fetchAdminDlq(tenantId?: string): Promise<AdminDlqDeliveryDto[]> {
+  return authFetch<AdminDlqDeliveryDto[]>(`/api/v1/admin/dlq${tenantQuery(tenantId)}`);
+}
+
+export function retryAdminDlq(
+  tenantId: string | undefined,
+  deliveryId: string,
+): Promise<AdminDlqRetryDto> {
+  return authPost<AdminDlqRetryDto>(
+    `/api/v1/admin/dlq/${encodeURIComponent(deliveryId)}/retry${tenantQuery(tenantId)}`,
+    {},
+  );
+}
+
+export function fetchBreakGlassLog(): Promise<BreakGlassLogDto> {
+  return authFetch<BreakGlassLogDto>("/api/v1/admin/break-glass");
+}
+
+export function fetchTenantUsage(
+  tenantId: string,
+  from?: string,
+  to?: string,
+): Promise<TenantUsageDto> {
+  const params = new URLSearchParams();
+  if (from) {
+    params.set("from", from);
+  }
+  if (to) {
+    params.set("to", to);
+  }
+  const query = params.toString();
+  return authFetch<TenantUsageDto>(
+    `/api/v1/tenants/${encodeURIComponent(tenantId)}/usage${query ? `?${query}` : ""}`,
+  );
+}
+
+/* -------------------------------------------------- phase 8 analytics */
+
+export interface AnalyticsEventTotalDto {
+  eventType: string;
+  count: number;
+  totalDurationMs: number;
+  averageDurationMs: number;
+}
+
+export interface AnalyticsOverviewDto {
+  dashboard: AnalyticsDashboardDto;
+  eventTotals: AnalyticsEventTotalDto[];
+  totalEvents: number;
+}
+
+export interface AnalyticsDrilldownRowDto {
+  id: string;
+  eventType: string;
+  workflowInstanceId: string | null;
+  taskId: string | null;
+  nodeId: string | null;
+  durationMs: number;
+  occurredAt: string;
+}
+
+export interface AnalyticsDrilldownDto {
+  from: string;
+  to: string;
+  eventType: string | null;
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  partial: boolean;
+  detail: string | null;
+  rows: AnalyticsDrilldownRowDto[];
+}
+
+export interface AnalyticsDrilldownParams extends AnalyticsDashboardParams {
+  eventType?: string | undefined;
+  page?: number | undefined;
+  size?: number | undefined;
+}
+
+function analyticsQuery(params: AnalyticsDashboardParams = {}): string {
+  const search = new URLSearchParams();
+  if (params.from) {
+    search.set("from", params.from);
+  }
+  if (params.to) {
+    search.set("to", params.to);
+  }
+  if (params.granularity) {
+    search.set("granularity", params.granularity);
+  }
+  if (params.groupBy) {
+    search.set("groupBy", params.groupBy);
+  }
+  if (params.limit !== undefined) {
+    search.set("limit", String(params.limit));
+  }
+  return search.toString();
+}
+
+/** Single analytics metric source; cards, chart and totals all read this projection. */
+export function fetchAnalyticsOverview(
+  params: AnalyticsDashboardParams = {},
+): Promise<AnalyticsOverviewDto> {
+  const query = analyticsQuery(params);
+  return authFetch<AnalyticsOverviewDto>(
+    `/api/v1/analytics/overview${query ? `?${query}` : ""}`,
+  );
+}
+
+export function fetchAnalyticsDrilldown(
+  params: AnalyticsDrilldownParams = {},
+): Promise<AnalyticsDrilldownDto> {
+  const search = new URLSearchParams(analyticsQuery(params));
+  if (params.eventType) {
+    search.set("eventType", params.eventType);
+  }
+  if (params.page !== undefined) {
+    search.set("page", String(params.page));
+  }
+  if (params.size !== undefined) {
+    search.set("size", String(params.size));
+  }
+  const query = search.toString();
+  return authFetch<AnalyticsDrilldownDto>(
+    `/api/v1/analytics/drilldown${query ? `?${query}` : ""}`,
+  );
+}
+
+export function analyticsExportUrl(params: AnalyticsDashboardParams = {}): string {
+  const query = analyticsQuery(params);
+  return `${apiBase()}/api/v1/analytics/export${query ? `?${query}` : ""}`;
+}
+
+export function adminAuditExportUrl(tenantId?: string, from?: string, to?: string): string {
+  const params = new URLSearchParams();
+  if (tenantId) {
+    params.set("tenantId", tenantId);
+  }
+  if (from) {
+    params.set("from", from);
+  }
+  if (to) {
+    params.set("to", to);
+  }
+  const query = params.toString();
+  return `${apiBase()}/api/v1/admin/audit/export${query ? `?${query}` : ""}`;
+}

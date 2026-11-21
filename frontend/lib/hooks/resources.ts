@@ -3,13 +3,22 @@ import {
   archiveDocumentVersion,
   archiveWorkflowVersion,
   approveTask,
+  createAdminInvitation,
   createDocumentUpload,
   createFormDefinition,
   createWorkflowDefinition,
   compensateSaga,
+  deleteAdminUser,
   exportWorkflowBpmn,
+  fetchAdminAudit,
+  fetchAdminDlq,
+  fetchAdminIdentity,
+  fetchAdminOperate,
   fetchAnalyticsDashboard,
+  fetchAnalyticsDrilldown,
+  fetchAnalyticsOverview,
   fetchAnalyticsSummary,
+  fetchBreakGlassLog,
   fetchFormDefinition,
   fetchInstanceLogs,
   fetchInstanceSaga,
@@ -18,6 +27,7 @@ import {
   fetchWorkflowVersions,
   fetchFormDefinitions,
   fetchOrganizationTree,
+  fetchTenantUsage,
   fetchTenants,
   getDocumentDownloadUrl,
   healthCheck,
@@ -34,14 +44,18 @@ import {
   rejectTask,
   replayDryRun,
   replayInstance,
+  retryAdminDlq,
   retrySagaStep,
   rollbackWorkflowDefinition,
   runInstanceAction,
   runTaskAction,
   startWorkflowInstance,
   submitForm,
+  updateAdminUserRole,
   updateFormDefinition,
   validateWorkflowExpression,
+  type AnalyticsDashboardParams,
+  type AnalyticsDrilldownParams,
   type CreateWorkflowPayload,
   type RegisterTenantPayload,
   type SubmitFormPayload,
@@ -448,4 +462,145 @@ export function useHealthCheck() {
 /** Self-service tenant registration (public flow, no cache to invalidate). */
 export function useRegisterTenant() {
   return useMutation({ mutationFn: (payload: RegisterTenantPayload) => registerTenant(payload) });
+}
+
+/* ------------------------------------------------ phase 8 analytics */
+
+/** Single analytics metric source for cards, chart and totals. */
+export function useAnalyticsOverview(
+  params: AnalyticsDashboardParams = {},
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.analytics.overview(
+      params.from,
+      params.to,
+      params.granularity,
+      params.groupBy,
+      params.limit,
+    ),
+    queryFn: () => fetchAnalyticsOverview(params),
+    enabled,
+  });
+}
+
+/** One drill-down page behind a card or chart bucket. */
+export function useAnalyticsDrilldown(
+  params: AnalyticsDrilldownParams,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.analytics.drilldown(
+      params.from,
+      params.to,
+      params.eventType,
+      params.page,
+      params.size,
+    ),
+    queryFn: () => fetchAnalyticsDrilldown(params),
+    enabled,
+  });
+}
+
+/* ---------------------------------------------------- phase 8 admin */
+
+export function useAdminIdentity(tenantId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.admin.identity(tenantId),
+    queryFn: () => fetchAdminIdentity(tenantId ?? undefined),
+    enabled,
+  });
+}
+
+export function useAdminOperate(tenantId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.admin.operate(tenantId),
+    queryFn: () => fetchAdminOperate(tenantId ?? undefined),
+    enabled,
+  });
+}
+
+export function useAdminAudit(
+  tenantId: string | null,
+  cursor: string | null,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.admin.audit(tenantId, cursor),
+    queryFn: () => fetchAdminAudit(tenantId ?? undefined, cursor ?? undefined),
+    enabled,
+  });
+}
+
+export function useAdminDlq(tenantId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.admin.dlq(tenantId),
+    queryFn: () => fetchAdminDlq(tenantId ?? undefined),
+    enabled,
+  });
+}
+
+export function useBreakGlassLog() {
+  return useQuery({
+    queryKey: queryKeys.admin.breakGlass(),
+    queryFn: fetchBreakGlassLog,
+  });
+}
+
+export function useTenantUsage(tenantId: string | null, from?: string, to?: string) {
+  return useQuery({
+    queryKey: queryKeys.admin.usage(tenantId, from, to),
+    queryFn: () => fetchTenantUsage(tenantId as string, from, to),
+    enabled: tenantId !== null,
+  });
+}
+
+export function useUpdateAdminUserRole() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      tenantId,
+      userId,
+      role,
+    }: {
+      tenantId: string | null;
+      userId: string;
+      role: string;
+    }) => updateAdminUserRole(tenantId ?? undefined, userId, role),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.admin.all }),
+  });
+}
+
+export function useDeleteAdminUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantId, userId }: { tenantId: string | null; userId: string }) =>
+      deleteAdminUser(tenantId ?? undefined, userId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.admin.all }),
+  });
+}
+
+export function useCreateAdminInvitation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      tenantId,
+      email,
+      role,
+    }: {
+      tenantId: string | null;
+      email: string;
+      role: string;
+    }) => createAdminInvitation(tenantId ?? undefined, email, role),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.admin.all }),
+  });
+}
+
+export function useRetryAdminDlq() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tenantId, deliveryId }: { tenantId: string | null; deliveryId: string }) =>
+      retryAdminDlq(tenantId ?? undefined, deliveryId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.admin.all }),
+  });
 }

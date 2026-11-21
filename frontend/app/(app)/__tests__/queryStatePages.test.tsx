@@ -1,9 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import * as api from "../../../lib/api";
 import { ToastProvider } from "../../../components/ui/overlays";
-import { queryKeys } from "../../../lib/queryKeys";
 import AnalyticsPage from "../analytics/page";
 import OrganizationsPage from "../organizations/page";
 import TasksPage from "../tasks/page";
@@ -59,7 +58,9 @@ jest.mock("../../../lib/api", () => {
     ApiError,
     errorStatus: (error: unknown) => (error instanceof ApiError ? error.status : undefined),
     correlationIdOf: () => undefined,
-    fetchAnalyticsDashboard: jest.fn(),
+    fetchAnalyticsOverview: jest.fn(),
+    fetchAnalyticsDrilldown: jest.fn(),
+    analyticsExportUrl: () => "http://api.test/api/v1/analytics/export",
     listTasks: jest.fn(),
     listMyTasks: jest.fn(),
     runTaskAction: jest.fn(),
@@ -67,8 +68,11 @@ jest.mock("../../../lib/api", () => {
   };
 });
 
-const fetchAnalyticsDashboard = api.fetchAnalyticsDashboard as jest.MockedFunction<
-  typeof api.fetchAnalyticsDashboard
+const fetchAnalyticsOverview = api.fetchAnalyticsOverview as jest.MockedFunction<
+  typeof api.fetchAnalyticsOverview
+>;
+const fetchAnalyticsDrilldown = api.fetchAnalyticsDrilldown as jest.MockedFunction<
+  typeof api.fetchAnalyticsDrilldown
 >;
 const listTasks = api.listTasks as jest.MockedFunction<typeof api.listTasks>;
 const listMyTasks = api.listMyTasks as jest.MockedFunction<typeof api.listMyTasks>;
@@ -94,61 +98,125 @@ beforeEach(() => {
   jest.resetAllMocks();
 });
 
+function overview(populated: boolean) {
+  return {
+    dashboard: dashboard(
+      populated
+        ? undefined
+        : {
+            dailyTotals: [],
+            timeBuckets: [],
+            bottlenecks: [],
+            groups: [],
+            dataCompleteness: {
+              dailyTotalsAvailable: true,
+              rawEventsAvailable: true,
+              sampleCount: 0,
+            },
+          },
+    ),
+    eventTotals: populated
+      ? [
+          {
+            eventType: "WORKFLOW_COMPLETED",
+            count: 2,
+            totalDurationMs: 300,
+            averageDurationMs: 150,
+          },
+          {
+            eventType: "WORKFLOW_FAILED",
+            count: 1,
+            totalDurationMs: 100,
+            averageDurationMs: 100,
+          },
+        ]
+      : [],
+    totalEvents: populated ? 3 : 0,
+  };
+}
+
+function drilldown() {
+  return {
+    from: "2026-11-01",
+    to: "2026-11-15",
+    eventType: "WORKFLOW_COMPLETED",
+    page: 0,
+    size: 20,
+    totalElements: 1,
+    totalPages: 1,
+    partial: false,
+    detail: null,
+    rows: [
+      {
+        id: "sample-1",
+        eventType: "WORKFLOW_COMPLETED",
+        workflowInstanceId: "instance-1",
+        taskId: null,
+        nodeId: "approval",
+        durationMs: 150,
+        occurredAt: "2026-11-15T10:00:00Z",
+      },
+    ],
+  };
+}
+
 describe("page-level query states", () => {
   it("renders the forbidden state for a 403 without retrying", async () => {
-    fetchAnalyticsDashboard.mockRejectedValue(new api.ApiError(403, "forbidden"));
-    const { queryClient } = renderPage(<AnalyticsPage />);
+    fetchAnalyticsOverview.mockRejectedValue(new api.ApiError(403, "forbidden"));
+    renderPage(<AnalyticsPage />);
 
     expect(await screen.findByTestId("forbidden-state")).toBeInTheDocument();
-    expect(fetchAnalyticsDashboard).toHaveBeenCalledTimes(1);
-    expect(queryClient.getQueryState(queryKeys.analytics.dashboard())?.status).toBe("error");
+    expect(fetchAnalyticsOverview).toHaveBeenCalledTimes(1);
   });
 
   it("renders the error state for a server failure", async () => {
-    fetchAnalyticsDashboard.mockRejectedValue(new api.ApiError(500, "boom"));
+    fetchAnalyticsOverview.mockRejectedValue(new api.ApiError(500, "boom"));
     renderPage(<AnalyticsPage />);
     expect(await screen.findByTestId("error-state")).toHaveTextContent("Failed to load analytics.");
   });
 
   it("renders the analytics empty state when the window has no data", async () => {
-    fetchAnalyticsDashboard.mockResolvedValue(
-      dashboard({
-        dailyTotals: [],
-        timeBuckets: [],
-        bottlenecks: [],
-        groups: [],
-        dataCompleteness: {
-          dailyTotalsAvailable: true,
-          rawEventsAvailable: true,
-          sampleCount: 0,
-        },
-      }),
-    );
+    fetchAnalyticsOverview.mockResolvedValue(overview(false));
     renderPage(<AnalyticsPage />);
     expect(
       await screen.findByText("No analytics recorded in the selected window."),
     ).toBeInTheDocument();
   });
 
-  it("renders the exact advanced values returned by the API contract", async () => {
-    fetchAnalyticsDashboard.mockResolvedValue(dashboard());
+  it("renders the exact server counts and percentiles (T8-01)", async () => {
+    fetchAnalyticsOverview.mockResolvedValue(overview(true));
     renderPage(<AnalyticsPage />);
 
-    expect(await screen.findByTestId("analytics-sla-breach-rate-value")).toHaveTextContent("10.0%");
+    expect(await screen.findByTestId("analytics-total-events-value")).toHaveTextContent("3");
+    expect(screen.getByTestId("analytics-completed-workflows-value")).toHaveTextContent("2");
+    expect(screen.getByTestId("analytics-failed-workflows-value")).toHaveTextContent("1");
+    expect(screen.getByTestId("analytics-sla-breaches-value")).toHaveTextContent("0");
     expect(screen.getByTestId("analytics-workflow-p95-value")).toHaveTextContent("250 ms");
-    expect(screen.getByTestId("analytics-task-cycle-p95-value")).toHaveTextContent("120 ms");
-    expect(screen.getByTestId("analytics-approval-latency-p95-value")).toHaveTextContent("25 ms");
+    expect(screen.getByTestId("analytics-task-p95-value")).toHaveTextContent("120 ms");
+    expect(screen.getByTestId("analytics-approval-p95-value")).toHaveTextContent("25 ms");
     expect(screen.getByTestId("analytics-trend-value")).toHaveTextContent("+3");
     expect(screen.getByTestId("analytics-bottleneck-approval")).toHaveTextContent("approval");
-    expect(screen.getByTestId("analytics-bucket-2026-11-15")).toHaveTextContent(
-      "WORKFLOW_COMPLETED: 2",
-    );
-    expect(screen.getByTestId("analytics-row-WORKFLOW_COMPLETED")).toHaveTextContent("150 ms");
   });
 
-  it("renders an explicit partial state when raw events are unavailable", async () => {
-    fetchAnalyticsDashboard.mockResolvedValue(
-      dashboard({
+  it("opens the drill-down list behind an event card (T8-02)", async () => {
+    fetchAnalyticsOverview.mockResolvedValue(overview(true));
+    fetchAnalyticsDrilldown.mockResolvedValue(drilldown());
+    renderPage(<AnalyticsPage />);
+
+    await screen.findByTestId("analytics-total-events-value");
+    const buttons = screen.getAllByRole("button", { name: "Drill down" });
+    fireEvent.click(buttons[0]!);
+
+    expect(await screen.findByTestId("analytics-drilldown")).toHaveTextContent(
+      "1 sampled event",
+    );
+    expect(screen.getByTestId("drilldown-row-sample-1")).toHaveTextContent("approval");
+  });
+
+  it("renders an explicit partial state when raw events are unavailable (U8-04)", async () => {
+    fetchAnalyticsOverview.mockResolvedValue({
+      ...overview(true),
+      dashboard: dashboard({
         dataCompleteness: {
           dailyTotalsAvailable: true,
           rawEventsAvailable: false,
@@ -156,11 +224,25 @@ describe("page-level query states", () => {
         },
         workflowDuration: emptyPercentiles,
       }),
-    );
+    });
     renderPage(<AnalyticsPage />);
 
-    expect(await screen.findByTestId("analytics-partial-state")).toHaveTextContent(
+    expect(await screen.findByTestId("partial-state")).toHaveTextContent(
       "Raw-event analytics are temporarily unavailable.",
+    );
+  });
+
+  it("rejects a reversed date range before calling the API (U8-07)", async () => {
+    fetchAnalyticsOverview.mockResolvedValue(overview(true));
+    renderPage(<AnalyticsPage />);
+
+    await screen.findByTestId("analytics-total-events-value");
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2099-12-31" },
+    });
+
+    expect(await screen.findByTestId("range-error")).toHaveTextContent(
+      "From must not be after to.",
     );
   });
 

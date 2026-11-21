@@ -171,6 +171,190 @@ export const notificationTemplateFixture = {
   updatedAt: now,
 };
 
+export const adminIdentityFixture = (populated: boolean) => ({
+  tenantId: "tenant-a",
+  plan: "FREE",
+  maxUsers: 10,
+  maxWorkflows: 5,
+  maxAiCallsPerMonth: 1000,
+  usersUsed: populated ? 1 : 0,
+  workflowsUsed: populated ? 2 : 0,
+  users: populated
+    ? [
+        {
+          id: "user-1",
+          email: "ada@acme.com",
+          fullName: "Ada Lovelace",
+          role: "TENANT_ADMIN",
+          deleted: false,
+          createdAt: now,
+        },
+      ]
+    : [],
+  groups: populated ? [{ id: "team-1", name: "Platform", memberCount: 1 }] : [],
+  roles: [
+    { name: "SYSTEM_ADMIN", rank: 1, permissions: ["TENANT_MANAGE", "USER_MANAGE"] },
+    { name: "TENANT_ADMIN", rank: 2, permissions: ["USER_MANAGE", "INSTANCE_READ"] },
+    { name: "MANAGER", rank: 3, permissions: ["INSTANCE_READ"] },
+    { name: "OPERATIONS", rank: 4, permissions: ["INSTANCE_READ"] },
+    { name: "EMPLOYEE", rank: 5, permissions: ["INSTANCE_READ"] },
+  ],
+  permissions: [
+    { name: "TENANT_MANAGE" },
+    { name: "USER_MANAGE" },
+    { name: "INSTANCE_READ" },
+  ],
+  invitations: populated
+    ? [
+        {
+          id: "invitation-1",
+          email: "new@acme.com",
+          role: "EMPLOYEE",
+          consumed: false,
+          expiresAt: "2026-11-20T10:00:00Z",
+          createdAt: now,
+        },
+      ]
+    : [],
+});
+
+export const adminOperateFixture = (populated: boolean) => ({
+  tenantId: "tenant-a",
+  generatedAt: now,
+  workflows: { total: populated ? 3 : 0, published: populated ? 2 : 0, draft: populated ? 1 : 0 },
+  instances: {
+    total: populated ? 4 : 0,
+    running: populated ? 1 : 0,
+    failed: populated ? 1 : 0,
+    completed: populated ? 2 : 0,
+  },
+  tasks: { total: populated ? 5 : 0, open: populated ? 2 : 0, completed: populated ? 3 : 0 },
+  outbox: { pending: populated ? 1 : 0, exhausted: 0 },
+  dlq: { failed: populated ? 1 : 0 },
+  jobs: [
+    { name: "outbox-relay", status: "UP", detail: "last run: 2026-11-09T10:00:00Z" },
+    { name: "notification-retry", status: populated ? "BACKLOG" : "IDLE", detail: "1 retry" },
+  ],
+});
+
+export const adminAuditFixture = (populated: boolean) => ({
+  items: populated
+    ? [
+        {
+          id: "audit-1",
+          entityType: "USER",
+          entityId: "user-1",
+          action: "ROLE_CHANGED",
+          oldValue: "EMPLOYEE",
+          newValue: "MANAGER",
+          actorId: "user-1",
+          createdAt: now,
+        },
+      ]
+    : [],
+  nextCursor: null,
+  hasMore: false,
+});
+
+export const adminDlqFixture = (populated: boolean) =>
+  populated
+    ? [
+        {
+          id: "delivery-1",
+          channel: "EMAIL",
+          recipient: "ada@acme.com",
+          templateKey: "task.assigned",
+          attempts: 3,
+          lastError: "smtp timeout",
+          createdAt: now,
+        },
+      ]
+    : [];
+
+export const breakGlassFixture = {
+  available: true,
+  log: {
+    incident: 257,
+    owner: "koraysrn",
+    opened_at: "2026-11-11T15:00:00Z",
+    expiry: "2026-11-13T23:59:59Z",
+    reason: "Single maintainer.",
+    scope: "Only the approval count was lowered for one merge at a time.",
+    merges: [
+      {
+        issue: 197,
+        pr: 256,
+        merge_sha: "d8560f5dc8dc4d7a3fa8b87f91086b0e12f3846c",
+        merged_at: "2026-11-11T16:35:03Z",
+        checks_green: true,
+        restore_apply: "updated",
+        restore_verify: "matches",
+      },
+    ],
+  },
+};
+
+export const tenantUsageFixture = (populated: boolean) => ({
+  tenantId: "tenant-a",
+  from: "2026-11-02",
+  to: "2026-11-08",
+  metrics: [
+    {
+      key: "ai_calls",
+      unit: "COUNT",
+      total: populated ? 12 : 0,
+      limit: 1000,
+      remaining: populated ? 988 : 1000,
+      days: [],
+    },
+  ],
+});
+
+/** Phase 8 analytics overview fixture; totals are server-computed in production. */
+export function analyticsOverviewFixture(populated: boolean) {
+  return {
+    dashboard: analyticsDashboardFixture(populated),
+    eventTotals: populated
+      ? [
+          { eventType: "TASK_COMPLETED", count: 30, totalDurationMs: 30000, averageDurationMs: 1000 },
+          {
+            eventType: "WORKFLOW_COMPLETED",
+            count: 12,
+            totalDurationMs: 24000,
+            averageDurationMs: 2000,
+          },
+          { eventType: "WORKFLOW_FAILED", count: 2, totalDurationMs: 4000, averageDurationMs: 2000 },
+        ]
+      : [],
+    totalEvents: populated ? 44 : 0,
+  };
+}
+
+export const analyticsDrilldownFixture = (populated: boolean) => ({
+  from: "2026-11-02",
+  to: "2026-11-08",
+  eventType: "WORKFLOW_COMPLETED",
+  page: 0,
+  size: 20,
+  totalElements: populated ? 1 : 0,
+  totalPages: populated ? 1 : 0,
+  partial: false,
+  detail: null,
+  rows: populated
+    ? [
+        {
+          id: "sample-1",
+          eventType: "WORKFLOW_COMPLETED",
+          workflowInstanceId: "inst-1",
+          taskId: null,
+          nodeId: "approval",
+          durationMs: 1200,
+          occurredAt: now,
+        },
+      ]
+    : [],
+});
+
 export const organizationTreeFixture = [
   {
     id: "company-1",
@@ -200,6 +384,30 @@ const memberships = [
 export function responseFor(pathname: string, populated: boolean): unknown {
   if (pathname.endsWith("/actuator/health")) {
     return { status: "UP" };
+  }
+  if (pathname.endsWith("/api/v1/admin/identity")) {
+    return adminIdentityFixture(populated);
+  }
+  if (pathname.endsWith("/api/v1/admin/operate")) {
+    return adminOperateFixture(populated);
+  }
+  if (pathname.endsWith("/api/v1/admin/audit")) {
+    return adminAuditFixture(populated);
+  }
+  if (pathname.endsWith("/api/v1/admin/dlq")) {
+    return adminDlqFixture(populated);
+  }
+  if (pathname.endsWith("/api/v1/admin/break-glass")) {
+    return breakGlassFixture;
+  }
+  if (/\/api\/v1\/tenants\/[^/]+\/usage$/.test(pathname)) {
+    return tenantUsageFixture(populated);
+  }
+  if (pathname.endsWith("/api/v1/analytics/overview")) {
+    return analyticsOverviewFixture(populated);
+  }
+  if (pathname.endsWith("/api/v1/analytics/drilldown")) {
+    return analyticsDrilldownFixture(populated);
   }
   if (pathname.endsWith("/api/v1/auth/tenants")) {
     return memberships;
@@ -497,8 +705,31 @@ export const SCREENS: ScreenDefinition[] = [
   },
   {
     name: "analytics",
-    path: "/analytics",
+    // Fixed range keeps the visual baseline deterministic across calendar days.
+    path: "/analytics?from=2026-11-02&to=2026-11-08",
     heading: "Analytics",
+    protected: true,
+    states: ["empty", "populated"],
+  },
+  {
+    name: "admin",
+    path: "/admin",
+    heading: "Identity console",
+    protected: true,
+    states: ["empty", "populated"],
+  },
+  {
+    name: "operate",
+    path: "/admin/operate",
+    heading: "Operate console",
+    protected: true,
+    states: ["empty", "populated"],
+  },
+  {
+    name: "audit",
+    // Fixed range keeps the export inputs deterministic across calendar days.
+    path: "/admin/audit?from=2026-11-02&to=2026-11-08",
+    heading: "Audit log",
     protected: true,
     states: ["empty", "populated"],
   },

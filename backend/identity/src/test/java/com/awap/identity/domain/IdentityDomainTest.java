@@ -2,6 +2,8 @@ package com.awap.identity.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -38,6 +40,30 @@ class IdentityDomainTest {
     user.assignRole(Role.TENANT_ADMIN);
 
     assertThat(user.getRole()).isEqualTo(Role.TENANT_ADMIN);
+  }
+
+  @Test
+  void markDeletedSoftDeletesTheAccountAndKeepsItsCreationTime() {
+    User user = new User(UUID.randomUUID(), "a@b.c", "hash", "A", Role.EMPLOYEE);
+
+    assertThat(user.getCreatedAt()).isNotNull();
+    user.markDeleted();
+
+    assertThat(user.isDeleted()).isTrue();
+  }
+
+  @Test
+  void invitationExposesItsCreationTime() {
+    Invitation invitation =
+        new Invitation(
+            UUID.randomUUID(),
+            "a@b.c",
+            Role.EMPLOYEE,
+            "hash",
+            Instant.now().plus(Duration.ofDays(1)),
+            UUID.randomUUID());
+
+    assertThat(invitation.getCreatedAt()).isNotNull();
   }
 
   @Test

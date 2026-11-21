@@ -114,4 +114,23 @@ public interface NotificationDeliveryRepository extends JpaRepository<Notificati
   /** Purges notifications that were never acknowledged and are older than the cutoff. */
   @Query(value = "SELECT awap_purge_unread_notifications(:cutoff)", nativeQuery = true)
   int purgeUnreadBefore(@Param("cutoff") OffsetDateTime cutoff);
+
+  /** Terminal failures shown by the operator dead-letter view. */
+  List<NotificationDelivery> findByTenantIdAndStatusOrderByCreatedAtDesc(
+      UUID tenantId, String status);
+
+  long countByTenantIdAndStatus(UUID tenantId, String status);
+
+  /**
+   * Re-queues one terminally failed delivery. The status predicate makes the transition
+   * conditional, so a concurrent retry cannot reset a delivery that has already moved on.
+   */
+  @Modifying(clearAutomatically = true, flushAutomatically = true)
+  @Query(
+      "update NotificationDelivery d set d.status = 'RETRYING', d.attempts = 0,"
+          + " d.nextAttemptAt = :now, d.leaseUntil = null, d.leaseToken = null,"
+          + " d.updatedAt = :now"
+          + " where d.id = :id and d.tenantId = :tenantId and d.status = 'FAILED'")
+  int requeueFailed(
+      @Param("id") UUID id, @Param("tenantId") UUID tenantId, @Param("now") Instant now);
 }

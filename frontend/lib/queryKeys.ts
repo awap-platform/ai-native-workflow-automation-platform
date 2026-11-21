@@ -56,6 +56,47 @@ export const queryKeys = {
         groupBy ?? null,
         limit ?? null,
       ] as const,
+    overview: (
+      from?: string,
+      to?: string,
+      granularity?: string,
+      groupBy?: string,
+      limit?: number,
+    ) =>
+      [
+        "analytics-overview",
+        from ?? null,
+        to ?? null,
+        granularity ?? null,
+        groupBy ?? null,
+        limit ?? null,
+      ] as const,
+    drilldown: (
+      from?: string,
+      to?: string,
+      eventType?: string,
+      page?: number,
+      size?: number,
+    ) =>
+      [
+        "analytics-drilldown",
+        from ?? null,
+        to ?? null,
+        eventType ?? null,
+        page ?? null,
+        size ?? null,
+      ] as const,
+  },
+  admin: {
+    all: ["admin"] as const,
+    identity: (tenantId: string | null) => ["admin", "identity", tenantId] as const,
+    operate: (tenantId: string | null) => ["admin", "operate", tenantId] as const,
+    audit: (tenantId: string | null, cursor: string | null) =>
+      ["admin", "audit", tenantId, cursor] as const,
+    dlq: (tenantId: string | null) => ["admin", "dlq", tenantId] as const,
+    usage: (tenantId: string | null, from?: string, to?: string) =>
+      ["admin", "usage", tenantId, from ?? null, to ?? null] as const,
+    breakGlass: () => ["admin", "break-glass"] as const,
   },
   organizationTree: {
     all: ["organization-tree"] as const,

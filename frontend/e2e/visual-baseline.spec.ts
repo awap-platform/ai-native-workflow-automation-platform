@@ -34,6 +34,10 @@ const VISUAL_SCREEN_NAMES = new Set([
   "documents",
   "notifications",
   "notification-templates",
+  "analytics",
+  "admin",
+  "operate",
+  "audit",
 ]);
 
 function screenFor(name: string): ScreenDefinition {
