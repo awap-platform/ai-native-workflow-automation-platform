@@ -450,6 +450,7 @@ async function apiRequest<T>(
   body?: unknown,
   retried = false,
   extraHeaders?: Record<string, string>,
+  signal?: AbortSignal,
 ): Promise<T> {
   const headers: Record<string, string> = {};
   if (body !== undefined) {
@@ -475,13 +476,14 @@ async function apiRequest<T>(
     method,
     headers,
     credentials: "include",
+    ...(signal === undefined ? {} : { signal }),
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   logApi(method, path, response.status, started);
   recordServerClock(response);
 
   if (response.status === 401 && !retried && (await refreshSession())) {
-    return apiRequest<T>(method, path, body, true, extraHeaders);
+    return apiRequest<T>(method, path, body, true, extraHeaders, signal);
   }
   if (response.status === 401) {
     redirectToLogin();
@@ -509,7 +511,8 @@ const authPostWithHeaders = <T>(
   path: string,
   body: unknown,
   headers?: Record<string, string>,
-): Promise<T> => apiRequest<T>("POST", path, body, false, headers);
+  signal?: AbortSignal,
+): Promise<T> => apiRequest<T>("POST", path, body, false, headers, signal);
 
 export interface CurrentUserDto {
   id: string;
@@ -1242,6 +1245,56 @@ export interface CopilotToolCallDto {
   error: string | null;
 }
 
+export interface CopilotCitationDto {
+  index: number;
+  title: string;
+  document_id: string;
+  chunk_index: number;
+  score?: number | null;
+}
+
+export interface CopilotBudgetDto {
+  remaining_tokens: number | null;
+  monthly_budget_tokens: number | null;
+  used_tokens: number | null;
+  estimated_cost_micros: number | null;
+}
+
+export interface CopilotWarningDto {
+  code: string;
+  message: string;
+  severity: "info" | "warning" | "error";
+}
+
+export interface CopilotGuardrailDto {
+  policy: string | null;
+  decision: string;
+  score: number;
+  version: string;
+  unavailable: boolean;
+}
+
+export interface CopilotAuditDto {
+  request_id: string;
+  action: string;
+  outcome: string | null;
+  confidence: number;
+  requires_human_approval: boolean;
+  tool_calls: CopilotToolCallDto[];
+  idempotency_key: string | null;
+  correlation_id: string;
+  prompt_key: string;
+  prompt_version: string;
+  prompt_hash: string;
+  model: string | null;
+  model_tier: string | null;
+  routing_reason: string | null;
+  proposal_id: string | null;
+  proposal_hash: string | null;
+  decision: string | null;
+  retrieved_document_ids: string[];
+}
+
 export interface CopilotResponseDto {
   answer: string;
   action: string;
@@ -1254,6 +1307,13 @@ export interface CopilotResponseDto {
   prompt_version: string;
   correlation_id: string;
   idempotency_key: string | null;
+  /** Phase 9 enrichment; older deployments may omit these fields. */
+  outcome?: string | null;
+  citations?: CopilotCitationDto[] | null;
+  budget?: CopilotBudgetDto | null;
+  warnings?: CopilotWarningDto[] | null;
+  guardrail?: CopilotGuardrailDto | null;
+  audit?: CopilotAuditDto | null;
 }
 
 export interface CopilotChatPayload {
@@ -1277,11 +1337,15 @@ export interface CopilotApprovalPayload {
   idempotency_key?: string;
 }
 
-export function copilotChat(payload: CopilotChatPayload): Promise<CopilotResponseDto> {
+export function copilotChat(
+  payload: CopilotChatPayload,
+  signal?: AbortSignal,
+): Promise<CopilotResponseDto> {
   return authPostWithHeaders<CopilotResponseDto>(
     "/api/v1/copilot/chat",
     payload,
     idempotencyHeader(payload.idempotency_key),
+    signal,
   );
 }
 
@@ -1301,11 +1365,13 @@ export function copilotTasks(): Promise<CopilotResponseDto> {
  */
 export function copilotApprovalAssistance(
   payload: CopilotApprovalPayload,
+  signal?: AbortSignal,
 ): Promise<CopilotResponseDto> {
   return authPostWithHeaders<CopilotResponseDto>(
     "/api/v1/copilot/approvals",
     payload,
     idempotencyHeader(payload.idempotency_key),
+    signal,
   );
 }
 

@@ -34,9 +34,14 @@ from app.copilot.knowledge import (
 from app.copilot.llm_gateway import LlmGateway, LlmUnavailable
 from app.copilot.metrics import CopilotMetrics
 from app.copilot.models import (
+    BudgetUsage,
+    Citation,
     CopilotAction,
+    CopilotAudit,
     CopilotRequest,
     CopilotResponse,
+    CopilotWarning,
+    GuardrailSummary,
     SecurityContext,
     ToolCall,
 )
@@ -110,11 +115,16 @@ class AgentState(TypedDict, total=False):
     prompt_hash: str
     route: dict[str, Any]
     tool_calls: list[dict[str, Any]]
+    warnings: list[dict[str, str]]
+    citations: list[dict[str, Any]]
     data: Any
     answer: str
     confidence: float
     requires_human_approval: bool
     outcome: str
+    llm_usage: Any
+    provider: str | None
+    fallback_reason: str | None
 
 
 class LlmClient:
@@ -267,6 +277,8 @@ class CopilotAgent:
             "idempotency_key": request.idempotency_key,
             "confirm_high_risk": request.confirm_high_risk,
             "tool_calls": [],
+            "warnings": [],
+            "citations": [],
             "prompt_key": "chat",
             "prompt_hash": prompt_hash("chat"),
         }
@@ -289,18 +301,58 @@ class CopilotAgent:
             outcome=outcome,
             cache_hit="false",
         )
+        route = final.get("route", {})
+        proposal = final.get("proposal") or {}
+        retrieved = final.get("retrieved") or {}
+        tool_calls = [ToolCall(**call) for call in final.get("tool_calls", [])]
+        citations = [Citation(**citation) for citation in final.get("citations", [])]
+        warnings = [CopilotWarning(**warning) for warning in final.get("warnings", [])]
+        guardrail_fields = final.get("guardrail") or {}
+        guardrail = GuardrailSummary(
+            policy=guardrail_fields.get("guardrailPolicy"),
+            decision=guardrail_fields.get("guardrailDecision") or "allow",
+            score=float(guardrail_fields.get("guardrailScore") or 0.0),
+            version=str(guardrail_fields.get("guardrailVersion") or ""),
+            unavailable=bool(guardrail_fields.get("guardrailUnavailable") or False),
+        )
+        budget = self._budget_usage(security, route, final.get("llm_usage"))
+        derived_request_id = (
+            f"{security.tenant_id}:{final.get('prompt_hash', '')}:"
+            f"{final.get('action', CopilotAction.CHAT).value}"
+        )
+        request_id = request.idempotency_key or security.correlation_id or derived_request_id
+        audit = CopilotAudit(
+            request_id=request_id,
+            action=final.get("action", CopilotAction.CHAT).value,
+            outcome=final.get("outcome"),
+            confidence=final["confidence"],
+            requires_human_approval=final.get("requires_human_approval", False),
+            tool_calls=tool_calls,
+            idempotency_key=request.idempotency_key,
+            correlation_id=security.correlation_id,
+            prompt_key=final.get("prompt_key", "chat"),
+            prompt_version=PROMPT_VERSION,
+            prompt_hash=final.get("prompt_hash", prompt_hash("chat")),
+            model=route.get("model"),
+            model_tier=route.get("tier"),
+            routing_reason=route.get("routingReason"),
+            proposal_id=proposal.get("proposalId"),
+            proposal_hash=proposal.get("proposalHash"),
+            decision=proposal.get("decision"),
+            retrieved_document_ids=retrieved.get("documentIds") or [],
+        )
         response = CopilotResponse(
             answer=final["answer"],
             action=final["action"],
             confidence=final["confidence"],
             requires_human_approval=final.get("requires_human_approval", False),
-            tool_calls=[ToolCall(**call) for call in final.get("tool_calls", [])],
+            tool_calls=tool_calls,
             data=final.get("data"),
-            model=final.get("route", {}).get("model"),
-            model_tier=final.get("route", {}).get("tier"),
-            routing_reason=final.get("route", {}).get("routingReason"),
-            routing_policy=final.get("route", {}).get("routingPolicy"),
-            estimated_cost_micros=final.get("route", {}).get("estimatedCostMicros"),
+            model=route.get("model"),
+            model_tier=route.get("tier"),
+            routing_reason=route.get("routingReason"),
+            routing_policy=route.get("routingPolicy"),
+            estimated_cost_micros=route.get("estimatedCostMicros"),
             prompt_key=final.get("prompt_key", "chat"),
             prompt_version=PROMPT_VERSION,
             prompt_hash=final.get("prompt_hash", prompt_hash("chat")),
@@ -308,6 +360,12 @@ class CopilotAgent:
             idempotency_key=request.idempotency_key,
             provider=final.get("provider"),
             fallback_reason=final.get("fallback_reason"),
+            outcome=final.get("outcome"),
+            citations=citations,
+            budget=budget,
+            warnings=warnings,
+            guardrail=guardrail,
+            audit=audit,
         )
         if cache_key is not None:
             self.metrics.increment("copilot.cache.miss")
@@ -382,6 +440,13 @@ class CopilotAgent:
         high_risk = action in HIGH_RISK_ACTIONS
         report = self.semantic_guardrails.screen_input(state["message"], action.value, high_risk)
         state["guardrail"] = report.audit_fields()
+        if report.unavailable:
+            self._warn(
+                state,
+                "GUARDRAIL_UNAVAILABLE",
+                "The semantic guardrail classifier was unavailable. High-risk actions fail closed.",
+                "warning",
+            )
         if report.blocked:
             top = report.top
             state["answer"] = (
@@ -395,21 +460,41 @@ class CopilotAgent:
                 "errorCode": "GUARDRAIL_BLOCKED",
                 "policy": top.policy.value if top else None,
             }
+            self._warn(
+                state,
+                f"GUARDRAIL_{top.policy.value.upper()}_BLOCKED" if top else "GUARDRAIL_BLOCKED",
+                "The request was blocked by the safety policy and no tool was called.",
+                "error",
+            )
             self.metrics.increment("copilot.guardrail.semantic_input_blocked")
             return state
         if report.redacted and report.redacted_text is not None:
             state["message"] = report.redacted_text
+            self._warn(
+                state,
+                "PII_REDACTED",
+                "Personal data in the request was redacted before it reached the model.",
+                "warning",
+            )
             self.metrics.increment("copilot.guardrail.semantic_input_redacted")
         try:
             sanitized = sanitize_input(state["message"])
             state["message"] = sanitized.text
             if sanitized.sanitized:
+                self._warn(
+                    state,
+                    "INPUT_NORMALIZED",
+                    "Zero-width characters or extra whitespace were removed from the request.",
+                    "info",
+                )
                 self.metrics.increment("copilot.guardrail.input_sanitized")
         except GuardrailViolation as ex:
             state["answer"] = str(ex)
             state["confidence"] = 0.0
             state["requires_human_approval"] = False
             state["action"] = state.get("action", CopilotAction.CHAT)
+            state["outcome"] = "GUARDRAIL_BLOCKED"
+            self._warn(state, "INPUT_BLOCKED", str(ex), "error")
             self.metrics.increment("copilot.guardrail.input_blocked")
             return state
 
@@ -460,6 +545,13 @@ class CopilotAgent:
                 "errorCode": "GUARDRAIL_TOOL_BLOCKED",
                 "policy": top.policy.value if top else None,
             }
+            self._warn(
+                state,
+                "TOOL_USE_BLOCKED",
+                "The requested tool action violated the tool-use policy; "
+                "no domain tool was called.",
+                "error",
+            )
             self.metrics.increment("copilot.guardrail.semantic_tool_blocked")
             return state
         try:
@@ -484,11 +576,29 @@ class CopilotAgent:
             state["answer"] = str(ex)
             state["confidence"] = 0.0
             state["requires_human_approval"] = False
+            state["outcome"] = "GUARDRAIL_BLOCKED"
+            self._warn(state, "ACTION_BLOCKED", str(ex), "error")
             self.metrics.increment("copilot.guardrail.action_blocked")
             return state
 
     async def _finalize(self, state: AgentState) -> AgentState:
-        answer = state.get("answer") or "I could not complete that request."
+        raw_answer = state.get("answer")
+        if raw_answer is None or not str(raw_answer).strip():
+            answer = (
+                "I don't know. I could not produce an answer from the available tenant "
+                "information, so I will not guess."
+            )
+            state["requires_human_approval"] = True
+            state["outcome"] = state.get("outcome") or "NO_ANSWER"
+            self._warn(
+                state,
+                "NO_ANSWER",
+                "No grounded answer was produced; human review is required.",
+                "warning",
+            )
+            self.metrics.increment("copilot.no_answer.empty")
+        else:
+            answer = str(raw_answer)
         action = state.get("action", CopilotAction.CHAT)
         high_risk = action in HIGH_RISK_ACTIONS
         output_report = self.semantic_guardrails.screen_output(answer, action.value, high_risk)
@@ -496,6 +606,13 @@ class CopilotAgent:
         # (harmless) canned response's output assessment.
         if state.get("outcome") not in {"GUARDRAIL_BLOCKED", "GUARDRAIL_TOOL_BLOCKED"}:
             state["guardrail"] = output_report.audit_fields()
+        if output_report.unavailable:
+            self._warn(
+                state,
+                "GUARDRAIL_UNAVAILABLE",
+                "The semantic guardrail classifier was unavailable for this response.",
+                "warning",
+            )
         if output_report.blocked:
             answer = (
                 "The response was blocked by the semantic guardrails because it violated a "
@@ -503,26 +620,48 @@ class CopilotAgent:
             )
             state["requires_human_approval"] = True
             state["outcome"] = "GUARDRAIL_OUTPUT_BLOCKED"
+            self._warn(
+                state,
+                "OUTPUT_BLOCKED",
+                "The model response was blocked by the safety policy.",
+                "error",
+            )
             self.metrics.increment("copilot.guardrail.semantic_output_blocked")
         elif output_report.redacted and output_report.redacted_text is not None:
             answer = output_report.redacted_text
+            self._warn(
+                state,
+                "OUTPUT_PII_REDACTED",
+                "Personal data in the response was redacted.",
+                "warning",
+            )
             self.metrics.increment("copilot.guardrail.semantic_output_redacted")
         try:
             answer = sanitize_output(answer)
         except GuardrailViolation as ex:
             answer = f"The response was blocked by safety guardrails: {ex}"
             state["requires_human_approval"] = True
+            state["outcome"] = "GUARDRAIL_OUTPUT_BLOCKED"
+            self._warn(state, "OUTPUT_BLOCKED", str(ex), "error")
             self.metrics.increment("copilot.guardrail.output_blocked")
         state["answer"] = answer
         state["confidence"] = state.get("confidence", estimate_confidence(answer, action.value))
         if state["confidence"] < self.confidence_threshold:
             state["requires_human_approval"] = True
+            self._warn(
+                state,
+                "LOW_CONFIDENCE",
+                f"Confidence {state['confidence']:.2f} is below the "
+                f"{self.confidence_threshold:.2f} threshold; human review is required.",
+                "warning",
+            )
             self.metrics.increment("copilot.hitl.low_confidence")
 
         security = state["security"]
         outcome = state.get("outcome") or (
             "HITL" if state.get("requires_human_approval") else "SUCCESS"
         )
+        state["outcome"] = outcome
         proposal = state.get("proposal") or {}
         route = state.get("route", {})
         retrieved = state.get("retrieved") or {}
@@ -1025,11 +1164,19 @@ class CopilotAgent:
             threshold=self.confidence_threshold,
         )
         self.metrics.increment(f"copilot.knowledge.{assessment.outcome.lower()}")
+        state["citations"] = summary.sources
 
         if assessment.outcome == NO_ANSWER:
             answer = (
                 "I don't know. I could not find a tenant document that answers this question, "
                 "so I will not guess."
+            )
+            state["citations"] = []
+            self._warn(
+                state,
+                "NO_ANSWER",
+                "No tenant document matched the question; the Copilot did not guess.",
+                "warning",
             )
             return self._record(
                 state,
@@ -1051,6 +1198,12 @@ class CopilotAgent:
                 + (f" ({titles})" if titles else "")
                 + ", but their relevance score is below the confidence threshold. I cannot "
                 "confirm this answer as a fact; please review the source or ask a human."
+            )
+            self._warn(
+                state,
+                "LOW_CONFIDENCE",
+                "Retrieved sources were below the confidence threshold; human review is required.",
+                "warning",
             )
             return self._record(
                 state,
@@ -1121,6 +1274,40 @@ class CopilotAgent:
         )
 
     # ------------------------------------------------------------------ helpers
+    def _warn(
+        self,
+        state: AgentState,
+        code: str,
+        message: str,
+        severity: str = "warning",
+    ) -> None:
+        """Attach one deduplicated user-facing warning to the response."""
+        warnings = state.setdefault("warnings", [])
+        if any(existing.get("code") == code for existing in warnings):
+            return
+        warnings.append({"code": code, "message": message, "severity": severity})
+
+    def _budget_usage(
+        self,
+        security: SecurityContext,
+        route: dict[str, Any],
+        usage: Any,
+    ) -> BudgetUsage:
+        """Report remaining budget without inventing a value when none is configured."""
+        snapshot = self.llm_gateway.budget_snapshot(security.tenant_id)
+        remaining = security.remaining_budget_tokens
+        if remaining is None:
+            remaining = snapshot.get("remaining_tokens")
+        used = None
+        if usage is not None:
+            used = int(usage.prompt_tokens) + int(usage.completion_tokens)
+        return BudgetUsage(
+            remaining_tokens=remaining,
+            monthly_budget_tokens=snapshot.get("monthly_budget_tokens"),
+            used_tokens=used if used is not None else snapshot.get("used_tokens"),
+            estimated_cost_micros=route.get("estimatedCostMicros"),
+        )
+
     def _record(
         self,
         state: AgentState,

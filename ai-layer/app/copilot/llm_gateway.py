@@ -360,6 +360,29 @@ class LlmGateway:
         state = self._state(tenant_id, now)
         state.used_tokens = max(0, state.used_tokens - estimated)
 
+    def budget_snapshot(self, tenant_id: str) -> dict[str, int | None]:
+        """Return the tenant ledger so a caller can show remaining AI budget.
+
+        The snapshot is server-derived. A deployment that does not configure a monthly budget
+        reports ``monthly_budget_tokens``/``remaining_tokens`` as ``None`` rather than inventing
+        an unlimited value.
+        """
+        now = self._clock()
+        with self._lock:
+            state = self._state(tenant_id, now)
+            used = state.used_tokens
+        if self.monthly_budget_tokens is None:
+            return {
+                "monthly_budget_tokens": None,
+                "used_tokens": used,
+                "remaining_tokens": None,
+            }
+        return {
+            "monthly_budget_tokens": self.monthly_budget_tokens,
+            "used_tokens": used,
+            "remaining_tokens": max(0, self.monthly_budget_tokens - used),
+        }
+
     @staticmethod
     def _seconds_to_next_month(now: datetime) -> int:
         if now.month == 12:

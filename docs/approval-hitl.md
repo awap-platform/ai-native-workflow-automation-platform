@@ -45,6 +45,24 @@ wrong approver).
 }
 ```
 
+## Copilot approval panel (Phase 9)
+
+The SPA approval panel is the human side of the two-step flow:
+
+1. **Propose.** The first request returns a tenant/user-scoped `proposalId`, the SHA-256 payload hash
+   and an expiry. Nothing is created.
+2. **Review.** The panel renders the proposed action, workflow instance, title/description, payload
+   hash and idempotency key before approval.
+3. **Approve.** The second request sets `confirm: true`, echoes the same proposal id/hash and reuses
+   the original idempotency key. A replay returns the original approval task instead of creating a
+   second one.
+4. **Reject.** Rejecting is local: no request is sent and no approval, task decision or workflow start
+   occurs.
+
+No-answer and low-confidence Copilot responses also require human review; the UI links to the task
+inbox instead of inventing an approval task. Tests: `useCopilot.test.tsx` (same-key approval, reject
+sends no action) and `phase-9-ai-copilot.spec.ts` (T9-03/T9-04).
+
 ## Migration
 
 `V58__task_type_and_approval_linkage.sql` adds `tasks.task_type` with a `GENERIC` default and a

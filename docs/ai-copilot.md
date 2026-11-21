@@ -57,6 +57,11 @@ Implemented row has no test link or a Partial/Planned row has no issue link.
 | COP-IDEMPOTENCY | End-to-end idempotency keys, replay and conflict detection | Implemented | [`test_copilot_api.py`](../ai-layer/tests/test_copilot_api.py) | #283 |
 | COP-JOBS | Asynchronous Copilot jobs with status and cancellation | Implemented | [`test_async_jobs.py`](../ai-layer/tests/test_async_jobs.py) | #— |
 | COP-E2E | SPA → backend → AI layer journey through AI_TASK HITL to completion | Implemented | [`copilot-journey.spec.ts`](../frontend/e2e/copilot-journey.spec.ts) | #284 |
+| COP-CHAT-UI | Conversation history, sessions, suggestions and chat metadata | Implemented | [`phase-9-ai-copilot.spec.ts`](../frontend/e2e/phase-9-ai-copilot.spec.ts) | Phase 9 |
+| COP-STREAM-UI | Progressive answer reveal with cancel and first-token measurement | Implemented | [`phase-9-ai-copilot.spec.ts`](../frontend/e2e/phase-9-ai-copilot.spec.ts) | Phase 9 |
+| COP-CITATIONS | Structured tenant citations and no-citation flag | Implemented | [`test_copilot_phase9.py`](../ai-layer/tests/test_copilot_phase9.py) | Phase 9 |
+| COP-HITL-UI | Hash-bound approval panel; reject sends no action | Implemented | [`phase-9-ai-copilot.spec.ts`](../frontend/e2e/phase-9-ai-copilot.spec.ts) | Phase 9 |
+| COP-AUDIT-UI | Deduplicated per-request audit view of tools and decisions | Implemented | [`phase-9-ai-copilot.spec.ts`](../frontend/e2e/phase-9-ai-copilot.spec.ts) | Phase 9 |
 
 ### Two independent LLM control planes
 
@@ -386,6 +391,28 @@ Prompt files are immutable, versioned, hashed and gated by CI. See
 [ADR-0008](adr/0008-ai-prompt-versioning-and-change-control.md). Every response reports
 `prompt_key`, `prompt_version` and `prompt_hash`; the `audit_decision` tool receives the same
 metadata, so a decision can be traced back to the exact immutable prompt file.
+
+## Phase 9 SPA experience
+
+The `/copilot` screen adds conversation history (tenant-scoped in browser storage), suggestion
+cards, progressive answer reveal with cancel, tool-call cards with redacted arguments, citations,
+no-answer/low-confidence states, a hash-bound HITL approval panel, an audit view, budget usage and
+injection/PII warnings. See
+[`ui-ux/phase-9-ai-copilot.md`](ui-ux/phase-9-ai-copilot.md).
+
+Response metadata added in this phase: `outcome`, `citations`, `budget`, `warnings`, `guardrail` and
+`audit`. The gRPC adapter projects the REST envelope onto the proto fields, so the versioned proto
+contract is unchanged.
+
+Honest limitations:
+
+- **Streaming transport.** The browser progressively reveals a completed response; the backend proxy
+  is request/response, so token-level provider streaming over SSE/WebSocket is not implemented.
+- **Sessions.** The AI layer is stateless; history is browser storage, not a durable server session.
+- **Citation coverage.** Citations exist for `knowledge_search` answers. Workflow/task/notification
+  answers reference their tool calls instead of documents.
+- **Budget ledger.** Remaining budget is the backend-supplied routing value or the in-process
+  Copilot gateway ledger; it is not the durable AI-node ledger.
 
 ## Documentation review checklist
 

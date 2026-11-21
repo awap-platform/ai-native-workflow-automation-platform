@@ -15,7 +15,7 @@ uses the shared fixtures in
 | Invitation acceptance | `/invitations/accept?token=…` | ✅ | — | Public token form; new/existing account modes |
 | Tenant selection | `/select-tenant` | — | ✅ | Two memberships shown as cards |
 | Dashboard | `/dashboard` | ✅ | ✅ | Tasks/instances counts |
-| AI Copilot | `/copilot` | ✅ | ✅ | Natural-language request, HITL warning and tool-call list |
+| AI Copilot | `/copilot` | ✅ | ✅ | Sessions, suggestions, live transcript (`aria-live`), streaming cancel, tool cards, citations, HITL panel, audit view and warnings |
 | Task inbox | `/tasks` | ✅ | ✅ | Split pane: filters, saved views, bulk toolbar, J/K/Enter/A/R shortcuts |
 | Work item 360 | `/tasks?task=…` | — | ✅ | Detail tabs: context, decision, history, attachments, variables |
 | Workflow catalogue | `/workflows` | ✅ | ✅ | Cards/table, filters and the start dialog with a JSON preview |

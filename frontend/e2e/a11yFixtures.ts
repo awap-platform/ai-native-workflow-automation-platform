@@ -380,6 +380,210 @@ const memberships = [
   { tenantId: "tenant-b", role: "EMPLOYEE" },
 ];
 
+export type CopilotFixtureKind = "success" | "injection" | "no-answer" | "proposal" | "confirmed";
+
+/** Deterministic Copilot response used by the accessibility and Phase 9 E2E specs. */
+export function copilotResponseFixture(kind: CopilotFixtureKind = "success") {
+  const baseAudit = {
+    request_id: "copilot-request-1",
+    action: "knowledge_search",
+    outcome: "SUCCESS",
+    confidence: 0.91,
+    requires_human_approval: false,
+    tool_calls: [],
+    idempotency_key: "copilot-request-1",
+    correlation_id: "corr-copilot",
+    prompt_key: "knowledge_search",
+    prompt_version: "v1",
+    prompt_hash: "a".repeat(64),
+    model: "gpt-4o-mini",
+    model_tier: "standard",
+    routing_reason: "moderate complexity",
+    proposal_id: null,
+    proposal_hash: null,
+    decision: null,
+    retrieved_document_ids: ["file-1"],
+  };
+  const budget = {
+    remaining_tokens: 900,
+    monthly_budget_tokens: 1000,
+    used_tokens: 100,
+    estimated_cost_micros: 20,
+  };
+  const guardrail = {
+    policy: null,
+    decision: "allow",
+    score: 0,
+    version: "v1",
+    unavailable: false,
+  };
+  if (kind === "injection") {
+    return {
+      answer:
+        "I cannot process this request because it violates the configured safety policy (prompt-injection or guardrail block). No tool was called.",
+      action: "chat",
+      confidence: 0,
+      requires_human_approval: true,
+      tool_calls: [],
+      data: { errorCode: "GUARDRAIL_BLOCKED", policy: "prompt_injection" },
+      model: null,
+      model_tier: null,
+      prompt_version: "v1",
+      correlation_id: "corr-copilot",
+      idempotency_key: "copilot-request-injection",
+      outcome: "GUARDRAIL_BLOCKED",
+      citations: [],
+      budget,
+      warnings: [
+        {
+          code: "GUARDRAIL_PROMPT_INJECTION_BLOCKED",
+          message: "The request was blocked by the safety policy and no tool was called.",
+          severity: "error",
+        },
+      ],
+      guardrail: { ...guardrail, policy: "prompt_injection", decision: "block", score: 0.95 },
+      audit: {
+        ...baseAudit,
+        action: "chat",
+        outcome: "GUARDRAIL_BLOCKED",
+        requires_human_approval: true,
+        retrieved_document_ids: [],
+        idempotency_key: "copilot-request-injection",
+      },
+    };
+  }
+  if (kind === "no-answer") {
+    return {
+      answer:
+        "I don't know. I could not find a tenant document that answers this question, so I will not guess.",
+      action: "knowledge_search",
+      confidence: 0,
+      requires_human_approval: true,
+      tool_calls: [
+        {
+          name: "search_documents",
+          arguments: { query: "sabbatical", note: "ada@acme.com" },
+          result: [],
+          ok: true,
+          error: null,
+        },
+      ],
+      data: [],
+      model: "gpt-4o-mini",
+      model_tier: "cheap",
+      prompt_version: "v1",
+      correlation_id: "corr-copilot",
+      idempotency_key: "copilot-request-no-answer",
+      outcome: "NO_ANSWER",
+      citations: [],
+      budget,
+      warnings: [
+        {
+          code: "NO_ANSWER",
+          message: "No tenant document matched the question; the Copilot did not guess.",
+          severity: "warning",
+        },
+      ],
+      guardrail,
+      audit: {
+        ...baseAudit,
+        outcome: "NO_ANSWER",
+        confidence: 0,
+        requires_human_approval: true,
+        retrieved_document_ids: [],
+        idempotency_key: "copilot-request-no-answer",
+      },
+    };
+  }
+  if (kind === "proposal" || kind === "confirmed") {
+    const confirmed = kind === "confirmed";
+    return {
+      answer: confirmed
+        ? "The approval task was created after explicit confirmation."
+        : "Review the title, description and assignee, then confirm with the proposal id and hash below. Nothing has been created yet.",
+      action: "approval_assistance",
+      confidence: confirmed ? 0.95 : 0.82,
+      requires_human_approval: !confirmed,
+      tool_calls: confirmed
+        ? [
+            {
+              name: "create_approval",
+              arguments: { title: "Approve leave", token: "secret" },
+              result: { id: "approval-1" },
+              ok: true,
+              error: null,
+            },
+          ]
+        : [],
+      data: confirmed
+        ? { id: "approval-1", status: "OPEN" }
+        : {
+            workflowInstanceId: "inst-1",
+            proposedAction: "create_approval",
+            proposalId: "proposal-1",
+            proposalHash: "b".repeat(64),
+            expiresAt: 1_800_000_000,
+          },
+      model: "gpt-4o-mini",
+      model_tier: "standard",
+      prompt_version: "v1",
+      correlation_id: "corr-copilot",
+      idempotency_key: "approval-request-1",
+      outcome: confirmed ? "CONFIRMED" : "PROPOSED",
+      citations: [],
+      budget,
+      warnings: [],
+      guardrail,
+      audit: {
+        ...baseAudit,
+        action: "approval_assistance",
+        outcome: confirmed ? "CONFIRMED" : "PROPOSED",
+        requires_human_approval: !confirmed,
+        proposal_id: "proposal-1",
+        proposal_hash: "b".repeat(64),
+        decision: confirmed ? "CONFIRMED" : "PROPOSED",
+        retrieved_document_ids: [],
+        idempotency_key: "approval-request-1",
+      },
+    };
+  }
+  const toolCall = {
+    name: "search_documents",
+    arguments: { query: "leave policy", note: "ada@acme.com", token: "secret" },
+    result: [{ fileId: "file-1" }],
+    ok: true,
+    error: null,
+  };
+  return {
+    answer:
+      "Grounded summary from your tenant documents:\n- Leave policy.pdf: Employees may request annual leave.\nSources:\n[1] Leave policy.pdf (file-1, chunk 2)",
+    action: "knowledge_search",
+    confidence: 0.91,
+    requires_human_approval: false,
+    tool_calls: [toolCall],
+    data: [],
+    model: "gpt-4o-mini",
+    model_tier: "standard",
+    prompt_version: "v1",
+    correlation_id: "corr-copilot",
+    idempotency_key: "copilot-request-1",
+    outcome: "SUCCESS",
+    citations: [
+      { index: 1, title: "Leave policy.pdf", document_id: "file-1", chunk_index: 2, score: 0.91 },
+    ],
+    budget,
+    warnings: [
+      {
+        code: "PII_REDACTED",
+        message: "Personal data in the request was redacted before it reached the model.",
+        severity: "warning",
+      },
+    ],
+    guardrail,
+    audit: { ...baseAudit, tool_calls: [toolCall] },
+  };
+}
+
 /** Chooses the response body for a mocked API request. */
 export function responseFor(pathname: string, populated: boolean): unknown {
   if (pathname.endsWith("/actuator/health")) {
@@ -552,6 +756,30 @@ export async function installApiMocks(page: Page, populated: boolean): Promise<v
       return;
     }
 
+    if (pathname.endsWith("/api/v1/copilot/chat")) {
+      const body = (request.postDataJSON() ?? {}) as { message?: string };
+      const message = body.message ?? "";
+      const kind = /ignore previous|system prompt|jailbreak/i.test(message)
+        ? "injection"
+        : /sabbatical|no answer|unavailable policy/i.test(message)
+          ? "no-answer"
+          : "success";
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(copilotResponseFixture(kind)),
+      });
+      return;
+    }
+    if (pathname.endsWith("/api/v1/copilot/approvals")) {
+      const body = (request.postDataJSON() ?? {}) as { confirm?: boolean };
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(copilotResponseFixture(body.confirm ? "confirmed" : "proposal")),
+      });
+      return;
+    }
     if (request.method() !== "GET") {
       await route.fulfill({
         status: 200,
@@ -637,6 +865,13 @@ export const SCREENS: ScreenDefinition[] = [
     name: "dashboard",
     path: "/dashboard",
     heading: "Dashboard",
+    protected: true,
+    states: ["empty", "populated"],
+  },
+  {
+    name: "copilot",
+    path: "/copilot",
+    heading: "AI Copilot",
     protected: true,
     states: ["empty", "populated"],
   },

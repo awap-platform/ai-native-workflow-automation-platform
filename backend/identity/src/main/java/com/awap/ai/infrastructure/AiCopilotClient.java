@@ -179,10 +179,21 @@ public class AiCopilotClient {
                       : response.statusCode() >= 500
                           ? HttpStatus.BAD_GATEWAY
                           : HttpStatus.BAD_REQUEST;
-      throw new AwapException(
-          ErrorCode.GENERIC_INTERNAL_ERROR,
-          status,
-          "AI Copilot failed with status " + response.statusCode() + ".");
+      // Preserve the AI layer's actionable detail (for example the remaining budget on a 429) so
+      // the
+      // SPA can explain the failure instead of showing only a generic upstream status.
+      String upstreamDetail = "";
+      try {
+        JsonNode errorBody = objectMapper.readTree(response.body());
+        upstreamDetail = errorBody.path("detail").asText("");
+      } catch (IOException ignored) {
+        // A non-JSON upstream error body is not actionable; keep the status-only message.
+      }
+      String message = "AI Copilot failed with status " + response.statusCode() + ".";
+      if (!upstreamDetail.isBlank()) {
+        message = message + " " + upstreamDetail;
+      }
+      throw new AwapException(ErrorCode.GENERIC_INTERNAL_ERROR, status, message);
     } catch (HttpTimeoutException ex) {
       outcome = "TIMEOUT";
       throw new AwapException(
