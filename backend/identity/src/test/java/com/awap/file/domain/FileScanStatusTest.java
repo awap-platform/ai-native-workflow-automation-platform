@@ -46,6 +46,24 @@ class FileScanStatusTest {
   @Test
   void failedScanCanBeRetried() {
     assertThat(FileScanStatus.SCAN_FAILED.canTransitionTo(FileScanStatus.SCANNING)).isTrue();
+    assertThat(FileScanStatus.SCAN_FAILED.canTransitionTo(FileScanStatus.QUARANTINED)).isTrue();
+  }
+
+  @Test
+  void operatorRequeueResetsTheRetryBudgetButKeepsTerminalStatesClosed() {
+    FileRecord record = quarantined();
+    record.beginScan();
+    record.markScanFailed("clamd timeout");
+
+    record.requeueForScan();
+
+    assertThat(record.getStatus()).isEqualTo(FileScanStatus.QUARANTINED);
+    assertThat(record.getScanAttempts()).isZero();
+    assertThat(record.getLastScanError()).isNull();
+
+    record.beginScan();
+    record.markInfected();
+    assertThatThrownBy(record::requeueForScan).isInstanceOf(IllegalStateException.class);
   }
 
   @Test

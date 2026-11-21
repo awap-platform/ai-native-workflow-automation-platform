@@ -103,6 +103,29 @@ public class FileService {
   }
 
   /**
+   * Re-queues a failed scan for a fresh attempt, resetting the retry budget.
+   *
+   * <p>Only {@code SCAN_FAILED} can be retried: an infected file is terminal and a promoted file is
+   * already downloadable, so both answer {@code 409 AWAP-FILE-0008} instead of silently doing
+   * nothing. The event is published inside the transaction, so an open SSE stream observes the
+   * requeue immediately.
+   */
+  @Transactional
+  public FileScanInfo retryScan(UUID tenantId, UUID fileId) {
+    FileRecord record = findRecord(tenantId, fileId);
+    if (record.getStatus() != FileScanStatus.SCAN_FAILED) {
+      throw new AwapException(
+          ErrorCode.FILE_STATE_CONFLICT,
+          HttpStatus.CONFLICT,
+          "Only a failed antivirus scan can be retried.");
+    }
+    record.requeueForScan();
+    repository.save(record);
+    eventBus.publish(FileScanStatusEvent.of(record, "Scan re-queued by an operator."));
+    return toScanInfo(record);
+  }
+
+  /**
    * Validates a file referenced by a form submission (issue #200) and returns the metadata the
    * submission response exposes. Foreign or missing files are a 404, an infected file is a 403, a
    * file that is not promoted yet is a 409, and the stored format/size limits are enforced again at

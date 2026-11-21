@@ -445,7 +445,7 @@ function redirectToLogin(): never {
  * retry after a successful refresh, and a typed `ApiError` for the query layer.
  */
 async function apiRequest<T>(
-  method: "GET" | "POST" | "PUT" | "PATCH",
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   path: string,
   body?: unknown,
   retried = false,
@@ -504,6 +504,7 @@ const authFetch = <T>(path: string): Promise<T> => apiRequest<T>("GET", path);
 const authPatch = <T>(path: string): Promise<T> => apiRequest<T>("PATCH", path);
 const authPut = <T>(path: string, body: unknown): Promise<T> => apiRequest<T>("PUT", path, body);
 const authPost = <T>(path: string, body: unknown): Promise<T> => apiRequest<T>("POST", path, body);
+const authDelete = <T>(path: string): Promise<T> => apiRequest<T>("DELETE", path);
 const authPostWithHeaders = <T>(
   path: string,
   body: unknown,
@@ -1041,8 +1042,36 @@ export function getDocumentDownloadUrl(fileId: string): Promise<{ downloadUrl: s
   return authFetch<{ downloadUrl: string }>(`/api/v1/documents/${fileId}/download`);
 }
 
+/** Version history of one document, oldest first. */
+export function listDocumentVersions(fileId: string): Promise<DocumentVersionDto[]> {
+  return authFetch<DocumentVersionDto[]>(
+    `/api/v1/documents/${encodeURIComponent(fileId)}/versions`,
+  );
+}
+
 export function archiveDocumentVersion(versionId: string): Promise<DocumentVersionDto> {
   return authPost<DocumentVersionDto>(`/api/v1/documents/versions/${versionId}/archive`, {});
+}
+
+/** Soft-deletes a version. Used to clean up a pending slot after an interrupted upload. */
+export function deleteDocumentVersion(versionId: string): Promise<DocumentVersionDto> {
+  return authDelete<DocumentVersionDto>(
+    `/api/v1/documents/versions/${encodeURIComponent(versionId)}`,
+  );
+}
+
+export interface ScanRetryResponseDto {
+  fileId: string;
+  scanStatus: string;
+  detail: string | null;
+}
+
+/** Re-queues a SCAN_FAILED file; any other scan state answers 409. */
+export function retryDocumentScan(fileId: string): Promise<ScanRetryResponseDto> {
+  return authPost<ScanRetryResponseDto>(
+    `/api/v1/documents/${encodeURIComponent(fileId)}/retry-scan`,
+    {},
+  );
 }
 
 export interface NotificationTemplateDto {
@@ -1134,7 +1163,10 @@ export interface NotificationDeliveryDto {
   status: string;
   attempts: number;
   lastError: string | null;
+  nextAttemptAt?: string | null;
   createdAt: string;
+  businessKey?: string | null;
+  dedupeExpiresAt?: string | null;
   read: boolean;
   readAt: string | null;
 }
@@ -1177,6 +1209,19 @@ export async function fetchUnreadNotificationCountSilent(): Promise<UnreadNotifi
   } catch {
     return null;
   }
+}
+
+export interface NotificationSuppressionDto {
+  id: string;
+  channel: string;
+  recipient: string;
+  reason: string;
+  createdAt: string;
+}
+
+/** Recipients permanently blocked on one channel after a bounce or complaint. */
+export function listNotificationSuppressions(): Promise<NotificationSuppressionDto[]> {
+  return authFetch<NotificationSuppressionDto[]>("/api/v1/notifications/suppressions");
 }
 
 export function markNotificationRead(id: string): Promise<NotificationDeliveryDto> {

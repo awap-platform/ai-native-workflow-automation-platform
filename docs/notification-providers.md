@@ -107,7 +107,25 @@ tenant-scoped, RLS-protected). Later deliveries to the same `(tenant, channel, r
 `awap.notification.suppressed{channel,reason}`; the delivery is not retried and the suppression list
 is only appended (delete a row deliberately after a verified fix/re-consent).
 
+## Delivery operations visibility (phase 7)
+
+The inbox is the operator-facing view of the same delivery rows:
+
+- Each row carries `status`, `attempts`, `nextAttemptAt` and `lastError`, so a `RETRYING` delivery
+  explains when the scheduler will try again and a `FAILED` delivery explains why it stopped.
+- `GET /api/v1/notifications/suppressions` returns the tenant-suppressed recipients with channel,
+  recipient, reason and timestamp. It is read-only: there is no un-suppress endpoint, and a bounce or
+  complaint is permanent for that channel/recipient pair.
+- Duplicate requests remain one row: the backend de-duplication key suppresses the repeat, so the
+  inbox never shows the same delivery twice.
+
+See [`ui-ux/phase-7-documents-notifications.md`](ui-ux/phase-7-documents-notifications.md) for the UI
+behaviour and the honest limitations (bulk actions are a client-side fan-out over idempotent PATCHes).
+
 ## Tests
+
+- `NotificationSuppressionServiceTest` / `NotificationSuppressionControllerWebMvcTest` prove the
+  read-only suppression projection, its tenant scope and the `INSTANCE_READ` requirement.
 
 - `EmailChannelAdapterITest` starts GreenMail and asserts the rendered subject, body, recipient and
   `Message-ID` that the adapter returned.

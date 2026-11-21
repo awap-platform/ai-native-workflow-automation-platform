@@ -275,8 +275,35 @@ export function responseFor(pathname: string, populated: boolean): unknown {
   if (pathname.endsWith("/api/v1/analytics/summary")) {
     return populated ? analyticsFixture : [];
   }
+  if (pathname.endsWith("/api/v1/documents/file-1/versions")) {
+    return populated
+      ? [
+          documentFixture,
+          {
+            ...documentFixture,
+            id: "version-0",
+            version: 0,
+            status: "ARCHIVED",
+            scanStatus: "PROMOTED",
+          },
+        ]
+      : [];
+  }
   if (pathname.endsWith("/api/v1/documents")) {
     return populated ? [documentFixture] : [];
+  }
+  if (pathname.endsWith("/api/v1/notifications/suppressions")) {
+    return populated
+      ? [
+          {
+            id: "suppression-1",
+            channel: "EMAIL",
+            recipient: "bounce@example.com",
+            reason: "SMTP_BOUNCE",
+            createdAt: now,
+          },
+        ]
+      : [];
   }
   if (pathname.endsWith("/api/v1/organizations/companies")) {
     return populated ? [{ id: "company-1", name: "Acme Inc" }] : [];

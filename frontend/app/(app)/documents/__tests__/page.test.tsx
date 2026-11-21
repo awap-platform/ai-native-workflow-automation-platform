@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import * as api from "../../../../lib/api";
 import {
@@ -13,13 +13,22 @@ import DocumentsPage from "../page";
 
 jest.mock("../../../../lib/api", () => ({
   listDocuments: jest.fn(),
+  listDocumentVersions: jest.fn(),
   createDocumentUpload: jest.fn(),
+  deleteDocumentVersion: jest.fn(),
+  retryDocumentScan: jest.fn(),
   getDocumentDownloadUrl: jest.fn(),
   archiveDocumentVersion: jest.fn(),
   documentScanEventsUrl: jest.fn(() => "http://api.test/api/v1/documents/events"),
 }));
 
 const listDocuments = api.listDocuments as jest.MockedFunction<typeof api.listDocuments>;
+const listDocumentVersions = api.listDocumentVersions as jest.MockedFunction<
+  typeof api.listDocumentVersions
+>;
+const retryDocumentScan = api.retryDocumentScan as jest.MockedFunction<
+  typeof api.retryDocumentScan
+>;
 
 let restore: (() => void) | undefined;
 
@@ -36,6 +45,7 @@ function renderPage() {
 beforeEach(() => {
   jest.resetAllMocks();
   listDocuments.mockResolvedValue([documentDto()]);
+  listDocumentVersions.mockResolvedValue([documentDto()]);
 });
 
 afterEach(() => {
@@ -127,5 +137,56 @@ describe("DocumentsPage live scan status", () => {
       ),
     ).toBeInTheDocument();
     await waitFor(() => expect(listDocuments).toHaveBeenCalled());
+  });
+
+  it("builds a scan timeline from the observed status events", async () => {
+    restore = installFakeEventSource();
+    renderPage();
+    await screen.findByTestId("scan-timeline-file-1");
+
+    for (const status of ["SCANNING", "CLEAN", "PROMOTED"] as const) {
+      act(() => FakeEventSource.instances[0]!.emit(scanEvent({ status })));
+    }
+
+    await waitFor(() =>
+      expect(screen.getByTestId("scan-timeline-file-1")).toHaveTextContent("Ready to download"),
+    );
+    const timeline = screen.getByTestId("scan-timeline-file-1");
+    expect(timeline).toHaveTextContent("Scanning");
+    expect(timeline).toHaveTextContent("Clean");
+    expect(timeline).toHaveTextContent("Ready to download");
+  });
+
+  it("re-queues a SCAN_FAILED scan and reports the new state", async () => {
+    restore = installFakeEventSource();
+    listDocuments.mockResolvedValue([
+      documentDto({ scanStatus: "SCAN_FAILED", scanError: "clamd timeout" }),
+    ]);
+    retryDocumentScan.mockResolvedValue({
+      fileId: "file-1",
+      scanStatus: "QUARANTINED",
+      detail: null,
+    });
+    renderPage();
+
+    expect((await screen.findAllByText("clamd timeout")).length).toBeGreaterThan(0);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Retry scan for report.pdf" }),
+    );
+
+    await waitFor(() => expect(retryDocumentScan).toHaveBeenCalledWith("file-1"));
+    expect(await screen.findByText(/Retry queued for report.pdf/)).toBeInTheDocument();
+  });
+
+  it("loads the version history only when the row is expanded", async () => {
+    restore = installFakeEventSource();
+    renderPage();
+    await screen.findByTestId("document-row-file-1");
+    expect(listDocumentVersions).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show versions" }));
+
+    await waitFor(() => expect(listDocumentVersions).toHaveBeenCalledWith("file-1"));
+    expect(await screen.findByTestId("version-row-version-1")).toHaveTextContent("v1");
   });
 });

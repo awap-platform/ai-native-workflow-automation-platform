@@ -275,4 +275,94 @@ describe("NotificationTemplateEditor", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Locale must look like");
     expect(previewNotificationTemplate).not.toHaveBeenCalled();
   });
+
+  it("lists placeholders and warns about an empty variable without blocking preview", async () => {
+    previewNotificationTemplate.mockResolvedValue({
+      subject: "Welcome",
+      body: "Hello ",
+      placeholders: ["name"],
+    });
+    renderEditor();
+    fillForm({
+      key: "welcome",
+      subject: "Welcome",
+      body: "Hello {{name}} and {{team}}",
+      variables: '{"name":"","team":"Platform"}',
+    });
+
+    expect(await screen.findByTestId("template-placeholders")).toHaveTextContent("{{name}}");
+    expect(screen.getByTestId("template-placeholders")).toHaveTextContent("{{team}}");
+    expect(screen.getByTestId("template-warnings")).toHaveTextContent(
+      'Variable "name" is empty',
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview template" }));
+
+    await waitFor(() => expect(previewNotificationTemplate).toHaveBeenCalled());
+    expect(await screen.findByTestId("preview-body")).toBeInTheDocument();
+  });
+
+  it("rejects a template body above the 1 MiB limit before calling the API", async () => {
+    renderEditor();
+    fillForm({ key: "welcome", subject: "Hi", body: "x".repeat(1_048_577) });
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview template" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("the limit is 1048576 bytes");
+    expect(previewNotificationTemplate).not.toHaveBeenCalled();
+  });
+
+  it("previews the stored template with only its key and locale", async () => {
+    previewNotificationTemplate.mockResolvedValue({
+      subject: "Stored",
+      body: "Hello Ada",
+      placeholders: ["name"],
+    });
+    renderEditor();
+    fillForm({ key: "welcome", variables: '{"name":"Ada"}' });
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview saved template" }));
+
+    await waitFor(() =>
+      expect(previewNotificationTemplate).toHaveBeenCalledWith({
+        templateKey: "welcome",
+        locale: "en",
+        variablesJson: '{"name":"Ada"}',
+      }),
+    );
+    expect(await screen.findByText("Preview (stored template)")).toBeInTheDocument();
+  });
+
+  it("explains an unknown template key/locale", async () => {
+    previewNotificationTemplate.mockRejectedValue(
+      new Error("Template welcome/tr was not found."),
+    );
+    renderEditor();
+    fillForm({ key: "welcome", variables: '{"name":"Ada"}' });
+    fireEvent.change(screen.getByLabelText("Locale"), { target: { value: "tr" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview saved template" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unknown template welcome/tr");
+  });
+
+  it("explains a stale revision instead of overwriting a concurrent edit", async () => {
+    listNotificationTemplates.mockResolvedValue([existingTemplate]);
+    updateNotificationTemplate.mockRejectedValue(
+      new Error("Template t1 is at version 4 but the request expected 3."),
+    );
+    renderEditor();
+
+    fireEvent.click(await screen.findByRole("button", { name: /welcome · en · v3 · active/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Save template" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This template changed since you loaded it",
+    );
+    expect(updateNotificationTemplate).toHaveBeenCalledWith("t1", {
+      expectedVersion: 3,
+      subject: "Welcome",
+      body: "Hello {{name}}",
+    });
+  });
 });

@@ -58,6 +58,14 @@ provider ids and bounce suppression are documented in
 - Duplicate Kafka record or repeated lifecycle event: the delivery row is the system of record and
   the repeat is suppressed, so the inbox keeps one row.
 
+## Inbox and delivery visibility (phase 7)
+
+The producer's delivery row is also the inbox row. The notification screen filters by read state,
+channel, delivery status and recipient/template text, exposes retry attempts and the next retry time,
+and lists suppressed recipients. Bulk read/unread is a client-side fan-out over idempotent PATCH
+transitions, and partial failures are reported rather than rolled back. See
+[`ui-ux/phase-7-documents-notifications.md`](ui-ux/phase-7-documents-notifications.md).
+
 ## Tests
 
 - `NotificationEventMatrixTest` — every mapped event plus the fallback/normalisation.

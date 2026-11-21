@@ -8,8 +8,10 @@ import java.util.Set;
  *
  * <p>The lifecycle is a guarded state machine: files start in {@link #QUARANTINED}, move to {@link
  * #SCANNING} while the scheduler streams them to ClamAV and end in {@link #PROMOTED}, {@link
- * #INFECTED} or {@link #SCAN_FAILED}. A failed scan can be retried (back to {@code SCANNING}); a
- * clean file is promoted once the server-side copy to the promoted bucket succeeded.
+ * #INFECTED} or {@link #SCAN_FAILED}. A failed scan can be retried automatically (back to {@code
+ * SCANNING}) or re-queued by an operator (back to {@code QUARANTINED} so the next scheduler pass
+ * starts a fresh attempt); a clean file is promoted once the server-side copy to the promoted
+ * bucket succeeded.
  */
 public enum FileScanStatus {
   QUARANTINED,
@@ -24,7 +26,7 @@ public enum FileScanStatus {
           QUARANTINED, Set.of(SCANNING),
           SCANNING, Set.of(CLEAN, INFECTED, SCAN_FAILED),
           CLEAN, Set.of(PROMOTED),
-          SCAN_FAILED, Set.of(SCANNING),
+          SCAN_FAILED, Set.of(SCANNING, QUARANTINED),
           PROMOTED, Set.of(),
           INFECTED, Set.of());
 

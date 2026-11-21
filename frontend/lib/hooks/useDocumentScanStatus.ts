@@ -25,7 +25,15 @@ export interface DocumentScanStatusState {
   connected: boolean;
   transport: "sse" | "polling";
   lastEvent: DocumentScanStatusEventDto | null;
+  /**
+   * Status events observed during this page session, grouped by file id. The backend does not expose
+   * a scan-event history endpoint, so the timeline is explicitly session-scoped: after a reload the
+   * current status is still shown, but earlier transitions are gone.
+   */
+  history: Record<string, DocumentScanStatusEventDto[]>;
 }
+
+const MAX_EVENTS_PER_FILE = 50;
 
 /**
  * Subscribes to the tenant-scoped document scan SSE stream and applies each event to the document
@@ -41,6 +49,7 @@ export function useDocumentScanStatus(
   const [connected, setConnected] = useState(false);
   const [transport, setTransport] = useState<"sse" | "polling">("sse");
   const [lastEvent, setLastEvent] = useState<DocumentScanStatusEventDto | null>(null);
+  const [history, setHistory] = useState<Record<string, DocumentScanStatusEventDto[]>>({});
   const mounted = useRef(true);
 
   const applyEvent = useCallback(
@@ -49,6 +58,20 @@ export function useDocumentScanStatus(
         return;
       }
       setLastEvent(event);
+      setHistory((current) => {
+        const previous = current[event.fileId] ?? [];
+        const duplicate = previous.some(
+          (item) =>
+            item.status === event.status &&
+            item.occurredAt === event.occurredAt &&
+            item.detail === event.detail,
+        );
+        if (duplicate) {
+          return current;
+        }
+        const next = [...previous, event].slice(-MAX_EVENTS_PER_FILE);
+        return { ...current, [event.fileId]: next };
+      });
       queryClient.setQueryData<DocumentVersionDto[]>(DOCUMENTS_QUERY_KEY, (documents) =>
         applyScanStatusEvent(documents, event),
       );
@@ -206,5 +229,5 @@ export function useDocumentScanStatus(
     };
   }, [applyEvent, enabled, maxReconnectAttempts, pollIntervalMs, queryClient]);
 
-  return { connected, transport, lastEvent };
+  return { connected, transport, lastEvent, history };
 }

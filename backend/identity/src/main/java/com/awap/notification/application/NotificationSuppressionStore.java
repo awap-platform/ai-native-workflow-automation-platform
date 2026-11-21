@@ -1,6 +1,8 @@
 package com.awap.notification.application;
 
 import com.awap.notification.domain.NotificationChannel;
+import com.awap.notification.domain.NotificationSuppression;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -15,4 +17,7 @@ public interface NotificationSuppressionStore {
 
   /** Records a permanent bounce/complaint; idempotent for a repeated failure. */
   void suppress(UUID tenantId, NotificationChannel channel, String recipient, String reason);
+
+  /** Lists the blocked recipients of one tenant, newest first, for delivery operations. */
+  List<NotificationSuppression> list(UUID tenantId);
 }

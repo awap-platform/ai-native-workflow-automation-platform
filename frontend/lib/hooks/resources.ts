@@ -23,6 +23,8 @@ import {
   healthCheck,
   importWorkflowBpmn,
   listDocuments,
+  listDocumentVersions,
+  retryDocumentScan,
   listMyTasks,
   listTasks,
   listWorkflowDefinitions,
@@ -291,6 +293,24 @@ export function useExportWorkflowBpmn() {
 /** Document versions for the scan table. */
 export function useDocuments() {
   return useQuery({ queryKey: queryKeys.documents.list(), queryFn: listDocuments });
+}
+
+/** Lazily loads the version history of one document (only when the row is expanded). */
+export function useDocumentVersions(fileId: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.documents.versions(fileId),
+    queryFn: () => listDocumentVersions(fileId),
+    enabled: enabled && fileId.length > 0,
+  });
+}
+
+/** Re-queues a failed scan and refreshes the tenant list. */
+export function useRetryDocumentScan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (fileId: string) => retryDocumentScan(fileId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.documents.all }),
+  });
 }
 
 /** Stages a document upload (presign + PUT to object storage) and refreshes the list. */

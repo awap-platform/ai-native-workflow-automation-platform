@@ -129,6 +129,19 @@ public class FileRecord {
     this.lastScanError = truncate(reason);
   }
 
+  /**
+   * Operator-triggered re-queue of a failed scan: the record returns to {@code QUARANTINED} and the
+   * attempt counter is reset, so the next scheduler pass starts a fresh scan even when the
+   * automatic retry budget was already exhausted.
+   *
+   * @throws IllegalStateException when the record is not in {@code SCAN_FAILED}
+   */
+  public void requeueForScan() {
+    this.status = this.status.transitionTo(FileScanStatus.QUARANTINED);
+    this.scanAttempts = 0;
+    this.lastScanError = null;
+  }
+
   /** Records a successful, idempotent promotion to the promoted bucket. */
   public void markPromoted(String promotedBucket, String promotedObjectKey) {
     this.status = this.status.transitionTo(FileScanStatus.PROMOTED);

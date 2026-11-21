@@ -2,6 +2,7 @@ package com.awap.notification.infrastructure;
 
 import com.awap.notification.domain.NotificationChannel;
 import com.awap.notification.domain.NotificationSuppression;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,4 +16,6 @@ public interface NotificationSuppressionRepository
 
   boolean existsByTenantIdAndChannelAndRecipient(
       UUID tenantId, NotificationChannel channel, String recipient);
+
+  List<NotificationSuppression> findAllByTenantIdOrderByCreatedAtDesc(UUID tenantId);
 }

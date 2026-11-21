@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -251,6 +252,54 @@ class FileServiceTest {
                 assertThat(ex.status()).isEqualTo(HttpStatus.CONFLICT);
               });
     }
+  }
+
+  @Test
+  void retryScanRequeuesAFailedFileAndPublishesTheFreshState() {
+    FileRecord record = recordWith(FileScanStatus.SCAN_FAILED);
+    when(repository.findByIdAndTenantId(record.getId(), TENANT)).thenReturn(Optional.of(record));
+
+    FileService.FileScanInfo info = service.retryScan(TENANT, record.getId());
+
+    assertThat(info.status()).isEqualTo(FileScanStatus.QUARANTINED);
+    assertThat(record.getScanAttempts()).isZero();
+    verify(repository).save(record);
+    ArgumentCaptor<FileScanStatusEvent> published =
+        ArgumentCaptor.forClass(FileScanStatusEvent.class);
+    verify(eventBus).publish(published.capture());
+    assertThat(published.getValue().status()).isEqualTo(FileScanStatus.QUARANTINED);
+    assertThat(published.getValue().detail()).contains("re-queued");
+  }
+
+  @Test
+  void retryScanRejectsAnInfectedOrPromotedFileWith409() {
+    for (FileScanStatus status : List.of(FileScanStatus.INFECTED, FileScanStatus.PROMOTED)) {
+      FileRecord record = recordWith(status);
+      when(repository.findByIdAndTenantId(record.getId(), TENANT)).thenReturn(Optional.of(record));
+
+      assertThatThrownBy(() -> service.retryScan(TENANT, record.getId()))
+          .isInstanceOfSatisfying(
+              AwapException.class,
+              ex -> {
+                assertThat(ex.errorCode()).isEqualTo(ErrorCode.FILE_STATE_CONFLICT);
+                assertThat(ex.status()).isEqualTo(HttpStatus.CONFLICT);
+              });
+    }
+    verify(repository, never()).save(any());
+  }
+
+  @Test
+  void retryScanOfAForeignFileIsNotFound() {
+    UUID fileId = UUID.randomUUID();
+    when(repository.findByIdAndTenantId(fileId, TENANT)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> service.retryScan(TENANT, fileId))
+        .isInstanceOfSatisfying(
+            AwapException.class,
+            ex -> {
+              assertThat(ex.errorCode()).isEqualTo(ErrorCode.FILE_NOT_FOUND);
+              assertThat(ex.status()).isEqualTo(HttpStatus.NOT_FOUND);
+            });
   }
 
   @Test
