@@ -1691,7 +1691,8 @@
   align-self: flex-start;
 }
 
-.awap-form {
+/* Unique root name: the shell already owns `.awap-form` for the sidebar footer. */
+.awap-form-renderer {
   display: flex;
   flex-direction: column;
   gap: var(--awap-space-2);

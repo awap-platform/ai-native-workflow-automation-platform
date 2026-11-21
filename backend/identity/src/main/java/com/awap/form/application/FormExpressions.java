@@ -58,10 +58,6 @@ final class FormExpressions {
     Double evaluate(Map<String, String> values) {
       return root.evaluate(values);
     }
-
-    List<String> dependencies() {
-      return dependencies;
-    }
   }
 
   private interface Node {
@@ -263,16 +259,14 @@ final class FormExpressions {
         return null;
       }
     }
-    double result =
-        switch (name) {
-          case "sum" -> evaluated.stream().mapToDouble(Double::doubleValue).sum();
-          case "avg" -> evaluated.stream().mapToDouble(Double::doubleValue).average().orElse(0);
-          case "min" -> evaluated.stream().mapToDouble(Double::doubleValue).min().orElse(0);
-          case "max" -> evaluated.stream().mapToDouble(Double::doubleValue).max().orElse(0);
-          case "abs" -> Math.abs(evaluated.get(0));
-          default -> throw new InvalidExpressionException("Unknown function '" + name + "'.");
-        };
-    return result;
+    // `round` was handled above and the parser only accepts known names, so `default` is `abs`.
+    return switch (name) {
+      case "sum" -> evaluated.stream().mapToDouble(Double::doubleValue).sum();
+      case "avg" -> evaluated.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+      case "min" -> evaluated.stream().mapToDouble(Double::doubleValue).min().orElse(0);
+      case "max" -> evaluated.stream().mapToDouble(Double::doubleValue).max().orElse(0);
+      default -> Math.abs(evaluated.get(0));
+    };
   }
 
   private static Double number(String raw) {

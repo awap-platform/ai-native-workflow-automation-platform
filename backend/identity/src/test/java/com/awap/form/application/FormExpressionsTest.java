@@ -59,6 +59,18 @@ class FormExpressionsTest {
         .isInstanceOf(FormExpressions.InvalidExpressionException.class);
     assertThatThrownBy(() -> FormExpressions.compile("1 ; 2"))
         .isInstanceOf(FormExpressions.InvalidExpressionException.class);
+    assertThatThrownBy(() -> FormExpressions.compile("1 2"))
+        .isInstanceOf(FormExpressions.InvalidExpressionException.class);
+    assertThatThrownBy(() -> FormExpressions.compile("sum(1 2)"))
+        .isInstanceOf(FormExpressions.InvalidExpressionException.class);
+    assertThatThrownBy(() -> FormExpressions.compile("1.2.3"))
+        .isInstanceOf(FormExpressions.InvalidExpressionException.class);
+    assertThatThrownBy(() -> FormExpressions.compile("()"))
+        .isInstanceOf(FormExpressions.InvalidExpressionException.class);
+    assertThatThrownBy(() -> FormExpressions.compile(")"))
+        .isInstanceOf(FormExpressions.InvalidExpressionException.class);
+    assertThatThrownBy(() -> FormExpressions.compile("sum(1,)"))
+        .isInstanceOf(FormExpressions.InvalidExpressionException.class);
   }
 
   @Test

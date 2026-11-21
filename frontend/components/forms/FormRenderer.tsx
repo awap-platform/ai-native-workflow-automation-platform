@@ -109,7 +109,7 @@ export default function FormRenderer({
   }
 
   return (
-    <div className="awap-form" data-testid="form-renderer">
+    <div className="awap-form-renderer" data-testid="form-renderer">
       <FormErrorSummary errors={errors} focusRequests={focusRequests} idPrefix={idPrefix} />
       {entries.map((entry) => {
         if (entry.kind === "section") {

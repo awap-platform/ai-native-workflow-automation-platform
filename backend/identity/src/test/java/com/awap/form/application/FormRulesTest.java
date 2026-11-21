@@ -124,6 +124,25 @@ class FormRulesTest {
   }
 
   @Test
+  void walksChainsAndSharedDependenciesWithoutReportingACycle() {
+    JsonNode chain =
+        json(
+            "[{\"id\":\"a\",\"type\":\"NUMBER\",\"calculated\":\"b + 1\"},"
+                + "{\"id\":\"b\",\"type\":\"NUMBER\",\"calculated\":\"c + 1\"},"
+                + "{\"id\":\"c\",\"type\":\"NUMBER\"}]");
+    assertThat(FormRules.calculationCycle(chain)).isNull();
+
+    JsonNode diamond =
+        json(
+            "[{\"id\":\"base\",\"type\":\"NUMBER\"},"
+                + "{\"id\":\"left\",\"type\":\"NUMBER\",\"calculated\":\"base * 2\"},"
+                + "{\"id\":\"right\",\"type\":\"NUMBER\",\"calculated\":\"left * 3\"},"
+                + "{\"id\":\"sum\",\"type\":\"NUMBER\",\"calculated\":\"left + right\"}]");
+    assertThat(FormRules.calculationCycle(diamond)).isNull();
+    assertThat(FormRules.calculationDependencies(diamond)).containsKeys("left", "right", "sum");
+  }
+
+  @Test
   void ignoresNonCalculatedAndBlankExpressions() {
     JsonNode fields =
         json(

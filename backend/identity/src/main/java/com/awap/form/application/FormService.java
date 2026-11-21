@@ -345,18 +345,16 @@ public class FormService {
       }
       String fieldId = field.path("id").asText(null);
       boolean required = field.path("required").asBoolean(false);
-      boolean present = fieldId != null && data.has(fieldId) && !data.get(fieldId).isNull();
-      if (required && (!present || isEmptyValue(data.get(fieldId)))) {
+      if (required && isEmptyValue(data.get(fieldId))) {
         throw new AwapException(
             ErrorCode.VALIDATION_FAILED,
             HttpStatus.BAD_REQUEST,
             "Required field '" + fieldId + "' is missing.");
       }
-      if (!present) {
+      JsonNode value = fieldId == null ? null : data.get(fieldId);
+      if (value == null || value.isNull()) {
         continue;
       }
-
-      JsonNode value = data.get(fieldId);
       String calculated = field.path("calculated").asText("");
       if (!calculated.isBlank()) {
         verifyCalculated(fieldId, calculated, value, values);

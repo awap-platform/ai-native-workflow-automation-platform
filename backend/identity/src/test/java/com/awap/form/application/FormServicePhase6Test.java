@@ -321,6 +321,168 @@ class FormServicePhase6Test {
   }
 
   @Test
+  void createRejectsAnUnknownTypeWithAValidId() {
+    assertThatThrownBy(
+            () ->
+                service.create(
+                    tenantId,
+                    new FormDefinitionRequest(
+                        "Unknown", "{\"fields\":[{\"id\":\"a\",\"type\":\"UNKNOWN\"}]}")))
+        .isInstanceOf(AwapException.class);
+  }
+
+  @Test
+  void createAcceptsValidOptionsAndPatterns() {
+    assertThatNoException()
+        .isThrownBy(
+            () ->
+                service.create(
+                    tenantId,
+                    new FormDefinitionRequest(
+                        "Valid",
+                        "{\"fields\":["
+                            + "{\"id\":\"tier\",\"type\":\"SELECT\",\"options\":[\"Gold\",\"Silver\"]},"
+                            + "{\"id\":\"code\",\"type\":\"TEXT\",\"pattern\":\"^[a-z]+$\"},"
+                            + "{\"id\":\"other\",\"type\":\"TEXT\",\"visibleWhen\":"
+                            + "{\"fieldId\":\"code\",\"operator\":\"IS_NOT_EMPTY\"}}]}")));
+  }
+
+  @Test
+  void createRejectsBlankAndNonTextOptions() {
+    assertThatThrownBy(
+            () ->
+                service.create(
+                    tenantId,
+                    new FormDefinitionRequest(
+                        "Blank",
+                        "{\"fields\":[{\"id\":\"tier\",\"type\":\"SELECT\","
+                            + "\"options\":[\"Gold\",\"  \"]}]}")))
+        .isInstanceOf(AwapException.class);
+    assertThatThrownBy(
+            () ->
+                service.create(
+                    tenantId,
+                    new FormDefinitionRequest(
+                        "Non text",
+                        "{\"fields\":[{\"id\":\"tier\",\"type\":\"SELECT\","
+                            + "\"options\":[\"Gold\",1]}]}")))
+        .isInstanceOf(AwapException.class);
+  }
+
+  @Test
+  void createRejectsLengthAndPatternLimits() {
+    assertThatThrownBy(
+            () ->
+                service.create(
+                    tenantId,
+                    new FormDefinitionRequest(
+                        "Max cap",
+                        "{\"fields\":[{\"id\":\"a\",\"type\":\"TEXT\",\"maxLength\":10001}]}")))
+        .isInstanceOf(AwapException.class);
+    assertThatThrownBy(
+            () ->
+                service.create(
+                    tenantId,
+                    new FormDefinitionRequest(
+                        "Min over max",
+                        "{\"fields\":[{\"id\":\"a\",\"type\":\"TEXT\","
+                            + "\"minLength\":5,\"maxLength\":2}]}")))
+        .isInstanceOf(AwapException.class);
+    String longPattern = "a".repeat(201);
+    assertThatThrownBy(
+            () ->
+                service.create(
+                    tenantId,
+                    new FormDefinitionRequest(
+                        "Long pattern",
+                        "{\"fields\":[{\"id\":\"a\",\"type\":\"TEXT\",\"pattern\":\""
+                            + longPattern
+                            + "\"}]}")))
+        .isInstanceOf(AwapException.class);
+  }
+
+  @Test
+  void createRejectsInvalidConditions() {
+    assertThatThrownBy(
+            () ->
+                service.create(
+                    tenantId,
+                    new FormDefinitionRequest(
+                        "Not an object",
+                        "{\"fields\":[{\"id\":\"a\",\"type\":\"TEXT\",\"visibleWhen\":\"yes\"}]}")))
+        .isInstanceOf(AwapException.class);
+    assertThatThrownBy(
+            () ->
+                service.create(
+                    tenantId,
+                    new FormDefinitionRequest(
+                        "Self",
+                        "{\"fields\":[{\"id\":\"a\",\"type\":\"TEXT\",\"visibleWhen\":"
+                            + "{\"fieldId\":\"a\",\"operator\":\"EQUALS\",\"value\":\"x\"}}]}")))
+        .isInstanceOf(AwapException.class);
+    assertThatThrownBy(
+            () ->
+                service.create(
+                    tenantId,
+                    new FormDefinitionRequest(
+                        "Unknown",
+                        "{\"fields\":[{\"id\":\"a\",\"type\":\"TEXT\",\"visibleWhen\":"
+                            + "{\"fieldId\":\"nope\",\"operator\":\"EQUALS\",\"value\":\"x\"}}]}")))
+        .isInstanceOf(AwapException.class);
+    assertThatThrownBy(
+            () ->
+                service.create(
+                    tenantId,
+                    new FormDefinitionRequest(
+                        "Operator",
+                        "{\"fields\":["
+                            + "{\"id\":\"a\",\"type\":\"TEXT\"},"
+                            + "{\"id\":\"b\",\"type\":\"TEXT\",\"visibleWhen\":"
+                            + "{\"fieldId\":\"a\",\"operator\":\"NOPE\"}}]}")))
+        .isInstanceOf(AwapException.class);
+  }
+
+  @Test
+  void createRejectsInvalidCalculations() {
+    assertThatThrownBy(
+            () ->
+                service.create(
+                    tenantId,
+                    new FormDefinitionRequest(
+                        "Broken",
+                        "{\"fields\":[{\"id\":\"a\",\"type\":\"NUMBER\",\"calculated\":\"1 +\"}]}")))
+        .isInstanceOf(AwapException.class);
+    assertThatThrownBy(
+            () ->
+                service.create(
+                    tenantId,
+                    new FormDefinitionRequest(
+                        "Self",
+                        "{\"fields\":[{\"id\":\"a\",\"type\":\"NUMBER\",\"calculated\":\"a + 1\"}]}")))
+        .isInstanceOf(AwapException.class);
+  }
+
+  @Test
+  void calculationWithAMissingDependencyIsAccepted() {
+    givenSchema(
+        "{\"fields\":["
+            + "{\"id\":\"units\",\"type\":\"NUMBER\"},"
+            + "{\"id\":\"total\",\"type\":\"NUMBER\",\"calculated\":\"units * 2\"}]}");
+
+    assertThatNoException().isThrownBy(() -> submit("{\"total\":0}"));
+    verify(submissionRepository).save(any(FormSubmission.class));
+  }
+
+  @Test
+  void requiredEmptyArrayIsRejected() {
+    givenSchema(
+        "{\"fields\":[{\"id\":\"tags\",\"type\":\"MULTI_SELECT\","
+            + "\"options\":[\"a\"],\"required\":true}]}");
+
+    assertThatThrownBy(() -> submit("{\"tags\":[]}")).isInstanceOf(AwapException.class);
+  }
+
+  @Test
   void layoutFieldsDoNotNeedValues() {
     givenSchema(
         "{\"fields\":["
