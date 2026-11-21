@@ -79,6 +79,11 @@ async function applyPopulatedState(page: import("@playwright/test").Page, screen
       await page.getByLabel("Form").selectOption("form-1", { force: true });
       await page.getByText("customer_name").waitFor();
       break;
+    case "copilot":
+      await page.getByLabel("Your request").fill("Find the leave policy");
+      await page.getByTestId("copilot-send").click();
+      await page.getByTestId("copilot-answer").waitFor();
+      break;
     default:
       break;
   }

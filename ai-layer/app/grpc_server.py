@@ -32,6 +32,19 @@ ERROR_RETRYABLE_HEADER = "ai-error-retryable"
 MAX_MESSAGE_CHARS = 8_000
 MAX_GRPC_MESSAGE_BYTES = 1_048_576
 
+PROTO_RESPONSE_FIELDS = frozenset(
+    copilot_pb2.CopilotResponse.DESCRIPTOR.fields_by_name.keys()
+)
+
+
+def _proto_projection(payload: dict[str, object]) -> dict[str, object]:
+    """Drop SPA-only response fields the versioned proto contract does not define.
+
+    New REST-only metadata (citations, budget, warnings, audit) must not break the gRPC transport;
+    the proto stays the stable envelope until a deliberate contract version bump.
+    """
+    return {key: value for key, value in payload.items() if key in PROTO_RESPONSE_FIELDS}
+
 
 def _metadata(context: grpc.ServicerContext) -> dict[str, str]:
     return {key.lower(): str(value) for key, value in context.invocation_metadata()}
@@ -113,7 +126,7 @@ class CopilotServicer(copilot_pb2_grpc.CopilotServiceServicer):
 
         proto = copilot_pb2.CopilotResponse()
         json_format.ParseDict(
-            response.model_dump(mode="json", exclude_none=True),
+            _proto_projection(response.model_dump(mode="json", exclude_none=True)),
             proto,
             ignore_unknown_fields=False,
         )

@@ -183,6 +183,22 @@ class AiCopilotClientTest {
   }
 
   @Test
+  void preservesTheBudgetRemainingDetailOnA429() throws Exception {
+    TenantContext.set(tenantId, userId, "EMPLOYEE");
+    respond(
+        429,
+        "{\"detail\":\"The tenant's monthly AI token budget is exhausted. Remaining tokens: 0.\","
+            + "\"code\":\"AI_BUDGET_EXCEEDED\"}");
+
+    assertThatThrownBy(
+            () -> client().forward("/api/v1/copilot/chat", objectMapper.createObjectNode()))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("status 429")
+        .hasMessageContaining("Remaining tokens: 0")
+        .satisfies(ex -> assertThat(((AwapException) ex).status().value()).isEqualTo(429));
+  }
+
+  @Test
   void mapsTransportFailuresToBadGateway() throws Exception {
     TenantContext.set(tenantId, userId, "EMPLOYEE");
     failWith(new IOException("connection refused"));

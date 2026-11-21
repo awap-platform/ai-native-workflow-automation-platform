@@ -101,9 +101,11 @@ def test_grpc_chat_returns_the_same_envelope_as_rest(
         permissions=["INSTANCE_READ", "INSTANCE_MANAGE"],
         correlation_id="corr-grpc",
     )
-    rest = asyncio.run(agent().run(rest_request, rest_security)).model_dump(
+    rest_full = asyncio.run(agent().run(rest_request, rest_security)).model_dump(
         mode="json", exclude_none=True
     )
+    proto_fields = set(copilot_pb2.CopilotResponse.DESCRIPTOR.fields_by_name)
+    rest = {key: value for key, value in rest_full.items() if key in proto_fields}
 
     response = service.Chat(request(), metadata=METADATA)
 
@@ -212,7 +214,7 @@ def test_malformed_payload_is_rejected(
 
 
 def test_rest_fixture_normalizes_to_the_same_proto_projection() -> None:
-    rest = CopilotResponse(
+    rest_full = CopilotResponse(
         answer="Found 2 results",
         action=CopilotAction.KNOWLEDGE_SEARCH,
         confidence=0.82,
@@ -224,6 +226,8 @@ def test_rest_fixture_normalizes_to_the_same_proto_projection() -> None:
         cache_hit=True,
         data=[{"title": "Policy", "score": 0.9}],
     ).model_dump(mode="json", exclude_none=True)
+    proto_fields = set(copilot_pb2.CopilotResponse.DESCRIPTOR.fields_by_name)
+    rest = {key: value for key, value in rest_full.items() if key in proto_fields}
 
     proto = copilot_pb2.CopilotResponse()
     json_format.ParseDict(rest, proto)

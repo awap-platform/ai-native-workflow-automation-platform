@@ -122,3 +122,14 @@ setting OpenSearch rejects the `knn_vector` mapping and hybrid search silently d
 
 A dimension change requires a new template and a reindex; the mismatch is visible as a kNN rejection
 and is covered by the invalid-vector test path.
+
+## Structured citations in the Copilot (Phase 9)
+
+The Copilot response adds `citations[]` with `index`, `title`, `document_id`, `chunk_index` and
+`score`, derived from the same bounded, tenant-filtered summary that produced the answer. The SPA
+renders source cards and flags a successful knowledge answer with no citation. `NO_ANSWER` and
+`LOW_CONFIDENCE` remain explicit outcomes; a low-confidence answer keeps its sources but requires
+human review.
+
+Citation coverage is limited to knowledge search. Tool-backed workflow, task and notification answers
+reference their tool calls instead of document chunks.

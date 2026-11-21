@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 DEFAULT_MIN_SCORE = 0.35
@@ -124,6 +124,7 @@ class KnowledgeSummary:
     document_ids: list[str]
     chunk_refs: list[str]
     truncated: bool
+    sources: list[dict[str, Any]] = field(default_factory=list)
 
 
 def neutralize_untrusted(text: str) -> str:
@@ -176,6 +177,7 @@ def summarize_hits(
     citations: list[str] = []
     document_ids: list[str] = []
     chunk_refs: list[str] = []
+    sources: list[dict[str, Any]] = []
     source_truncated = False
     for index, hit in enumerate(selected, start=1):
         file_id = str(hit.get("fileId") or hit.get("id") or f"document-{index}")
@@ -185,12 +187,25 @@ def summarize_hits(
             source_truncated = True
         snippet = neutralize_untrusted(raw_snippet)[:MAX_SNIPPET_CHARS]
         chunk = hit.get("chunkIndex", 0)
+        try:
+            score = float(hit.get("score", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            score = 0.0
         if snippet:
             lines.append(f"- {title}: {snippet}")
         citations.append(f"[{index}] {title} ({file_id}, chunk {chunk})")
         if file_id not in document_ids:
             document_ids.append(file_id)
         chunk_refs.append(f"{file_id}#{chunk}")
+        sources.append(
+            {
+                "index": index,
+                "title": title,
+                "document_id": file_id,
+                "chunk_index": int(chunk) if isinstance(chunk, int) else 0,
+                "score": round(score, 4),
+            }
+        )
     body = "\n".join(lines) if lines else "The retrieved chunks contained no usable text."
     answer = f"Grounded summary from your tenant documents:\n{body}\nSources:\n" + "\n".join(
         citations
@@ -204,4 +219,5 @@ def summarize_hits(
         document_ids=document_ids,
         chunk_refs=chunk_refs,
         truncated=truncated,
+        sources=sources,
     )

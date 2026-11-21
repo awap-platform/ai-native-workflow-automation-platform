@@ -104,13 +104,20 @@ def _optional_int(value: str) -> int | None:
         return None
 
 
+async def _run(
+    agent: CopilotAgent, body: CopilotRequest, security: SecurityContext
+) -> CopilotResponse:
+    """Run one agent turn; typed LLM failures are mapped by the application exception handlers."""
+    return await agent.run(body, security)
+
+
 @router.post("/chat", response_model=CopilotResponse)
 async def chat(
     body: CopilotRequest,
     agent: CopilotAgent = Depends(get_agent),
     security: SecurityContext = Depends(security_context),
 ) -> CopilotResponse:
-    return await agent.run(body, security)
+    return await _run(agent, body, security)
 
 
 @router.post("/workflows/discover", response_model=CopilotResponse)
@@ -119,8 +126,10 @@ async def discover_workflow(
     agent: CopilotAgent = Depends(get_agent),
     security: SecurityContext = Depends(security_context),
 ) -> CopilotResponse:
-    return await agent.run(
-        CopilotRequest(message=body.query, action=CopilotAction.DISCOVER_WORKFLOW), security
+    return await _run(
+        agent,
+        CopilotRequest(message=body.query, action=CopilotAction.DISCOVER_WORKFLOW),
+        security,
     )
 
 
@@ -130,7 +139,8 @@ async def initiate_workflow(
     agent: CopilotAgent = Depends(get_agent),
     security: SecurityContext = Depends(security_context),
 ) -> CopilotResponse:
-    return await agent.run(
+    return await _run(
+        agent,
         CopilotRequest(
             message=f"Start workflow {body.workflow_id}",
             action=CopilotAction.START_WORKFLOW,
@@ -147,8 +157,8 @@ async def query_tasks(
     agent: CopilotAgent = Depends(get_agent),
     security: SecurityContext = Depends(security_context),
 ) -> CopilotResponse:
-    return await agent.run(
-        CopilotRequest(message="my tasks", action=CopilotAction.QUERY_TASKS), security
+    return await _run(
+        agent, CopilotRequest(message="my tasks", action=CopilotAction.QUERY_TASKS), security
     )
 
 
@@ -160,7 +170,8 @@ async def complete_task(
     security: SecurityContext = Depends(security_context),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> CopilotResponse:
-    return await agent.run(
+    return await _run(
+        agent,
         CopilotRequest(
             message=f"Complete task {task_id}",
             action=CopilotAction.COMPLETE_TASK,
@@ -187,7 +198,8 @@ async def approval_assistance(
     The transport layer never sets the confirmation flag: ``confirm`` must come from the caller and
     the second request must carry the proposal id/hash issued by the first response (issue #296).
     """
-    return await agent.run(
+    return await _run(
+        agent,
         CopilotRequest(
             message=body.description or body.title,
             action=CopilotAction.APPROVAL_ASSISTANCE,
@@ -212,8 +224,10 @@ async def knowledge_search(
     agent: CopilotAgent = Depends(get_agent),
     security: SecurityContext = Depends(security_context),
 ) -> CopilotResponse:
-    return await agent.run(
-        CopilotRequest(message=body.query, action=CopilotAction.KNOWLEDGE_SEARCH), security
+    return await _run(
+        agent,
+        CopilotRequest(message=body.query, action=CopilotAction.KNOWLEDGE_SEARCH),
+        security,
     )
 
 

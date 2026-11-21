@@ -60,6 +60,79 @@ class ToolCall(BaseModel):
     error: str | None = None
 
 
+class Citation(BaseModel):
+    """A tenant document chunk that supports an answer.
+
+    Citations are structured so the SPA can render source cards and so an answer without any source
+    can be flagged instead of being presented as a confident fact.
+    """
+
+    index: int
+    title: str
+    document_id: str
+    chunk_index: int = 0
+    score: float | None = None
+
+
+class BudgetUsage(BaseModel):
+    """Token/cost usage reported for one Copilot request.
+
+    ``remaining_tokens`` comes from the backend-supplied routing metadata when present and falls
+    back to the gateway's tenant ledger. A missing value means the deployment did not report a
+    budget; it must never be rendered as "unlimited".
+    """
+
+    remaining_tokens: int | None = None
+    monthly_budget_tokens: int | None = None
+    used_tokens: int | None = None
+    estimated_cost_micros: int | None = None
+
+
+class CopilotWarning(BaseModel):
+    """User-facing guardrail or data-handling warning attached to a response."""
+
+    code: str
+    message: str
+    severity: Literal["info", "warning", "error"] = "warning"
+
+
+class GuardrailSummary(BaseModel):
+    """The winning semantic-guardrail decision for one request."""
+
+    policy: str | None = None
+    decision: str = "allow"
+    score: float = 0.0
+    version: str = ""
+    unavailable: bool = False
+
+
+class CopilotAudit(BaseModel):
+    """Per-request audit record rendered by the SPA.
+
+    ``request_id`` is stable for a logical request (the idempotency key when supplied, otherwise the
+    correlation ID), which lets the UI deduplicate a replayed response into a single audit entry.
+    """
+
+    request_id: str
+    action: str
+    outcome: str | None = None
+    confidence: float = 0.0
+    requires_human_approval: bool = False
+    tool_calls: list[ToolCall] = Field(default_factory=list)
+    idempotency_key: str | None = None
+    correlation_id: str = ""
+    prompt_key: str = ""
+    prompt_version: str = ""
+    prompt_hash: str = ""
+    model: str | None = None
+    model_tier: str | None = None
+    routing_reason: str | None = None
+    proposal_id: str | None = None
+    proposal_hash: str | None = None
+    decision: str | None = None
+    retrieved_document_ids: list[str] = Field(default_factory=list)
+
+
 class CopilotResponse(BaseModel):
     """Stable response envelope for every copilot endpoint."""
 
@@ -82,6 +155,12 @@ class CopilotResponse(BaseModel):
     cache_hit: bool = False
     provider: str | None = None
     fallback_reason: str | None = None
+    outcome: str | None = None
+    citations: list[Citation] = Field(default_factory=list)
+    budget: BudgetUsage = Field(default_factory=BudgetUsage)
+    warnings: list[CopilotWarning] = Field(default_factory=list)
+    guardrail: GuardrailSummary = Field(default_factory=GuardrailSummary)
+    audit: CopilotAudit | None = None
 
 
 class WorkflowDiscoveryRequest(BaseModel):

@@ -55,13 +55,33 @@ app.include_router(health_router, prefix="/api/v1")
 app.include_router(copilot_router, prefix="/api/v1")
 
 
+def _remaining_tokens(request: Request) -> int | None:
+    """Read the tenant ledger so the 429 body states the remaining amount (Phase 9)."""
+    agent = getattr(request.app.state, "copilot_agent", None)
+    tenant_id = request.headers.get("x-tenant-id", "")
+    if agent is None or not tenant_id:
+        return None
+    try:
+        snapshot = agent.llm_gateway.budget_snapshot(tenant_id)
+    except Exception:  # pragma: no cover - a broken ledger must not hide the 429
+        return None
+    remaining = snapshot.get("remaining_tokens")
+    return remaining if isinstance(remaining, int) else None
+
+
 @app.exception_handler(LlmBudgetExceeded)
-async def _llm_budget_exceeded(_request: Request, exc: LlmBudgetExceeded) -> JSONResponse:
+async def _llm_budget_exceeded(request: Request, exc: LlmBudgetExceeded) -> JSONResponse:
+    remaining = _remaining_tokens(request)
+    detail = (
+        f"{exc} Remaining tokens: {remaining if remaining is not None else 'unknown'}. "
+        "Ask a tenant administrator to raise the AI budget."
+    )
     return JSONResponse(
         status_code=429,
         content={
-            "detail": str(exc),
+            "detail": detail,
             "code": "AI_BUDGET_EXCEEDED",
+            "remaining_tokens": remaining,
         },
         headers={"Retry-After": str(exc.retry_after_seconds)},
     )
