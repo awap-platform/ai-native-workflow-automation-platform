@@ -12,7 +12,7 @@ BPMN converter; no existing endpoint or table changed.
 | Palette | Events, Activities, Gateways, Structural and Extensions groups; case-insensitive search through the shared `Input` primitive; arrow-key cursor and Enter insertion; drag and button insertion preserved |
 | Properties | Name, timeout, retry policy, assignees, form, AI action/prompt/schema, script, gateway guard, delay, webhook, sub-process and parallel-join fields rendered with `Input`, `Textarea`, `Select` and `Button` |
 | Canvas | Process navigator, mini-map, explicit zoom in/out/fit controls rendered with the shared `Button` primitive and React Flow controls |
-| Validation | Errors and warnings with click-to-focus; missing START blocks save, missing END warns, cycles and unreachable nodes are reported, invalid edge conditions block save |
+| Validation | Errors and warnings with click-to-focus; missing START blocks save, missing END warns, cycles and unreachable nodes are reported, invalid edge conditions block save. An untouched empty canvas is informational and only becomes authoritative after the first node or a save/publish attempt |
 | Autosave | Debounced localStorage draft keyed by tenant; restore after reload/crash; beforeunload and in-app navigation guards |
 | Versions | Side-by-side snapshot comparison, rollback and archive using the existing version endpoints |
 | Publish | Save-then-publish, post-publish summary with an instances CTA, 409 two-tab conflict copy that keeps the draft |
@@ -52,11 +52,21 @@ characters. The OpenAPI contract documents both paths plus the 413 response.
 | T5-12 | `visual/designer-canvas-1280x900.png` element baseline |
 | T5-13 | [`designer-controls.test.tsx`](../../frontend/components/workflows/__tests__/designer-controls.test.tsx) asserts `awap-input`/`awap-textarea`/`awap-select` and `data-slot="button"` on the palette, properties and zoom controls |
 | T5-14 | `designer selected-node properties match their element baselines` adds light/dark element baselines; the axe E2E scans the designer in both themes |
+| T5-17 | `ValidationPanel.test.tsx` asserts the untouched-empty informational state, the post-touch blocking state and the neutral "No issues yet" copy |
+| T5-18 | `an empty designer shows onboarding instead of a red validation error` asserts no `role="alert"` on load, the Add START CTA and the transition to a touched validation panel |
 
 Unhappy paths covered: missing START blocked, missing END warning, cycle warning, disconnected
 node error, invalid BPMN 400 with a line, oversized XML 413, tab-close guard, two-tab publish
 conflict, long/hostile label truncation and escaping, and autosave after a crash (reload with the
 draft still in storage).
+
+## Empty-state onboarding (issue 361)
+
+A new designer no longer opens on a red "exactly one START node" error. The canvas shows a
+dedicated onboarding card with **Add START** and **Add END** actions, and the validation panel
+stays neutral ("Nothing to validate yet") until the first node is added or save/publish is
+attempted. After that point the existing blocking rules apply unchanged, so an invalid save or
+publish is still refused with an explanatory alert.
 
 ## Design-system migration (issue 359)
 

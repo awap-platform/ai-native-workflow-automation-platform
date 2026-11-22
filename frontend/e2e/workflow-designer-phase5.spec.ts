@@ -325,6 +325,21 @@ test("designer controls use the design system and pass axe with properties open"
   }
 });
 
+test("an empty designer shows onboarding instead of a red validation error", async ({ page }) => {
+  await mockApi(page);
+  await openDesigner(page);
+
+  await expect(page.getByTestId("designer-empty-state")).toBeVisible();
+  await expect(page.getByTestId("validation-panel")).toContainText("Nothing to validate yet.");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByText(/^Error:/)).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Add START" }).click();
+  await expect(page.getByTestId("designer-empty-state")).toHaveCount(0);
+  await expect(page.getByTestId("validation-panel")).not.toContainText("Nothing to validate yet.");
+  await expect(page.locator(".react-flow__node")).toHaveCount(1);
+});
+
 test("validation blocks a missing START, warns for END and focuses a disconnected node", async ({
   page,
 }) => {
@@ -332,12 +347,12 @@ test("validation blocks a missing START, warns for END and focuses a disconnecte
   await openDesigner(page);
 
   const panel = page.getByTestId("validation-panel");
-  await expect(panel).toContainText("A workflow needs exactly one START node.");
-  await expect(panel).toContainText("A workflow needs at least one END node.");
+  await expect(panel).toContainText("Nothing to validate yet.");
 
   await page.getByLabel("Workflow name").fill("No start");
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "exactly one START" })).toBeVisible();
+  await expect(panel).toContainText("A workflow needs exactly one START node.");
 
   await page.getByRole("button", { name: "START", exact: true }).click();
   await page.getByRole("button", { name: "TASK", exact: true }).click();
