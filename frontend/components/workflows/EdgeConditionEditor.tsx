@@ -161,12 +161,12 @@ export default function EdgeConditionEditor({
   return (
     <aside
       aria-labelledby="edge-condition-heading"
-      style={{ width: 320, border: "1px solid var(--awap-border)", borderRadius: 8, padding: 12 }}
+      className="awap-designer__panel awap-edge-editor"
     >
-      <h2 id="edge-condition-heading" style={{ fontSize: 16, fontWeight: 700 }}>
+      <h2 id="edge-condition-heading" className="awap-edge-editor__heading">
         Edge condition
       </h2>
-      <p style={{ color: "var(--awap-muted)", fontSize: 12, marginTop: 0 }}>
+      <p className="awap-edge-editor__meta">
         From {edge.source} to {edge.target}
       </p>
 
@@ -193,17 +193,9 @@ export default function EdgeConditionEditor({
         onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
         onKeyDown={handleKeyDown}
         onBlur={() => setSuggestionsOpen(false)}
-        style={{ width: "100%", display: "block", fontFamily: "monospace", marginBottom: 4 }}
+        className="awap-textarea awap-edge-editor__textarea"
       />
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          fontSize: 12,
-          color: "var(--awap-muted)",
-        }}
-      >
+      <div className="awap-edge-editor__meta-row">
         <span id="edge-condition-help">
           Empty means unconditional. Type # for variables or #fn. for functions.
         </span>
@@ -212,9 +204,10 @@ export default function EdgeConditionEditor({
         </span>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+      <div className="awap-edge-editor__actions">
         <button
           type="button"
+          className="awap-button"
           onClick={() => {
             setSuggestionsOpen(true);
             setActiveIndex(0);
@@ -230,15 +223,7 @@ export default function EdgeConditionEditor({
           id="condition-suggestions"
           role="listbox"
           aria-label="Condition suggestions"
-          style={{
-            listStyle: "none",
-            padding: 4,
-            margin: "4px 0 8px",
-            border: "1px solid var(--awap-border)",
-            borderRadius: 6,
-            maxHeight: 180,
-            overflowY: "auto",
-          }}
+          className="awap-edge-editor__suggestions"
         >
           {suggestions.map((suggestion, index) => (
             <li key={`${suggestion.kind}-${suggestion.label}`} role="presentation">
@@ -247,22 +232,14 @@ export default function EdgeConditionEditor({
                 id={`condition-suggestion-${index}`}
                 role="option"
                 aria-selected={index === activeIndex}
+                data-active={index === activeIndex}
                 tabIndex={-1}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => applySuggestionToText(suggestion)}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  textAlign: "left",
-                  background:
-                    index === activeIndex ? "var(--awap-surface-raised)" : "transparent",
-                  border: "none",
-                  padding: "4px 6px",
-                  cursor: "pointer",
-                }}
+                className="awap-edge-editor__suggestion"
               >
-                <span style={{ fontFamily: "monospace" }}>{suggestion.label}</span>{" "}
-                <span style={{ color: "var(--awap-muted)", fontSize: 11 }}>
+                <span className="awap-edge-editor__mono">{suggestion.label}</span>{" "}
+                <span className="awap-edge-editor__suggestion-description">
                   {suggestion.description}
                 </span>
               </button>
@@ -272,23 +249,23 @@ export default function EdgeConditionEditor({
       ) : null}
 
       {clientError !== null ? (
-        <p id="edge-condition-error" role="alert" style={{ color: "var(--awap-danger)" }}>
+        <p id="edge-condition-error" role="alert" className="awap-edge-editor__error">
           {clientError}
         </p>
       ) : null}
 
       {status === "validating" ? (
-        <p role="status" style={{ color: "var(--awap-muted)" }}>
+        <p role="status" className="awap-edge-editor__muted">
           Checking expression…
         </p>
       ) : null}
       {status === "done" && serverResult?.valid && condition.trim() !== "" ? (
-        <p role="status" style={{ color: "var(--awap-success)" }}>
+        <p role="status" className="awap-edge-editor__success">
           Expression is valid.
         </p>
       ) : null}
       {status === "done" && serverError !== null ? (
-        <p role="alert" style={{ color: "var(--awap-danger)" }}>
+        <p role="alert" className="awap-edge-editor__error">
           {serverError}
         </p>
       ) : null}
@@ -301,14 +278,14 @@ export default function EdgeConditionEditor({
         </p>
       ) : null}
 
-      <fieldset style={{ border: "1px solid var(--awap-border)", borderRadius: 6, marginTop: 12 }}>
-        <legend style={{ fontSize: 13, fontWeight: 700 }}>Expression builder</legend>
+      <fieldset className="awap-edge-editor__fieldset">
+        <legend className="awap-edge-editor__legend">Expression builder</legend>
         <label htmlFor="condition-variable">Variable</label>
         <select
           id="condition-variable"
           value={variable}
           onChange={(event) => setVariable(event.target.value)}
-          style={{ width: "100%", display: "block" }}
+          className="awap-select awap-edge-editor__control"
         >
           {variables.map((name) => (
             <option key={name} value={name}>
@@ -322,7 +299,7 @@ export default function EdgeConditionEditor({
           id="condition-operator"
           value={operator}
           onChange={(event) => setOperator(event.target.value as ConditionOperator)}
-          style={{ width: "100%", display: "block" }}
+          className="awap-select awap-edge-editor__control"
         >
           {CONDITION_OPERATORS.map((entry) => (
             <option key={entry.value} value={entry.value}>
@@ -336,19 +313,33 @@ export default function EdgeConditionEditor({
           id="condition-value"
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          style={{ width: "100%", display: "block" }}
+          className="awap-input awap-edge-editor__control"
         />
 
-        <button type="button" onClick={insertBuiltCondition} style={{ marginTop: 8 }}>
+        <button
+          type="button"
+          onClick={insertBuiltCondition}
+          className="awap-button awap-edge-editor__insert"
+        >
           Insert condition
         </button>
       </fieldset>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <button type="button" onClick={onDuplicate} aria-label="Duplicate conditional edge">
+      <div className="awap-edge-editor__actions">
+        <button
+          type="button"
+          onClick={onDuplicate}
+          aria-label="Duplicate conditional edge"
+          className="awap-button"
+        >
           Duplicate edge
         </button>
-        <button type="button" onClick={onClose} aria-label="Close edge inspector">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close edge inspector"
+          className="awap-button"
+        >
           Close
         </button>
       </div>

@@ -38,20 +38,18 @@ export default function TransitionComposer({
     <form
       onSubmit={submit}
       aria-labelledby="transition-composer-heading"
-      style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "end", marginTop: 8 }}
+      className="awap-transition-composer"
     >
-      <h2
-        id="transition-composer-heading"
-        style={{ width: "100%", fontSize: 14, fontWeight: 700, margin: 0 }}
-      >
+      <h2 id="transition-composer-heading" className="awap-transition-composer__heading">
         Add a transition
       </h2>
-      <label style={{ display: "grid", gap: 2, fontSize: 13 }}>
+      <label className="awap-transition-composer__field">
         From
         <select
           aria-label="Transition source"
           value={source}
           onChange={(event) => setSource(event.target.value)}
+          className="awap-select"
         >
           <option value="">Select a node</option>
           {nodes.map((node) => (
@@ -61,12 +59,13 @@ export default function TransitionComposer({
           ))}
         </select>
       </label>
-      <label style={{ display: "grid", gap: 2, fontSize: 13 }}>
+      <label className="awap-transition-composer__field">
         To
         <select
           aria-label="Transition target"
           value={target}
           onChange={(event) => setTarget(event.target.value)}
+          className="awap-select"
         >
           <option value="">Select a node</option>
           {nodes.map((node) => (
@@ -76,7 +75,7 @@ export default function TransitionComposer({
           ))}
         </select>
       </label>
-      <button type="submit" disabled={source === "" || target === ""}>
+      <button type="submit" disabled={source === "" || target === ""} className="awap-button">
         Add transition
       </button>
       {error ? <p role="alert">{error}</p> : null}

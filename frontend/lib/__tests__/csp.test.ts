@@ -52,21 +52,14 @@ describe("csp", () => {
     expect(csp).not.toContain("unsafe-eval");
   });
 
-  it("emits the temporary style-attribute exception while it is active", () => {
+  it("never emits a style-attribute exception", () => {
     const csp = policy();
-    expect(csp).toContain("style-src-attr 'unsafe-inline'");
-    // The exception is scoped to attributes only; inline <style> elements still
-    // require the nonce.
-    expect(csp).not.toMatch(/style-src-elem[^;]*unsafe-inline/);
-    expect(csp).not.toMatch(/script-src[^;]*unsafe-inline/);
-  });
-
-  it("drops the exception when it is explicitly disabled", () => {
-    const csp = policy({ styleAttrException: false });
     expect(csp).toContain("style-src-attr 'none'");
     expect(csp).not.toContain("style-src-attr 'unsafe-inline'");
-    process.env.CSP_STYLE_ATTR_UNSAFE_INLINE = "false";
-    expect(resolveStyleAttrException(DURING_EXCEPTION).active).toBe(false);
+    expect(csp).not.toContain("unsafe-inline");
+    // Even an explicit opt-in cannot reintroduce the removed exception.
+    expect(policy({ styleAttrException: true })).not.toContain("unsafe-inline");
+    expect(policy({ styleAttrException: false })).not.toContain("unsafe-inline");
   });
 
   it("fails the build after the exception expiry", () => {

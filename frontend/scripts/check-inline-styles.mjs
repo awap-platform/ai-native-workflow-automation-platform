@@ -149,7 +149,8 @@ function main() {
   const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
   const comparison = compareToBaseline(counts, baseline);
   console.log(formatReport(counts, comparison));
-  if (!comparison.ok) {
+  // A stale entry means the ratchet is looser than reality; fail so the baseline is tightened.
+  if (!comparison.ok || comparison.stale.length > 0) {
     process.exitCode = 1;
   }
 }

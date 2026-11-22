@@ -4,11 +4,11 @@
  * Pure functions so nonce generation, header construction and report redaction
  * can be unit-tested without a running Next.js server.
  *
- * The policy never emits `unsafe-eval`. Inline `<script>` and `<style>` blocks
- * require the per-request nonce. One intentionally temporary exception remains:
- * `style-src-attr 'unsafe-inline'`, because the legacy screens still set React
- * `style` attributes. It has an owner, a tracking issue and an expiry; the build
- * fails after the expiry unless the exception is explicitly switched off.
+ * The policy never emits `unsafe-eval` or `unsafe-inline`. Inline `<script>` and
+ * `<style>` blocks require the per-request nonce. The former
+ * `style-src-attr 'unsafe-inline'` exception was removed once every React
+ * `style` attribute was migrated to a token class (issue 363); `style-src-attr`
+ * is now `'none'`.
  */
 
 export const CSP_REPORT_URI = "/api/csp-report";
@@ -108,21 +108,16 @@ export function cspHeaderName(reportOnly: boolean): string {
 
 /**
  * Builds a nonce-based policy. `strict-dynamic` lets nonce-trusted Next.js
- * bootstrap scripts load their chunks. `script-src`/`style-src-elem` never
- * contain `unsafe-inline` or `unsafe-eval`; only `style-src-attr` may carry the
- * temporary exception described above.
+ * bootstrap scripts load their chunks. `script-src`, `style-src-elem` and
+ * `style-src-attr` never contain `unsafe-inline` or `unsafe-eval`.
  */
 export function buildCsp({
   nonce,
   apiOrigins,
   reportUri = CSP_REPORT_URI,
-  now = new Date(),
-  styleAttrException,
   upgradeInsecureRequests = false,
 }: CspOptions): string {
   const origins = apiOrigins.trim() || "'self'";
-  const exceptionActive =
-    styleAttrException ?? resolveStyleAttrException(now).active;
 
   const directives = [
     "default-src 'self'",
@@ -130,7 +125,7 @@ export function buildCsp({
     "script-src-attr 'none'",
     `style-src 'self' 'nonce-${nonce}'`,
     `style-src-elem 'self' 'nonce-${nonce}'`,
-    `style-src-attr ${exceptionActive ? "'unsafe-inline'" : "'none'"}`,
+    "style-src-attr 'none'",
     "img-src 'self' data: blob:",
     "font-src 'self'",
     "media-src 'self' blob:",
