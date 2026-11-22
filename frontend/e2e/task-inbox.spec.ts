@@ -283,6 +283,79 @@ test("another tenant receives an empty inbox", async ({ page }) => {
   await expect(page.getByTestId("task-list-empty")).toBeVisible();
 });
 
+test("task rows never overlap and the selection label stays hidden", async ({ page }) => {
+  const longTitle =
+    "Approve the international travel and accommodation request for the Q4 finance conference";
+  const turkishTitle = "Şirketler arası ödeme onayı ve belge kontrolü";
+  await openInbox(page, {
+    tasks: [
+      openTask,
+      task({ id: "t-long", title: longTitle }),
+      task({ id: "t-tr", title: turkishTitle, status: "IN_PROGRESS" }),
+    ],
+  });
+
+  const overlaps = (
+    left: { x: number; y: number; width: number; height: number } | null,
+    right: { x: number; y: number; width: number; height: number } | null,
+  ): boolean => {
+    if (!left || !right) {
+      return false;
+    }
+    return (
+      left.x < right.x + right.width &&
+      right.x < left.x + left.width &&
+      left.y < right.y + right.height &&
+      right.y < left.y + left.height
+    );
+  };
+
+  for (const id of ["t-open", "t-long", "t-tr"]) {
+    const row = page.locator("li").filter({ has: page.getByTestId(`task-row-${id}`) });
+    const checkbox = page.getByTestId(`task-check-${id}`);
+    const titleColumn = page.getByTestId(`task-row-${id}`);
+    const title = titleColumn.locator("span").first();
+    const badge = row.getByTestId(/^task-status-/);
+    const sla = row.getByTestId(/^task-sla-/);
+
+    // The accessible name stays on the input, but no visible "Select …" text is rendered.
+    await expect(checkbox).toHaveAttribute("aria-label", /^Select /);
+    await expect(row.getByText(/^Select /)).toHaveCount(0);
+
+    const boxes = await Promise.all([
+      checkbox.boundingBox(),
+      title.boundingBox(),
+      badge.boundingBox(),
+      sla.boundingBox(),
+    ]);
+    const [checkboxBox, titleBox, badgeBox, slaBox] = boxes;
+    expect(overlaps(checkboxBox, titleBox)).toBe(false);
+    expect(overlaps(titleBox, badgeBox)).toBe(false);
+    expect(overlaps(titleBox, slaBox)).toBe(false);
+    expect(overlaps(badgeBox, slaBox)).toBe(false);
+
+    // The checkbox sits to the left of the title column instead of consuming it.
+    expect(checkboxBox && titleBox && checkboxBox.x + checkboxBox.width <= titleBox.x).toBe(true);
+  }
+});
+
+test("a long title does not create horizontal overflow at 320px", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await openInbox(page, {
+    tasks: [
+      task({
+        id: "t-hostile",
+        title: "X".repeat(500),
+      }),
+    ],
+  });
+
+  const noOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+  );
+  expect(noOverflow).toBe(true);
+});
+
 test("keyboard J/K move the cursor and A opens the approval confirmation", async ({ page }) => {
   await openInbox(page);
 
