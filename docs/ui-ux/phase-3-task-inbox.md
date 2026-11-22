@@ -106,3 +106,14 @@ pnpm playwright test e2e/task-inbox.spec.ts
 All suites run against mocked task contracts; the production-stack gates
 (`console-errors`, `accessibility`, `responsive`, `visual-baseline`) include the
 new inbox and work item screens.
+
+## Count copy (issue 358)
+
+Every count now goes through the plural-aware `tPlural` helper
+(`Intl.PluralRules` plus `Intl.NumberFormat`), so English renders "1 result" and
+"2 results" while Turkish uses its own grammar and number grouping. Covered
+surfaces are the inbox subtitle, the result count, the dashboard pending-task
+accessible name, and the workflow catalogue summary/result count. A unit gate in
+[`lib/__tests__/i18n.test.ts`](../../frontend/lib/__tests__/i18n.test.ts) fails if
+a task, dashboard or workflow surface reintroduces `{n} results`-style string
+concatenation.

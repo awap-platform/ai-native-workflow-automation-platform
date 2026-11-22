@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import {
   formatDateTimeForLocale,
   formatNumberForLocale,
@@ -64,5 +67,50 @@ describe("i18n", () => {
   it("falls back to the default locale then the other form for unknown keys", () => {
     expect(tPlural("tr", "missing.count", 1)).toBe("missing.count");
     expect(tPlural("en", "tasks.list.count", 3, { extra: "x" })).toBe("3 results");
+  });
+});
+
+/**
+ * Regression gate for issue #358: count copy must go through `tPlural`, never through a
+ * literal "{value} results" / "{value} work items" JSX concatenation. Adding a new
+ * count to these surfaces without a message key fails this test.
+ */
+describe("count copy", () => {
+  // A JSX count expression must not be followed by a literal count noun (`{n} results`).
+  // The lookahead keeps prop assignments such as `} task={selected}` from matching.
+  const CONCATENATION =
+    /\}\s+(?:results?|definitions?|work items?|open work items?|pending tasks?)\b(?=\s*(?:[<·.,;]|$))/;
+
+  function sourceFiles(directory: string): string[] {
+    const files: string[] = [];
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (entry.name === "__tests__" || entry.name === "node_modules") {
+        continue;
+      }
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        files.push(...sourceFiles(path));
+      } else if (/\.tsx?$/.test(entry.name)) {
+        files.push(path);
+      }
+    }
+    return files;
+  }
+
+  it("is never built by string concatenation in task, dashboard or workflow surfaces", () => {
+    const roots = ["components/tasks", "components/workflows", join("app", "(app)", "dashboard")];
+    const offenders: string[] = [];
+    for (const root of roots) {
+      for (const file of sourceFiles(root)) {
+        readFileSync(file, "utf8")
+          .split("\n")
+          .forEach((line, index) => {
+            if (CONCATENATION.test(line)) {
+              offenders.push(`${file}:${index + 1}: ${line.trim()}`);
+            }
+          });
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 });
