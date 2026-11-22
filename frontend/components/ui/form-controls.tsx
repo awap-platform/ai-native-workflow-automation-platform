@@ -75,7 +75,7 @@ export interface CheckboxProps extends Omit<ComponentProps<"input">, "type"> {
   label: string;
   /**
    * Keeps the label as the accessible name but hides it visually. Used for row-selection
-   * checkboxes where a visible "Select …" label would consume the row width (issue #357).
+   * checkboxes where a visible "Select …" label would consume the row width (issue 357).
    * The hidden mode renders exactly one name source: `aria-label` on the input.
    */
   hideLabel?: boolean;
@@ -98,7 +98,7 @@ export function Checkbox({
         aria-label={hideLabel ? label : undefined}
         disabled={disabled}
         // A disabled control must never run a handler, even when a synthetic event is dispatched
-        // directly at the input (issue #357, T9).
+        // directly at the input (issue 357, T9).
         onChange={disabled ? undefined : onChange}
         onClick={disabled ? undefined : onClick}
         {...props}
