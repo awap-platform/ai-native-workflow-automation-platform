@@ -65,7 +65,11 @@ honestly recorded manual step.
   (`scripts/check-doc-links.mjs`).
 - [ ] **UAT** — the 10-task plan is written with a ≥ 90% threshold
   ([`../uat-plan.md`](../uat-plan.md)); the sessions require real users and have
-  **not** been executed.
+  **not** been executed. The execution pack
+  ([`../uat/README.md`](../uat/README.md)) and the `pnpm uat:check` gate now
+  enforce the participant count, task coverage, ≥ 90% success, SUS ≥ 80, no
+  open P0 and zero cross-tenant observations; the gate is unit-tested but will
+  stay red until real evidence is supplied.
 - [ ] **Screen-reader pass** — NVDA and VoiceOver procedures are documented;
   the manual passes have **not** been executed in this PR.
 - [ ] **Live canary and rollback drill** — the policy, alerts and runbook are
