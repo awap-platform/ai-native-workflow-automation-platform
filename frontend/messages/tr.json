@@ -40,6 +40,7 @@
   "shell.aiAssistant": "Yapay zekâ asistanı",
   "shell.role": "Rol: {role}",
   "shell.roleUnknown": "Bilinmiyor",
+  "shell.roleUnavailable": "Rol kullanılamıyor. Kiracı yöneticinizden rol ataması isteyin.",
   "shell.themeLight": "Açık temaya geç",
   "shell.themeDark": "Koyu temaya geç",
   "shell.language": "Dil",

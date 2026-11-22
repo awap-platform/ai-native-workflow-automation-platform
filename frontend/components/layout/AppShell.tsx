@@ -40,9 +40,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  const groups = visibleNavGroups(role);
+  // A hydrated tenant means a session exists; without a role, navigation must fail closed.
+  const session = tenant !== null;
+  const groups = visibleNavGroups(role, { session });
   const requiredRoles = requiredRolesForPath(pathname);
-  const forbidden = role !== null && requiredRoles !== undefined && !requiredRoles.includes(role);
+  const forbidden =
+    requiredRoles !== undefined &&
+    !requiredRoles.includes(role ?? "") &&
+    (role !== null || session);
 
   const breadcrumbItems: BreadcrumbItem[] = breadcrumbForPath(pathname).map((entry) => ({
     label: entry.labelKey.includes(".") ? t(entry.labelKey) : entry.labelKey,
@@ -76,7 +81,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         role={role}
       />
       {paletteOpen ? (
-        <GlobalCommandPalette open onClose={() => setPaletteOpen(false)} role={role} />
+        <GlobalCommandPalette open onClose={() => setPaletteOpen(false)} role={role} session={session} />
       ) : null}
     </div>
   );

@@ -47,9 +47,15 @@ export default function MobileDrawer({
             {t("shell.tenant", { tenant: tenant ?? t("shell.selectTenant") })}
           </span>
         </button>
-        <p className="text-xs awap-muted">
-          {t("shell.role", { role: role ?? t("shell.roleUnknown") })}
-        </p>
+        {tenant && !role ? (
+          <p className="text-xs awap-muted" role="status">
+            {t("shell.roleUnavailable")}
+          </p>
+        ) : (
+          <p className="text-xs awap-muted">
+            {t("shell.role", { role: role ?? t("shell.roleUnknown") })}
+          </p>
+        )}
         <button
           type="button"
           className="awap-button"
