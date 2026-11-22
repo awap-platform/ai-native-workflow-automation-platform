@@ -4,8 +4,10 @@ import Link from "next/link";
 import AccessSummary from "../../../components/onboarding/AccessSummary";
 import { ErrorState, LoadingState } from "../../../components/ui/QueryState";
 import { useTasks, useWorkflowInstances } from "../../../lib/hooks/resources";
+import { useI18n } from "../../../lib/locale";
 
 export default function DashboardPage() {
+  const { tp } = useI18n();
   const tasks = useTasks();
   const instances = useWorkflowInstances();
 
@@ -32,7 +34,12 @@ export default function DashboardPage() {
             My tasks
           </h2>
           <p className="awap-muted">Pending tasks</p>
-          <p className="text-3xl font-bold" data-testid="dashboard-pending-tasks">
+          <p
+            className="text-3xl font-bold"
+            data-testid="dashboard-pending-tasks"
+            // The visible value stays numeric; the accessible name is the plural-aware copy.
+            aria-label={tp("tasks.count", pendingTasks)}
+          >
             {pendingTasks}
           </p>
           <Link href="/tasks">Open inbox</Link>

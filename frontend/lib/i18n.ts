@@ -33,6 +33,13 @@ export function resolveLocale(requested: string | null | undefined): Locale {
   return isLocale(base) ? base : defaultLocale;
 }
 
+function interpolate(template: string, values: TranslationValues): string {
+  return template.replace(/\{(\w+)\}/g, (match, name: string) => {
+    const value = values[name];
+    return value === undefined ? match : String(value);
+  });
+}
+
 /**
  * Translates a key and interpolates `{placeholders}`. Unknown keys fall back to
  * the default locale and then to the key itself, so a missing translation is
@@ -45,9 +52,32 @@ export function t(
 ): string {
   const catalog = catalogs[locale] ?? catalogs[defaultLocale];
   const template = catalog[key] ?? catalogs[defaultLocale][key] ?? key;
-  return template.replace(/\{(\w+)\}/g, (match, name: string) => {
-    const value = values[name];
-    return value === undefined ? match : String(value);
+  return interpolate(template, values);
+}
+
+/**
+ * Selects a plural-aware key family (`<key>.zero|one|other`) with `Intl.PluralRules`
+ * and interpolates `{count}` with `Intl.NumberFormat`. Every count in the UI must go
+ * through this helper (or `plural`), never through string concatenation (issue #358).
+ */
+export function tPlural(
+  locale: Locale,
+  key: string,
+  count: number,
+  values: TranslationValues = {},
+): string {
+  const catalog = catalogs[locale] ?? catalogs[defaultLocale];
+  const fallback = catalogs[defaultLocale];
+  const category = new Intl.PluralRules(locale).select(count);
+  const template =
+    catalog[`${key}.${category}`] ??
+    catalog[`${key}.other`] ??
+    fallback[`${key}.${category}`] ??
+    fallback[`${key}.other`] ??
+    key;
+  return interpolate(template, {
+    ...values,
+    count: formatNumberForLocale(locale, count),
   });
 }
 

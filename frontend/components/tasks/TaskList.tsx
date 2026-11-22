@@ -29,7 +29,7 @@ export default function TaskList({
   onToggleCheck,
   onToggleAll,
 }: TaskListProps) {
-  const { t } = useI18n();
+  const { t, tp } = useI18n();
   const allChecked = rows.length > 0 && rows.every((row) => checkedIds.has(row.id));
 
   return (
@@ -43,7 +43,7 @@ export default function TaskList({
           data-testid="task-select-all"
         />
         <span className="text-xs awap-muted" data-testid="task-result-count">
-          {t("tasks.list.count", { count: String(rows.length) })}
+          {tp("tasks.list.count", rows.length)}
         </span>
       </div>
 

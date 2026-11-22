@@ -5,6 +5,7 @@ import {
   defaultLocale,
   resolveLocale,
   t as translate,
+  tPlural as translatePlural,
   type Locale,
   type TranslationValues,
 } from "./i18n";
@@ -16,12 +17,15 @@ interface LocaleContextValue {
   locale: Locale;
   setLocale: (locale: Locale) => void;
   t: (key: string, values?: TranslationValues) => string;
+  /** Plural-aware translation: selects `<key>.one|other` and formats `{count}`. */
+  tp: (key: string, count: number, values?: TranslationValues) => string;
 }
 
 const LocaleContext = createContext<LocaleContextValue>({
   locale: defaultLocale,
   setLocale: () => undefined,
   t: (key, values) => translate(defaultLocale, key, values),
+  tp: (key, count, values) => translatePlural(defaultLocale, key, count, values),
 });
 
 function writeLocaleCookie(locale: Locale): void {
@@ -54,6 +58,8 @@ export function LocaleProvider({
         }
       },
       t: (key: string, values?: TranslationValues) => translate(locale, key, values),
+      tp: (key: string, count: number, values?: TranslationValues) =>
+        translatePlural(locale, key, count, values),
     };
   }, [locale]);
 
