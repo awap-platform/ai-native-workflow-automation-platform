@@ -1,6 +1,8 @@
 "use client";
 
 import type { WorkflowNode } from "../../lib/workflowGraph";
+import { Button } from "../ui/button";
+import { Input, Select, Textarea } from "../ui/form-controls";
 
 interface NodePropertiesPanelProps {
   node: WorkflowNode;
@@ -96,20 +98,20 @@ export default function NodePropertiesPanel({
     >
       <h2 id="node-properties-heading">{type} node</h2>
       <div className="awap-designer__row">
-        <button type="button" onClick={onDuplicate}>
+        <Button type="button" variant="outline" size="sm" onClick={onDuplicate}>
           Duplicate node
-        </button>
-        <button type="button" onClick={onDelete}>
+        </Button>
+        <Button type="button" variant="destructive" size="sm" onClick={onDelete}>
           Delete node
-        </button>
-        <button type="button" onClick={onClose}>
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={onClose}>
           Close properties
-        </button>
+        </Button>
       </div>
 
       <label className="awap-designer__field">
         Name
-        <input
+        <Input
           aria-label="Node name"
           value={node.data.name ?? ""}
           onChange={(event) => onChangeName(event.target.value)}
@@ -119,7 +121,7 @@ export default function NodePropertiesPanel({
       {TIMEOUT_TYPES.has(type) ? (
         <label className="awap-designer__field">
           Timeout seconds
-          <input
+          <Input
             aria-label="Timeout seconds"
             type="number"
             min={1}
@@ -133,7 +135,7 @@ export default function NodePropertiesPanel({
         <>
           <label className="awap-designer__field">
             Max attempts
-            <input
+            <Input
               aria-label="Max attempts"
               type="number"
               min={1}
@@ -144,7 +146,7 @@ export default function NodePropertiesPanel({
           </label>
           <label className="awap-designer__field">
             Retry backoff (ms)
-            <input
+            <Input
               aria-label="Retry backoff milliseconds"
               type="number"
               min={1}
@@ -168,7 +170,7 @@ export default function NodePropertiesPanel({
       {type === "APPROVAL" || type === "AI" || type === "AI_TASK" ? (
         <label className="awap-designer__field">
           Assignees (one per line, e.g. role:MANAGER)
-          <textarea
+          <Textarea
             aria-label="Assignees"
             value={approvers.join("\n")}
             onChange={(event) =>
@@ -187,7 +189,7 @@ export default function NodePropertiesPanel({
       {type === "APPROVAL" ? (
         <label className="awap-designer__field">
           Assignee
-          <input
+          <Input
             aria-label="Assignee"
             value={configString(config, "assignee")}
             onChange={(event) => update("assignee", event.target.value)}
@@ -198,7 +200,7 @@ export default function NodePropertiesPanel({
       {type === "FORM" ? (
         <label className="awap-designer__field">
           Form definition ID
-          <input
+          <Input
             aria-label="Form definition ID"
             value={configString(config, "formId")}
             onChange={(event) => update("formId", event.target.value)}
@@ -209,7 +211,7 @@ export default function NodePropertiesPanel({
       {(type === "DECISION" || type === "CONDITION") && (
         <label className="awap-designer__field">
           Fallback guard expression
-          <textarea
+          <Textarea
             aria-label="Gateway condition"
             placeholder="#amount > 100"
             value={configString(config, "expression")}
@@ -225,7 +227,7 @@ export default function NodePropertiesPanel({
       {type === "DELAY" ? (
         <label className="awap-designer__field">
           Delay seconds
-          <input
+          <Input
             aria-label="Delay seconds"
             type="number"
             min={0}
@@ -238,7 +240,7 @@ export default function NodePropertiesPanel({
       {type === "PARALLEL_GATEWAY" ? (
         <label className="awap-designer__field">
           Join node id
-          <input
+          <Input
             aria-label="Join node id"
             value={configString(config, "joinNodeId")}
             onChange={(event) => update("joinNodeId", event.target.value)}
@@ -250,7 +252,7 @@ export default function NodePropertiesPanel({
         <>
           <label className="awap-designer__field">
             Target URL
-            <input
+            <Input
               aria-label="Webhook URL"
               placeholder="https://hooks.example.com"
               value={configString(config, "url")}
@@ -259,7 +261,7 @@ export default function NodePropertiesPanel({
           </label>
           <label className="awap-designer__field">
             Payload JSON
-            <textarea
+            <Textarea
               aria-label="Webhook payload"
               value={configString(config, "payload") || "{}"}
               onChange={(event) => update("payload", event.target.value)}
@@ -272,7 +274,7 @@ export default function NodePropertiesPanel({
         <>
           <label className="awap-designer__field">
             Prompt
-            <textarea
+            <Textarea
               aria-label="AI prompt"
               value={configString(config, "prompt")}
               onChange={(event) => update("prompt", event.target.value)}
@@ -280,7 +282,7 @@ export default function NodePropertiesPanel({
           </label>
           <label className="awap-designer__field">
             Action
-            <select
+            <Select
               aria-label="AI action"
               value={configString(config, "action") || "SUMMARIZE"}
               onChange={(event) => update("action", event.target.value)}
@@ -288,11 +290,11 @@ export default function NodePropertiesPanel({
               <option value="SUMMARIZE">Summarize</option>
               <option value="EXTRACT">Extract</option>
               <option value="CLASSIFY">Classify</option>
-            </select>
+            </Select>
           </label>
           <label className="awap-designer__field">
             Extraction schema (JSON, required for EXTRACT)
-            <textarea
+            <Textarea
               aria-label="Extraction schema"
               value={configString(config, "schema")}
               onChange={(event) => update("schema", event.target.value)}
@@ -305,7 +307,7 @@ export default function NodePropertiesPanel({
         <>
           <label className="awap-designer__field">
             Script (SpEL expression)
-            <textarea
+            <Textarea
               aria-label="Script expression"
               placeholder="#amount * 2"
               value={configString(config, "script")}
@@ -322,7 +324,7 @@ export default function NodePropertiesPanel({
         <>
           <label className="awap-designer__field">
             Child workflow definition ID
-            <input
+            <Input
               aria-label="Child workflow definition ID"
               value={configString(config, "workflowDefinitionId")}
               onChange={(event) => update("workflowDefinitionId", event.target.value)}
@@ -330,7 +332,7 @@ export default function NodePropertiesPanel({
           </label>
           <label className="awap-designer__field">
             Version (optional)
-            <input
+            <Input
               aria-label="Child workflow version"
               type="number"
               min={1}
