@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { evaluateUatResults, UAT_TASK_IDS } from "../uat/check-uat-results.mjs";
+import {
+  evaluateAutomatedUat,
+  evaluateUatResults,
+  UAT_TASK_IDS,
+} from "../uat/check-uat-results.mjs";
 
 function participants(count = 10) {
   return Array.from({ length: count }, (_, index) => ({
@@ -52,7 +56,9 @@ test("fails when fewer than ten participants consented", () => {
 
 test("fails when a task was not executed by every participant", () => {
   const rows = results({
-    sessions: sessions().filter((session) => session.taskId !== "UAT-07" || session.participantId !== "P10"),
+    sessions: sessions().filter(
+      (session) => session.taskId !== "UAT-07" || session.participantId !== "P10",
+    ),
   });
   const evaluation = evaluateUatResults(rows);
   assert.equal(evaluation.ok, false);
@@ -61,7 +67,9 @@ test("fails when a task was not executed by every participant", () => {
 
 test("fails below a 90% success rate", () => {
   const all = sessions();
-  const failing = all.map((session, index) => (index < 11 ? { ...session, success: false } : session));
+  const failing = all.map((session, index) =>
+    index < 11 ? { ...session, success: false } : session,
+  );
   const evaluation = evaluateUatResults(results({ sessions: failing }));
   assert.equal(evaluation.ok, false);
   assert.equal(evaluation.checks.find((check) => check.id === "success-rate").ok, false);
@@ -70,7 +78,10 @@ test("fails below a 90% success rate", () => {
 test("fails when SUS is below 80", () => {
   const evaluation = evaluateUatResults(
     results({
-      susScores: participants().map((participant) => ({ participantId: participant.id, score: 70 })),
+      susScores: participants().map((participant) => ({
+        participantId: participant.id,
+        score: 70,
+      })),
     }),
   );
   assert.equal(evaluation.ok, false);
@@ -86,5 +97,40 @@ test("fails on an open P0 finding or a cross-tenant observation", () => {
   );
   assert.equal(evaluation.ok, false);
   assert.equal(evaluation.checks.find((check) => check.id === "open-p0").ok, false);
+  assert.equal(evaluation.checks.find((check) => check.id === "tenant-isolation").ok, false);
+});
+
+test("automated scope passes its objective criteria and reports SUS as pending", () => {
+  const evaluation = evaluateAutomatedUat(results({ susScores: [] }));
+  assert.equal(evaluation.ok, true);
+  assert.equal(evaluation.scope, "automated");
+  const sus = evaluation.checks.find((check) => check.id === "sus");
+  assert.equal(sus.pending, true);
+  assert.equal(sus.blocking, false);
+  assert.equal(evaluation.summary.sus, "pending-human-panel");
+});
+
+test("automated scope fails below the success threshold even without SUS", () => {
+  const failing = sessions().map((session, index) =>
+    index < 11 ? { ...session, success: false } : session,
+  );
+  const evaluation = evaluateAutomatedUat(results({ sessions: failing, susScores: [] }));
+  assert.equal(evaluation.ok, false);
+  assert.equal(evaluation.checks.find((check) => check.id === "success-rate").ok, false);
+});
+
+test("automated scope fails when a critical-path task exceeds two minutes", () => {
+  const slow = sessions().map((session) =>
+    session.taskId === "UAT-02" ? { ...session, durationSeconds: 180 } : session,
+  );
+  const evaluation = evaluateAutomatedUat(results({ sessions: slow, susScores: [] }));
+  assert.equal(evaluation.ok, false);
+  assert.equal(evaluation.checks.find((check) => check.id === "critical-path").ok, false);
+  assert.equal(evaluation.summary.slowestCriticalPathSeconds, 180);
+});
+
+test("automated scope fails on a cross-tenant observation", () => {
+  const evaluation = evaluateAutomatedUat(results({ susScores: [], tenantIsolationFailures: 2 }));
+  assert.equal(evaluation.ok, false);
   assert.equal(evaluation.checks.find((check) => check.id === "tenant-isolation").ok, false);
 });

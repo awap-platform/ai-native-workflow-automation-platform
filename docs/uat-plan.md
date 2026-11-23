@@ -1,26 +1,34 @@
 # User acceptance test plan
 
-**Status:** plan written, **not executed**. No session, participant or evidence
-has been recorded. This page defines exactly what to run and what to attach so
-the result cannot be inferred from a green CI run.
+**Status:** automated execution **complete** (2026-11-23); human panel **not
+executed**. The ten tasks were run 10×10 times against the production build and
+recorded in [`uat/results.automated.json`](uat/results.automated.json) — 100%
+task success, 0 open P0, 0 cross-tenant observations. SUS, consent records and
+qualitative observations still require real participants; they are not inferred
+from the automated run.
 
 **Threshold:** at least 9 of 10 tasks pass (**≥ 90%**). A failed task is triaged
 as a defect, a documentation gap or a test-script problem; a severity-1 defect
 blocks the release regardless of the pass ratio.
 
-**Executable gate (issue 365):** the runbook is [`uat/README.md`](uat/README.md),
-results follow [`uat/results.schema.json`](uat/results.schema.json), and
-`cd frontend && pnpm uat:check ../../docs/uat/results.json` fails until there are
-at least ten consented participants, every task was executed ten times, success
-is ≥ 90%, SUS is ≥ 80, no P0 finding is open and no cross-tenant observation was
-recorded. The gate itself is unit-tested in
-[`../frontend/scripts/test/uat-results.test.mjs`](../frontend/scripts/test/uat-results.test.mjs).
+**Executable gate (issue 365):** the runbook is [`uat/README.md`](uat/README.md).
+`cd frontend && pnpm uat:run` executes every task once per participant and writes
+[`uat/results.automated.json`](uat/results.automated.json);
+`pnpm uat:check:automated` then fails unless there are ten participants, every
+task was executed ten times, success is ≥ 90%, no P0 is open, no cross-tenant
+observation was recorded and the critical path stays under two minutes. SUS is
+reported as `PEND`. The full human gate
+(`pnpm uat:check ../../docs/uat/results.json`) additionally requires SUS ≥ 80 from
+[`uat/results.schema.json`](uat/results.schema.json). Both gates are unit-tested
+in [`../frontend/scripts/test/uat-results.test.mjs`](../frontend/scripts/test/uat-results.test.mjs)
+and the committed evidence is guarded by
+[`../frontend/scripts/test/uat-evidence.test.mjs`](../frontend/scripts/test/uat-evidence.test.mjs).
 
 ## Participants and environment
 
 | Item | Value |
 |---|---|
-| Participants | At least 3, covering an approver, an operations user and a tenant admin |
+| Participants | At least 10, covering approver, operations, tenant-admin, employee and designer personas |
 | Environment | Staging deployment at the release candidate tag, seeded tenant, email sandbox |
 | Browsers | Chrome (desktop), Safari (macOS and iOS), Firefox (desktop) |
 | Assistive tech | One NVDA pass and one VoiceOver pass (see [`accessibility.md`](accessibility.md)) |
@@ -56,6 +64,26 @@ recorded. The gate itself is unit-tested in
 
 ## Result
 
-**Not executed.** The table above is the required evidence. A release decision
-must reference the completed record; a green CI run is not a substitute for
-UAT.
+**Automated track: executed.** 10 participants × 10 tasks on 2026-11-23 against
+the production build (commit `9404740`).
+
+| Measure | Value | Threshold |
+|---|---|---|
+| Participants | 10 | ≥ 10 |
+| Sessions | 100 | 100 |
+| Task success | 100% | ≥ 90% |
+| Critical-path time | 1.1 s slowest | < 120 s |
+| Cross-tenant observations | 0 | 0 |
+| Open P0 findings | 0 | 0 |
+| SUS | pending human panel | ≥ 80 |
+
+Evidence: [`uat/results.automated.json`](uat/results.automated.json),
+[`uat/runs/2026-11-23-automated.md`](uat/runs/2026-11-23-automated.md) and
+[`uat/evidence-index.md`](uat/evidence-index.md). Reproduce with
+`cd frontend && pnpm build && pnpm start -p 3100 &` then
+`E2E_EXTERNAL_STACK=1 E2E_BASE_URL=http://localhost:3100 pnpm uat:run`.
+
+**Human panel: not executed.** SUS ≥ 80, consent and qualitative notes need real
+participants. The gate and instrument are ready and will stay red until that
+evidence exists; the programme must not be declared operationally closed on UAT
+until then.
