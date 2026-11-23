@@ -1257,6 +1257,12 @@
   display: grid;
   align-content: start;
   gap: var(--awap-space-2);
+  /* The overlay must not steal canvas pan/zoom/drop gestures; only its actions are interactive. */
+  pointer-events: none;
+}
+
+.awap-designer__empty .awap-button {
+  pointer-events: auto;
 }
 
 /* Below the tablet breakpoint the fixed palette/side columns would force a
