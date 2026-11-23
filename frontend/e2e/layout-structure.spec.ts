@@ -23,14 +23,15 @@ test("the three-row inbox has no overlapping cells or visible selection labels",
   // The visual fixture now sets a real role; no baseline may contain "Role: Unknown".
   await expect(page.getByTestId("sidebar-role")).toContainText("MANAGER");
   await expect(page.getByTestId("sidebar-role")).not.toContainText("Unknown");
-  // Row labels stay in the accessibility tree, never as visible text.
-  await expect(page.getByText(/^Select /)).toHaveCount(0);
 
   for (const id of ROW_IDS) {
     const title = page.getByTestId(`task-row-${id}`);
     const row = title.locator("xpath=..");
     const checkbox = page.getByTestId(`task-check-${id}`);
     await expect(checkbox).toHaveAttribute("aria-label", /^Select /);
+    // Row labels stay in the accessibility tree, never as visible text. The select-all label
+    // outside the rows is intentionally visible, so the assertion is scoped to each row.
+    await expect(row.getByText(/^Select /)).toHaveCount(0);
 
     const [checkboxBox, titleBox, badgeBox, slaBox] = await Promise.all([
       checkbox.boundingBox(),
