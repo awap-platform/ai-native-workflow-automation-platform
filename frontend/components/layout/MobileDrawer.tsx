@@ -48,7 +48,7 @@ export default function MobileDrawer({
           </span>
         </button>
         {tenant && !role ? (
-          <p className="text-xs awap-muted" role="status">
+          <p className="text-xs awap-muted" aria-live="polite">
             {t("shell.roleUnavailable")}
           </p>
         ) : (

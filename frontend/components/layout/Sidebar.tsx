@@ -38,7 +38,7 @@ export default function Sidebar({
           </span>
         </button>
         {tenant && !role ? (
-          <p className="text-xs awap-muted" data-testid="role-unavailable" role="status">
+          <p className="text-xs awap-muted" data-testid="role-unavailable" aria-live="polite">
             {t("shell.roleUnavailable")}
           </p>
         ) : (
