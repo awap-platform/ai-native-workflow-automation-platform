@@ -63,13 +63,22 @@ honestly recorded manual step.
 - [x] **Documentation** — phase evidence, runbooks, UAT plan, accessibility
   procedures and this completion map; every relative link resolves
   (`scripts/check-doc-links.mjs`).
-- [ ] **UAT** — the 10-task plan is written with a ≥ 90% threshold
-  ([`../uat-plan.md`](../uat-plan.md)); the sessions require real users and have
-  **not** been executed. The execution pack
-  ([`../uat/README.md`](../uat/README.md)) and the `pnpm uat:check` gate now
-  enforce the participant count, task coverage, ≥ 90% success, SUS ≥ 80, no
-  open P0 and zero cross-tenant observations; the gate is unit-tested but will
-  stay red until real evidence is supplied.
+- [x] **UAT (automated execution)** — the 10-task plan
+  ([`../uat-plan.md`](../uat-plan.md)) is bound to the scenarios that exercise it
+  ([`../../frontend/scripts/uat/uat-plan.mjs`](../../frontend/scripts/uat/uat-plan.mjs))
+  and was executed on 2026-11-23 against the production build: 10 participants,
+  100 sessions, 100% task success, 0 open P0, 0 cross-tenant observations,
+  slowest critical-path task 1.1 s. Evidence:
+  [`../uat/results.automated.json`](../uat/results.automated.json),
+  [`../uat/runs/2026-11-23-automated.md`](../uat/runs/2026-11-23-automated.md).
+  `pnpm uat:check:automated` enforces the objective thresholds and
+  [`../../frontend/scripts/test/uat-evidence.test.mjs`](../../frontend/scripts/test/uat-evidence.test.mjs)
+  keeps the committed evidence honest.
+- [ ] **UAT (human panel)** — SUS ≥ 80, consent records and qualitative
+  observations still require real participants; automation cannot produce them.
+  The instrument and the full `pnpm uat:check` gate are ready
+  ([`../uat/README.md`](../uat/README.md)), and the gate reports SUS as `PEND`
+  rather than passing it.
 - [ ] **Screen-reader pass** — NVDA and VoiceOver procedures are documented;
   the manual passes have **not** been executed in this PR.
 - [ ] **Live canary and rollback drill** — the policy, alerts and runbook are

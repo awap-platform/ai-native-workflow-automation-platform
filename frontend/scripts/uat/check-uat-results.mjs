@@ -11,16 +11,133 @@
  * Usage: node scripts/uat/check-uat-results.mjs <results.json>
  */
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
-export const UAT_TASK_IDS = Array.from({ length: 10 }, (_, index) => `UAT-${String(index + 1).padStart(2, "0")}`);
+import { CRITICAL_PATH_LIMIT_SECONDS, CRITICAL_PATH_TASKS } from "./uat-plan.mjs";
+
+export const UAT_TASK_IDS = Array.from(
+  { length: 10 },
+  (_, index) => `UAT-${String(index + 1).padStart(2, "0")}`,
+);
 export const REQUIRED_PARTICIPANTS = 10;
 export const REQUIRED_SUCCESS_RATE = 0.9;
 export const REQUIRED_SUS = 80;
 
 function isConsented(participant) {
   return participant?.consent === true;
+}
+
+function summarizeSessions(sessions) {
+  const attemptsByTask = Object.fromEntries(
+    UAT_TASK_IDS.map((taskId) => [
+      taskId,
+      new Set(
+        sessions
+          .filter((session) => session?.taskId === taskId)
+          .map((session) => session?.participantId)
+          .filter(Boolean),
+      ).size,
+    ]),
+  );
+  const executed = sessions.filter(
+    (session) => session?.success === true || session?.success === false,
+  );
+  const successes = executed.filter((session) => session?.success === true).length;
+  return {
+    attemptsByTask,
+    executed,
+    successes,
+    successRate: executed.length === 0 ? 0 : successes / executed.length,
+  };
+}
+
+/**
+ * Automated-scope evaluation (issue 365).
+ *
+ * The objective criteria — participation, task coverage, success rate, open P0,
+ * tenant isolation and the critical-path time budget — can be measured by executing
+ * the scripted scenarios. SUS is a human judgement and is *reported as pending*
+ * instead of being invented; the strict `uat:check` run still requires it.
+ */
+export function evaluateAutomatedUat(results) {
+  const participants = Array.isArray(results?.participants) ? results.participants : [];
+  const sessions = Array.isArray(results?.sessions) ? results.sessions : [];
+  const findings = Array.isArray(results?.findings) ? results.findings : [];
+
+  const consented = participants.filter(isConsented);
+  const { attemptsByTask, executed, successes, successRate } = summarizeSessions(sessions);
+  const openP0 = findings.filter(
+    (finding) => finding?.severity === "P0" && finding?.status !== "closed",
+  );
+  const critical = executed.filter((session) => CRITICAL_PATH_TASKS.includes(session?.taskId));
+  const slowest = critical.reduce(
+    (max, session) => Math.max(max, Number(session?.durationSeconds ?? 0)),
+    0,
+  );
+
+  const checks = [
+    {
+      id: "participants",
+      description: `>= ${REQUIRED_PARTICIPANTS} participants`,
+      actual: consented.length,
+      ok: consented.length >= REQUIRED_PARTICIPANTS,
+    },
+    {
+      id: "task-coverage",
+      description: "every task executed by at least ten distinct participants",
+      actual: attemptsByTask,
+      ok: UAT_TASK_IDS.every((taskId) => attemptsByTask[taskId] >= REQUIRED_PARTICIPANTS),
+    },
+    {
+      id: "success-rate",
+      description: `>= ${Math.round(REQUIRED_SUCCESS_RATE * 100)}% task success`,
+      actual: Number(successRate.toFixed(4)),
+      ok: successRate >= REQUIRED_SUCCESS_RATE,
+    },
+    {
+      id: "open-p0",
+      description: "no open P0 finding",
+      actual: openP0.map((finding) => finding.id ?? "unnamed"),
+      ok: openP0.length === 0,
+    },
+    {
+      id: "tenant-isolation",
+      description: "zero cross-tenant observations",
+      actual: Number(results?.tenantIsolationFailures ?? 0),
+      ok: Number(results?.tenantIsolationFailures ?? 0) === 0,
+    },
+    {
+      id: "critical-path",
+      description: `critical-path task under ${CRITICAL_PATH_LIMIT_SECONDS}s (T8)`,
+      actual: Number(slowest.toFixed(1)),
+      ok: slowest <= CRITICAL_PATH_LIMIT_SECONDS,
+    },
+    {
+      id: "sus",
+      description: `SUS average >= ${REQUIRED_SUS} (human panel only)`,
+      actual: "pending-human-panel",
+      ok: true,
+      pending: true,
+      blocking: false,
+    },
+  ];
+
+  return {
+    ok: checks.every((check) => check.ok),
+    scope: "automated",
+    checks,
+    summary: {
+      participants: participants.length,
+      consentedParticipants: consented.length,
+      sessions: executed.length,
+      successes,
+      successRate: Number(successRate.toFixed(4)),
+      slowestCriticalPathSeconds: Number(slowest.toFixed(1)),
+      openP0: openP0.length,
+      sus: "pending-human-panel",
+    },
+  };
 }
 
 /**
@@ -45,7 +162,9 @@ export function evaluateUatResults(results) {
       ).size,
     ]),
   );
-  const executedSessions = sessions.filter((session) => session?.success === true || session?.success === false);
+  const executedSessions = sessions.filter(
+    (session) => session?.success === true || session?.success === false,
+  );
   const successes = executedSessions.filter((session) => session?.success === true).length;
   const successRate = executedSessions.length === 0 ? 0 : successes / executedSessions.length;
   const susAverage =
@@ -111,24 +230,38 @@ export function evaluateUatResults(results) {
 }
 
 export function formatReport(result) {
-  const lines = ["UAT results gate:"];
+  const lines = [`UAT results gate (${result.scope ?? "human"}):`];
   for (const check of result.checks) {
-    lines.push(`  ${check.ok ? "PASS" : "FAIL"} ${check.id}: ${check.description} -> ${JSON.stringify(check.actual)}`);
+    const label = check.pending ? "PEND" : check.ok ? "PASS" : "FAIL";
+    lines.push(`  ${label} ${check.id}: ${check.description} -> ${JSON.stringify(check.actual)}`);
   }
   lines.push(`Summary: ${JSON.stringify(result.summary)}`);
   return lines.join("\n");
 }
 
 function main() {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const target = process.argv[2];
+  const args = process.argv.slice(2);
+  let scope = "human";
+  let target;
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] === "--scope") {
+      scope = args[index + 1];
+      index += 1;
+    } else {
+      target = args[index];
+    }
+  }
   if (!target) {
-    console.error("Usage: node scripts/uat/check-uat-results.mjs <results.json>");
+    console.error(
+      "Usage: node scripts/uat/check-uat-results.mjs [--scope human|automated] <results.json>",
+    );
     process.exitCode = 2;
     return;
   }
   const resolved = target.startsWith("/") ? target : join(process.cwd(), target);
-  const result = evaluateUatResults(JSON.parse(readFileSync(resolved, "utf8")));
+  const results = JSON.parse(readFileSync(resolved, "utf8"));
+  const result =
+    scope === "automated" ? evaluateAutomatedUat(results) : evaluateUatResults(results);
   console.log(formatReport(result));
   if (!result.ok) {
     process.exitCode = 1;

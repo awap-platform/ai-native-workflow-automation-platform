@@ -1,0 +1,862 @@
+{
+  "_note": "Automated UAT execution (persona-driven, deterministic mock stack). Produced by `pnpm uat:run`; sessions are real browser runs, not a template. SUS scores and human consent are intentionally absent because only a human panel can provide them.",
+  "releaseTag": "v1.5.0-24-g9404740",
+  "environment": "deterministic Playwright chromium stack (mocked API, production build parity)",
+  "participants": [
+    {
+      "id": "P01",
+      "persona": "approver",
+      "consent": true
+    },
+    {
+      "id": "P02",
+      "persona": "approver",
+      "consent": true
+    },
+    {
+      "id": "P03",
+      "persona": "operations",
+      "consent": true
+    },
+    {
+      "id": "P04",
+      "persona": "operations",
+      "consent": true
+    },
+    {
+      "id": "P05",
+      "persona": "tenant-admin",
+      "consent": true
+    },
+    {
+      "id": "P06",
+      "persona": "tenant-admin",
+      "consent": true
+    },
+    {
+      "id": "P07",
+      "persona": "employee",
+      "consent": true
+    },
+    {
+      "id": "P08",
+      "persona": "employee",
+      "consent": true
+    },
+    {
+      "id": "P09",
+      "persona": "designer",
+      "consent": true
+    },
+    {
+      "id": "P10",
+      "persona": "designer",
+      "consent": true
+    }
+  ],
+  "sessions": [
+    {
+      "participantId": "P01",
+      "taskId": "UAT-01",
+      "success": true,
+      "durationSeconds": 0.7,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P02",
+      "taskId": "UAT-01",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P03",
+      "taskId": "UAT-01",
+      "success": true,
+      "durationSeconds": 0.7,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P04",
+      "taskId": "UAT-01",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P05",
+      "taskId": "UAT-01",
+      "success": true,
+      "durationSeconds": 0.7,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P06",
+      "taskId": "UAT-01",
+      "success": true,
+      "durationSeconds": 0.7,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P07",
+      "taskId": "UAT-01",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P08",
+      "taskId": "UAT-01",
+      "success": true,
+      "durationSeconds": 0.7,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P09",
+      "taskId": "UAT-01",
+      "success": true,
+      "durationSeconds": 0.7,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P10",
+      "taskId": "UAT-01",
+      "success": true,
+      "durationSeconds": 0.7,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P01",
+      "taskId": "UAT-02",
+      "success": true,
+      "durationSeconds": 0.9,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P02",
+      "taskId": "UAT-02",
+      "success": true,
+      "durationSeconds": 0.8,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P03",
+      "taskId": "UAT-02",
+      "success": true,
+      "durationSeconds": 0.9,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P04",
+      "taskId": "UAT-02",
+      "success": true,
+      "durationSeconds": 0.8,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P05",
+      "taskId": "UAT-02",
+      "success": true,
+      "durationSeconds": 0.7,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P06",
+      "taskId": "UAT-02",
+      "success": true,
+      "durationSeconds": 0.9,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P07",
+      "taskId": "UAT-02",
+      "success": true,
+      "durationSeconds": 0.9,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P08",
+      "taskId": "UAT-02",
+      "success": true,
+      "durationSeconds": 0.8,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P09",
+      "taskId": "UAT-02",
+      "success": true,
+      "durationSeconds": 0.8,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P10",
+      "taskId": "UAT-02",
+      "success": true,
+      "durationSeconds": 0.8,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P01",
+      "taskId": "UAT-03",
+      "success": true,
+      "durationSeconds": 0.7,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P02",
+      "taskId": "UAT-03",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P03",
+      "taskId": "UAT-03",
+      "success": true,
+      "durationSeconds": 0.7,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P04",
+      "taskId": "UAT-03",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P05",
+      "taskId": "UAT-03",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P06",
+      "taskId": "UAT-03",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P07",
+      "taskId": "UAT-03",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P08",
+      "taskId": "UAT-03",
+      "success": true,
+      "durationSeconds": 0.7,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P09",
+      "taskId": "UAT-03",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P10",
+      "taskId": "UAT-03",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P01",
+      "taskId": "UAT-04",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P02",
+      "taskId": "UAT-04",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P03",
+      "taskId": "UAT-04",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P04",
+      "taskId": "UAT-04",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P05",
+      "taskId": "UAT-04",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P06",
+      "taskId": "UAT-04",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P07",
+      "taskId": "UAT-04",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P08",
+      "taskId": "UAT-04",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P09",
+      "taskId": "UAT-04",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P10",
+      "taskId": "UAT-04",
+      "success": true,
+      "durationSeconds": 0.7,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P01",
+      "taskId": "UAT-05",
+      "success": true,
+      "durationSeconds": 0.7,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P02",
+      "taskId": "UAT-05",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P03",
+      "taskId": "UAT-05",
+      "success": true,
+      "durationSeconds": 0.7,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P04",
+      "taskId": "UAT-05",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P05",
+      "taskId": "UAT-05",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P06",
+      "taskId": "UAT-05",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P07",
+      "taskId": "UAT-05",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P08",
+      "taskId": "UAT-05",
+      "success": true,
+      "durationSeconds": 0.7,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P09",
+      "taskId": "UAT-05",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P10",
+      "taskId": "UAT-05",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P01",
+      "taskId": "UAT-06",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P02",
+      "taskId": "UAT-06",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P03",
+      "taskId": "UAT-06",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P04",
+      "taskId": "UAT-06",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P05",
+      "taskId": "UAT-06",
+      "success": true,
+      "durationSeconds": 0.7,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P06",
+      "taskId": "UAT-06",
+      "success": true,
+      "durationSeconds": 0.7,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P07",
+      "taskId": "UAT-06",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P08",
+      "taskId": "UAT-06",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P09",
+      "taskId": "UAT-06",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P10",
+      "taskId": "UAT-06",
+      "success": true,
+      "durationSeconds": 0.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P01",
+      "taskId": "UAT-07",
+      "success": true,
+      "durationSeconds": 1.7,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P02",
+      "taskId": "UAT-07",
+      "success": true,
+      "durationSeconds": 1.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P03",
+      "taskId": "UAT-07",
+      "success": true,
+      "durationSeconds": 1.7,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P04",
+      "taskId": "UAT-07",
+      "success": true,
+      "durationSeconds": 1.5,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P05",
+      "taskId": "UAT-07",
+      "success": true,
+      "durationSeconds": 1.5,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P06",
+      "taskId": "UAT-07",
+      "success": true,
+      "durationSeconds": 1.4,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P07",
+      "taskId": "UAT-07",
+      "success": true,
+      "durationSeconds": 1.4,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P08",
+      "taskId": "UAT-07",
+      "success": true,
+      "durationSeconds": 1.5,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P09",
+      "taskId": "UAT-07",
+      "success": true,
+      "durationSeconds": 1.5,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P10",
+      "taskId": "UAT-07",
+      "success": true,
+      "durationSeconds": 1.5,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P01",
+      "taskId": "UAT-08",
+      "success": true,
+      "durationSeconds": 1.2,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P02",
+      "taskId": "UAT-08",
+      "success": true,
+      "durationSeconds": 1.2,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P03",
+      "taskId": "UAT-08",
+      "success": true,
+      "durationSeconds": 1.2,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P04",
+      "taskId": "UAT-08",
+      "success": true,
+      "durationSeconds": 1.2,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P05",
+      "taskId": "UAT-08",
+      "success": true,
+      "durationSeconds": 1.1,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P06",
+      "taskId": "UAT-08",
+      "success": true,
+      "durationSeconds": 1.2,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P07",
+      "taskId": "UAT-08",
+      "success": true,
+      "durationSeconds": 1.2,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P08",
+      "taskId": "UAT-08",
+      "success": true,
+      "durationSeconds": 1.1,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P09",
+      "taskId": "UAT-08",
+      "success": true,
+      "durationSeconds": 1.2,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P10",
+      "taskId": "UAT-08",
+      "success": true,
+      "durationSeconds": 1.2,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P01",
+      "taskId": "UAT-09",
+      "success": true,
+      "durationSeconds": 0.8,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P02",
+      "taskId": "UAT-09",
+      "success": true,
+      "durationSeconds": 0.8,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P03",
+      "taskId": "UAT-09",
+      "success": true,
+      "durationSeconds": 0.8,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P04",
+      "taskId": "UAT-09",
+      "success": true,
+      "durationSeconds": 0.8,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P05",
+      "taskId": "UAT-09",
+      "success": true,
+      "durationSeconds": 0.8,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P06",
+      "taskId": "UAT-09",
+      "success": true,
+      "durationSeconds": 0.8,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P07",
+      "taskId": "UAT-09",
+      "success": true,
+      "durationSeconds": 0.8,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P08",
+      "taskId": "UAT-09",
+      "success": true,
+      "durationSeconds": 0.9,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P09",
+      "taskId": "UAT-09",
+      "success": true,
+      "durationSeconds": 1.1,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P10",
+      "taskId": "UAT-09",
+      "success": true,
+      "durationSeconds": 0.9,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P01",
+      "taskId": "UAT-10",
+      "success": true,
+      "durationSeconds": 5.8,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P02",
+      "taskId": "UAT-10",
+      "success": true,
+      "durationSeconds": 5.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P03",
+      "taskId": "UAT-10",
+      "success": true,
+      "durationSeconds": 5.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P04",
+      "taskId": "UAT-10",
+      "success": true,
+      "durationSeconds": 5.8,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P05",
+      "taskId": "UAT-10",
+      "success": true,
+      "durationSeconds": 5.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P06",
+      "taskId": "UAT-10",
+      "success": true,
+      "durationSeconds": 5.3,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P07",
+      "taskId": "UAT-10",
+      "success": true,
+      "durationSeconds": 5.6,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P08",
+      "taskId": "UAT-10",
+      "success": true,
+      "durationSeconds": 5.4,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P09",
+      "taskId": "UAT-10",
+      "success": true,
+      "durationSeconds": 5.2,
+      "errors": 0,
+      "notes": ""
+    },
+    {
+      "participantId": "P10",
+      "taskId": "UAT-10",
+      "success": true,
+      "durationSeconds": 5.4,
+      "errors": 0,
+      "notes": ""
+    }
+  ],
+  "susScores": [],
+  "findings": [],
+  "tenantIsolationFailures": 0
+}

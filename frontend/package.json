@@ -17,6 +17,8 @@
     "test:e2e": "playwright test",
     "test:a11y": "playwright test e2e/accessibility.spec.ts",
     "uat:check": "node scripts/uat/check-uat-results.mjs",
+    "uat:check:automated": "node scripts/uat/check-uat-results.mjs --scope automated ../docs/uat/results.automated.json",
+    "uat:run": "node scripts/uat/run-uat.mjs",
     "pact:generate": "jest --runInBand lib/__tests__/api.pact.spec.ts",
     "pact:copy": "node scripts/copy-pact.mjs"
   },
