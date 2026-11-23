@@ -1,0 +1,120 @@
+name: Copilot Nightly Live Provider
+
+on:
+  schedule:
+    # Nightly, after the regular CI schedule, so a provider outage does not mask PR signal.
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: copilot-nightly
+  cancel-in-progress: false
+
+jobs:
+  live-provider:
+    name: Copilot live-provider journey
+    # Opt-in: set the repository variable COPILOT_NIGHTLY_ENABLED=true and provide
+    # AI_OPENAI_API_KEY. Pushes and PRs never run this job.
+    if: ${{ vars.COPILOT_NIGHTLY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - name: Resolve Playwright version
+        id: playwright-version
+        working-directory: frontend
+        run: |
+          VERSION=$(node -p "require('@playwright/test/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium || pnpm exec playwright install chromium
+        working-directory: frontend
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - name: Start Compose stack with the live provider
+        env:
+          KAFKA_ENABLED: "true"
+          AI_NODE_ENABLED: "true"
+          AI_LAYER_ENABLED: "true"
+          AI_PROVIDER: openai
+          AI_OPENAI_BASE_URL: ${{ secrets.AI_OPENAI_BASE_URL }}
+          AI_OPENAI_API_KEY: ${{ secrets.AI_OPENAI_API_KEY }}
+          AI_OPENAI_MODEL: ${{ vars.AI_OPENAI_MODEL || 'gpt-4o-mini' }}
+          HEALTH_SHOW_DETAILS: "always"
+          OPENSEARCH_ENABLED: "false"
+          FILE_MANAGE_BUCKETS: "false"
+          AUTH_RATE_LIMIT_ENABLED: "false"
+          OUTBOX_RELAY_INTERVAL_MS: "1000"
+          OUTBOX_RELAY_INITIAL_DELAY_MS: "1000"
+        run: docker compose -f infra/docker-compose.yml --profile full up -d --build
+      - name: Record the configured model version
+        run: |
+          echo "Copilot nightly model: ${{ vars.AI_OPENAI_MODEL || 'gpt-4o-mini' }}"
+      - name: Wait for backend health
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/actuator/health >/dev/null; then
+              echo "Backend healthy after $attempt attempt(s)."
+              exit 0
+            fi
+            sleep 5
+          done
+          docker compose -f infra/docker-compose.yml logs --tail=200 backend
+          exit 1
+      - name: Wait for AI layer and frontend
+        run: |
+          for attempt in $(seq 1 120); do
+            if curl -fsS http://localhost:8000/api/v1/health >/dev/null \
+              && curl -fsS http://localhost:3000 >/dev/null; then
+              echo "AI layer and frontend ready after $attempt attempt(s)."
+              exit 0
+            fi
+            sleep 5
+          done
+          docker compose -f infra/docker-compose.yml logs --tail=300 ai-layer frontend
+          exit 1
+      - name: Run the live-provider Copilot journey
+        working-directory: frontend
+        env:
+          CI: "true"
+          E2E_EXTERNAL_STACK: "1"
+          E2E_LIVE_STACK: "1"
+          E2E_AI_LIVE_PROVIDER: "1"
+          E2E_BASE_URL: http://localhost:3000
+          E2E_API_URL: http://localhost:8080
+          E2E_SEED_SUFFIX: nightly-${{ github.run_id }}-${{ github.run_attempt }}
+        run: pnpm exec playwright test e2e/copilot-live-provider.spec.ts --workers=1
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: copilot-nightly-report
+          path: frontend/playwright-report
+          retention-days: 14
+      - name: Dump Compose logs on failure
+        if: failure()
+        run: >-
+          docker compose -f infra/docker-compose.yml logs --tail=2000
+          backend ai-layer kafka
+      - name: Stop Compose stack
+        if: always()
+        run: docker compose -f infra/docker-compose.yml down -v

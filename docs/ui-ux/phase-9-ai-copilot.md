@@ -91,3 +91,8 @@ explicitly says the deployment did not report one.
 - `frontend/e2e/phase-9-ai-copilot.spec.ts` — T9-01…T9-11 and U9-01/U9-02/U9-07/U9-10 with axe and
   visual baselines.
 - `ai-layer/tests/test_copilot_phase9.py` — response metadata, citations, warnings and budget 429.
+- Full Phase 2 journey (issue 284) — [`copilot-journey.spec.ts`](../../frontend/e2e/copilot-journey.spec.ts)
+  runs the deterministic natural-language → AI_TASK HITL → approval → completion path, and
+  [`copilot-live-provider.spec.ts`](../../frontend/e2e/copilot-live-provider.spec.ts) runs nightly
+  against a configured provider via [`.github/workflows/copilot-nightly.yml`](../../.github/workflows/copilot-nightly.yml).
+  See [`copilot-full-journey.md`](copilot-full-journey.md).
