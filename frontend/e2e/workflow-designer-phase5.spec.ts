@@ -304,7 +304,12 @@ test("designer controls use the design system and pass axe with properties open"
   await expect(page.getByLabel("Assignees")).toHaveClass(/awap-textarea/);
 
   for (const name of ["Zoom in", "Zoom out", "Fit view"]) {
-    await expect(page.getByRole("button", { name })).toHaveAttribute("data-slot", "button");
+    // React Flow ships its own controls with title/screen-reader labels ("Zoom In"); exact
+    // matching selects the design-system buttons this issue migrated.
+    await expect(page.getByRole("button", { name, exact: true })).toHaveAttribute(
+      "data-slot",
+      "button",
+    );
   }
 
   for (const colorScheme of ["light", "dark"] as const) {
