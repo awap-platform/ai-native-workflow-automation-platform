@@ -16,8 +16,9 @@ concurrency:
 jobs:
   live-provider:
     name: Copilot live-provider journey
-    # The variant needs a real OpenAI-compatible provider; skip cleanly when it is not configured.
-    if: ${{ secrets.AI_OPENAI_API_KEY != '' }}
+    # Opt-in: set the repository variable COPILOT_NIGHTLY_ENABLED=true and provide
+    # AI_OPENAI_API_KEY. Pushes and PRs never run this job.
+    if: ${{ vars.COPILOT_NIGHTLY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

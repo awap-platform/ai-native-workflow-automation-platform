@@ -37,9 +37,10 @@ the live-stack Playwright suite; nothing is mocked on the journey path.
 | Spec | [`frontend/e2e/copilot-live-provider.spec.ts`](../../frontend/e2e/copilot-live-provider.spec.ts) |
 | Workflow | [`.github/workflows/copilot-nightly.yml`](../../.github/workflows/copilot-nightly.yml) |
 | Provider | OpenAI-compatible (`AI_PROVIDER=openai`) |
+| Enabling | Repository variable `COPILOT_NIGHTLY_ENABLED=true` |
 | Required secrets | `AI_OPENAI_API_KEY` (optional `AI_OPENAI_BASE_URL`); model from `AI_OPENAI_MODEL` or `gpt-4o-mini` |
 | Trigger | Nightly at 03:00 UTC and manual dispatch |
-| Skip behaviour | The job is skipped when `AI_OPENAI_API_KEY` is not configured |
+| Skip behaviour | The job is skipped unless `COPILOT_NIGHTLY_ENABLED=true`; the secret must exist when enabling |
 
 The workflow records the configured model version in the run log before executing the spec.
 
