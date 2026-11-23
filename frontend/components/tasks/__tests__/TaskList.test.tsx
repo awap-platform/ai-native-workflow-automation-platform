@@ -116,6 +116,11 @@ describe("TaskList row layout contract", () => {
     }
   });
 
+  it("uses singular count copy for one result", () => {
+    renderList({ rows: [rows[0]!] });
+    expect(screen.getByTestId("task-result-count")).toHaveTextContent("1 result");
+  });
+
   it("toggles select-all and a single row exactly once per click", () => {
     const onToggleAll = jest.fn();
     const onToggleCheck = jest.fn();
