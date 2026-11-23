@@ -101,7 +101,7 @@ export default function NodePropertiesPanel({
         <Button type="button" variant="outline" size="sm" onClick={onDuplicate}>
           Duplicate node
         </Button>
-        <Button type="button" variant="destructive" size="sm" onClick={onDelete}>
+        <Button type="button" variant="outline" size="sm" onClick={onDelete}>
           Delete node
         </Button>
         <Button type="button" variant="ghost" size="sm" onClick={onClose}>
