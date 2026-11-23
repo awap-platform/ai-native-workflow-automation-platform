@@ -172,15 +172,31 @@ export function flattenNavItems(): NavItem[] {
   return NAV_GROUPS.flatMap((group) => group.items);
 }
 
-/** Filters admin-only destinations. An unknown role keeps the legacy full menu. */
-export function visibleNavGroups(role: string | null | undefined): NavGroup[] {
-  if (!role) {
+export interface VisibleNavOptions {
+  /**
+   * True once the client knows that a session and tenant exist. Before hydration this is false,
+   * so the server snapshot and the first client paint keep the legacy full menu.
+   */
+  session?: boolean;
+}
+
+/**
+ * Filters role-gated destinations. A session with no known role fails closed: every item that
+ * requires a role is hidden, so an absent `awap_role` cookie can never expose Admin navigation
+ * (issue 362). The full menu is returned only for the pre-hydration snapshot.
+ */
+export function visibleNavGroups(
+  role: string | null | undefined,
+  options: VisibleNavOptions = {},
+): NavGroup[] {
+  const session = options.session ?? role !== null;
+  if (!role && !session) {
     return NAV_GROUPS;
   }
   return NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter(
-      (item) => !item.requiredRoles || item.requiredRoles.includes(role),
+      (item) => !item.requiredRoles || (role != null && item.requiredRoles.includes(role)),
     ),
   })).filter((group) => group.items.length > 0);
 }

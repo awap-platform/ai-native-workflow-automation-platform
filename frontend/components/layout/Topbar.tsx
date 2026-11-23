@@ -100,9 +100,15 @@ export default function Topbar({
           <span className="awap-truncate max-w-48 text-sm font-semibold" title={displayName}>
             {t("shell.tenant", { tenant: displayName })}
           </span>
-          <span className="text-xs awap-muted">
-            {t("shell.role", { role: role ?? t("shell.roleUnknown") })}
-          </span>
+          {tenant && !role ? (
+            <span className="text-xs awap-muted" data-testid="topbar-role-unavailable">
+              {t("shell.roleUnavailable")}
+            </span>
+          ) : (
+            <span className="text-xs awap-muted">
+              {t("shell.role", { role: role ?? t("shell.roleUnknown") })}
+            </span>
+          )}
         </div>
 
         <UserMenu

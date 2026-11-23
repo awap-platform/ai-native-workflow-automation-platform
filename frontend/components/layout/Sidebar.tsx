@@ -37,9 +37,15 @@ export default function Sidebar({
             {t("shell.tenant", { tenant: tenant ?? t("shell.selectTenant") })}
           </span>
         </button>
-        <p className="text-xs awap-muted" data-testid="sidebar-role">
-          {t("shell.role", { role: role ?? t("shell.roleUnknown") })}
-        </p>
+        {tenant && !role ? (
+          <p className="text-xs awap-muted" data-testid="role-unavailable" aria-live="polite">
+            {t("shell.roleUnavailable")}
+          </p>
+        ) : (
+          <p className="text-xs awap-muted" data-testid="sidebar-role">
+            {t("shell.role", { role: role ?? t("shell.roleUnknown") })}
+          </p>
+        )}
         <button type="button" className="awap-button" onClick={() => void logout()}>
           {t("shell.logout")}
         </button>

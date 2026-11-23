@@ -65,6 +65,11 @@ where the layout allows it; icons always have an accessible name.
   returns to the hamburger trigger.
 - `Ctrl+K` / `Cmd+K` opens the command palette. Navigation destinations and
   actions share the sidebar catalogue, so the palette cannot drift from the IA.
+- Fail-closed navigation (issue 362): the legacy full menu is returned only for
+  the pre-hydration server snapshot. Once a tenant/session exists, a missing
+  `awap_role` cookie hides every role-gated item, including Admin, and the shell
+  shows "Role unavailable" instead of "Role: Unknown". A direct Admin URL renders
+  `ForbiddenState`; the backend remains authoritative.
 
 ## States
 

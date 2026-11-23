@@ -40,6 +40,7 @@
   "shell.aiAssistant": "AI assistant",
   "shell.role": "Role: {role}",
   "shell.roleUnknown": "Unknown",
+  "shell.roleUnavailable": "Role unavailable. Ask a tenant administrator to assign your role.",
   "shell.themeLight": "Switch to light theme",
   "shell.themeDark": "Switch to dark theme",
   "shell.language": "Language",

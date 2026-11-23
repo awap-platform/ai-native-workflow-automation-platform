@@ -96,6 +96,31 @@ test("a non-admin role hides admin destinations and blocks the admin URL", async
   );
 });
 
+test("a missing role cookie fails closed instead of exposing admin navigation", async ({ page }) => {
+  await setSession(page, { tenant: "tenant-a", role: null });
+  await installApiMocks(page, false);
+  await page.goto("/dashboard");
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+
+  await expect(page.getByRole("link", { name: "CSP reports" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Identity console" })).toHaveCount(0);
+  await expect(page.getByTestId("role-unavailable")).toBeVisible();
+  await expect(page.getByTestId("topbar-role-unavailable")).toBeVisible();
+
+  await page.goto("/admin/csp");
+  await expect(page.getByTestId("forbidden-state")).toBeVisible();
+});
+
+test("admin navigation returns when the role cookie is restored", async ({ page }) => {
+  await setSession(page, { tenant: "tenant-a", role: "TENANT_ADMIN" });
+  await installApiMocks(page, false);
+  await page.goto("/dashboard");
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+
+  await expect(page.getByRole("link", { name: "CSP reports" })).toBeVisible();
+  await expect(page.getByTestId("role-unavailable")).toHaveCount(0);
+});
+
 test("an unknown route renders the 404 screen with a way back", async ({ page }) => {
   await page.goto("/this-route-does-not-exist");
   await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();

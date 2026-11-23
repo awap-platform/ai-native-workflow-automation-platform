@@ -15,16 +15,19 @@ export default function GlobalCommandPalette({
   open,
   onClose,
   role,
+  session,
 }: {
   open: boolean;
   onClose: () => void;
   role: string | null;
+  /** True once a session/tenant exists, so an unknown role hides role-gated items. */
+  session: boolean;
 }) {
   const router = useRouter();
   const { t } = useI18n();
   const { toggleTheme } = useTheme();
 
-  const items: CommandItem[] = visibleNavGroups(role).flatMap((group) =>
+  const items: CommandItem[] = visibleNavGroups(role, { session }).flatMap((group) =>
     group.items.map((item) => ({
       id: `nav-${item.href}`,
       label: t(item.labelKey),
