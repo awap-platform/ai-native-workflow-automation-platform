@@ -84,3 +84,14 @@ scheduled-pipeline cards. The pipeline list reports only durable signals:
   backend rebuild to appear in the console.
 - **Visual baselines.** Analytics and audit filters use fixed query-string dates in the visual
   suite; the default range in normal use is the trailing seven days.
+
+## Dashboard widgets (issue 364)
+
+The operational dashboard answers "what needs attention now?" with four permission-checked
+widgets: a top-five pending-work list ordered by the server SLA, an SLA-risk card (overdue, due
+within 24 hours, unassigned), recent instance activity with deep links, and a seven-day event trend
+from the analytics overview endpoint. Each widget owns its loading, empty, error and partial state,
+so one failing API never blanks the page. Selectors live in
+[`frontend/lib/dashboard.ts`](../../frontend/lib/dashboard.ts) and are unit-tested independently of
+React; [`frontend/e2e/dashboard.spec.ts`](../../frontend/e2e/dashboard.spec.ts) covers populated,
+empty and partial-failure cases.

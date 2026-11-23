@@ -2409,3 +2409,50 @@
 .awap-designer__edge--selected {
   stroke-width: 3;
 }
+
+/* --------------------------------------------------- dashboard (364) */
+
+.awap-dashboard__stats {
+  display: grid;
+  gap: var(--awap-space-2);
+  margin: 0;
+}
+
+.awap-dashboard__stats > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--awap-space-2);
+}
+
+.awap-dashboard__stats dt {
+  color: var(--awap-muted);
+  font-size: var(--awap-text-sm);
+}
+
+.awap-dashboard__stats dd {
+  margin: 0;
+  font-size: var(--awap-text-lg);
+  font-weight: 700;
+}
+
+.awap-dashboard__trend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--awap-space-1);
+}
+
+.awap-dashboard__trend li {
+  display: grid;
+  grid-template-columns: 3rem 1fr 3rem;
+  align-items: center;
+  gap: var(--awap-space-2);
+  font-size: var(--awap-text-xs);
+}
+
+.awap-dashboard__trend progress {
+  width: 100%;
+  height: 0.6rem;
+}

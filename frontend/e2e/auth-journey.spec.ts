@@ -26,6 +26,15 @@ async function mockDashboardReads(page: Page): Promise<void> {
   await page.route(`${API}workflow-instances`, (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
   );
+  // The deepened dashboard also reads the analytics overview; an unmocked request would fall
+  // through to the real backend and expire the synthetic session.
+  await page.route(`${API}analytics/overview**`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ dashboard: { dailyTotals: [] }, eventTotals: [], totalEvents: 0 }),
+    }),
+  );
 }
 
 test.describe("registration", () => {
