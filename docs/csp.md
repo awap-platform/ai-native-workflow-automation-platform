@@ -13,7 +13,7 @@ script-src 'self' 'nonce-<per-request>' 'strict-dynamic';
 script-src-attr 'none';
 style-src 'self' 'nonce-<per-request>';
 style-src-elem 'self' 'nonce-<per-request>';
-style-src-attr 'none';
+style-src-attr 'none';            <- /workflows/designer scopes it to 'unsafe-inline'
 img-src 'self' data: blob:;
 font-src 'self';
 media-src 'self' blob:;
@@ -44,14 +44,18 @@ report-to csp-endpoint
 - `frame-ancestors 'none'`, `frame-src 'none'`, `object-src 'none'`,
   `base-uri 'self'` and `form-action 'self'` stay locked down.
 
-## Style-attribute exception removed (issue 363)
+## Scoped designer style-attribute exception (issue 363)
 
-Every React `style` attribute was migrated to a token class in `globals.css`, so
-`style-src-attr 'unsafe-inline'` and its `X-CSP-Style-Attr-Exception` response
-header are gone. The inline-style ratchet baseline is empty; `pnpm lint:inline`
-fails on any new occurrence *or* a stale baseline entry. The one dynamic edge
-label position is applied through the CSSOM rather than a `style` attribute, so
-it stays compatible with `style-src-attr 'none'`.
+Every React `style` attribute in application code was migrated to a token class
+in `globals.css`, and the inline-style ratchet baseline is empty;
+`pnpm lint:inline` fails on any new occurrence *or* a stale baseline entry.
+
+One reviewed exception remains: `/workflows/designer`. React Flow applies
+dynamic node/edge geometry as inline style attributes during SSR, which
+`style-src-attr 'none'` would block. The proxy emits
+`style-src-attr 'unsafe-inline'` **only** for that route; every other route keeps
+`'none'`. The application's own edge-label geometry is applied through the
+CSSOM, and the `X-CSP-Style-Attr-Exception` response header is gone.
 
 ## Reporting
 

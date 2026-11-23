@@ -52,14 +52,18 @@ describe("csp", () => {
     expect(csp).not.toContain("unsafe-eval");
   });
 
-  it("never emits a style-attribute exception", () => {
+  it("blocks style attributes by default on every ordinary route", () => {
     const csp = policy();
     expect(csp).toContain("style-src-attr 'none'");
-    expect(csp).not.toContain("style-src-attr 'unsafe-inline'");
     expect(csp).not.toContain("unsafe-inline");
-    // Even an explicit opt-in cannot reintroduce the removed exception.
-    expect(policy({ styleAttrException: true })).not.toContain("unsafe-inline");
-    expect(policy({ styleAttrException: false })).not.toContain("unsafe-inline");
+  });
+
+  it("allows only the reviewed designer geometry surface", () => {
+    const csp = policy({ styleAttr: "unsafe-inline" });
+    expect(csp).toContain("style-src-attr 'unsafe-inline'");
+    // The exception is still scoped to attributes; inline <style>/<script> need the nonce.
+    expect(csp).not.toMatch(/style-src-elem[^;]*unsafe-inline/);
+    expect(csp).not.toMatch(/script-src[^;]*unsafe-inline/);
   });
 
   it("fails the build after the exception expiry", () => {

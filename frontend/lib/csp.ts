@@ -36,8 +36,11 @@ export interface CspOptions {
   reportUri?: string;
   /** Injectable clock for tests and for deterministic policy snapshots. */
   now?: Date;
-  /** Overrides the resolved exception state; used by tests. */
-  styleAttrException?: boolean;
+  /**
+   * `none` everywhere by default. The designer canvas is the one reviewed exception because
+   * React Flow applies dynamic node/edge geometry as inline style attributes during SSR.
+   */
+  styleAttr?: "none" | "unsafe-inline";
   /** Adds `upgrade-insecure-requests`; enabled in production deployments. */
   upgradeInsecureRequests?: boolean;
 }
@@ -115,6 +118,7 @@ export function buildCsp({
   nonce,
   apiOrigins,
   reportUri = CSP_REPORT_URI,
+  styleAttr = "none",
   upgradeInsecureRequests = false,
 }: CspOptions): string {
   const origins = apiOrigins.trim() || "'self'";
@@ -125,7 +129,7 @@ export function buildCsp({
     "script-src-attr 'none'",
     `style-src 'self' 'nonce-${nonce}'`,
     `style-src-elem 'self' 'nonce-${nonce}'`,
-    "style-src-attr 'none'",
+    `style-src-attr ${styleAttr === "unsafe-inline" ? "'unsafe-inline'" : "'none'"}`,
     "img-src 'self' data: blob:",
     "font-src 'self'",
     "media-src 'self' blob:",

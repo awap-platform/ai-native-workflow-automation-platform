@@ -18,17 +18,13 @@ test("security headers use a nonce and block foreign connect origins", async ({ 
   expect(csp).not.toContain("unsafe-eval");
   expect(csp).toMatch(/style-src-elem[^;]*'nonce-/);
   expect(csp).not.toMatch(/style-src-elem[^;]*unsafe-inline/);
-  // The attribute exception is scoped and time limited; the violation report
-  // header exposes its expiry so monitoring can alert before it lapses.
-  expect(csp).toContain("style-src-attr 'unsafe-inline'");
+  // All ordinary routes block style attributes; only the designer route carries the reviewed
+  // React Flow geometry exception.
+  expect(csp).toContain("style-src-attr 'none'");
   expect(csp).toContain("connect-src");
   expect(csp).not.toContain("https://evil.example.com");
   expect(csp).toContain("report-uri /api/csp-report");
   expect(csp).toContain("frame-ancestors 'none'");
-
-  const exception = response.headers()["x-csp-style-attr-exception"] ?? "";
-  expect(exception).toContain("active");
-  expect(exception).toContain("expires=");
 
   expect(response.headers()["report-to"]).toContain("/api/csp-report");
   expect(response.headers()["reporting-endpoints"]).toContain("/api/csp-report");

@@ -55,9 +55,13 @@ export function proxy(request: NextRequest) {
   const nonce = generateNonce();
   const reportOnly = process.env.CSP_REPORT_ONLY === "true";
   const headerName = cspHeaderName(reportOnly);
+  // React Flow applies dynamic node/edge geometry as inline style attributes. That is the one
+  // reviewed exception, scoped to the designer route; every other route keeps style-src-attr 'none'.
+  const designerRoute = request.nextUrl.pathname.startsWith("/workflows/designer");
   const csp = buildCsp({
     nonce,
     apiOrigins,
+    styleAttr: designerRoute ? "unsafe-inline" : "none",
     upgradeInsecureRequests: process.env.NODE_ENV === "production",
   });
 
