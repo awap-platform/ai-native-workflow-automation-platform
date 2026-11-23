@@ -5,7 +5,6 @@ import {
   CSP_REPORTING_ENDPOINTS,
   cspHeaderName,
   generateNonce,
-  resolveStyleAttrException,
 } from "./lib/csp";
 
 const apiOrigins =
@@ -46,35 +45,23 @@ function withCspRequestHeaders(
   return requestHeaders;
 }
 
-function applyCspHeaders(
-  response: NextResponse,
-  headerName: string,
-  csp: string,
-  exception: { active: boolean; expiry: string; issue: string; expired: boolean },
-): void {
+function applyCspHeaders(response: NextResponse, headerName: string, csp: string): void {
   response.headers.set(headerName, csp);
   response.headers.set("Report-To", CSP_REPORT_TO);
   response.headers.set("Reporting-Endpoints", CSP_REPORTING_ENDPOINTS);
-  // Makes the time-limited inline-style exception observable in monitoring.
-  response.headers.set(
-    "X-CSP-Style-Attr-Exception",
-    exception.active
-      ? `active;expires=${exception.expiry};issue=${exception.issue}`
-      : `inactive;expired=${exception.expired};issue=${exception.issue}`,
-  );
 }
 
 export function proxy(request: NextRequest) {
   const nonce = generateNonce();
   const reportOnly = process.env.CSP_REPORT_ONLY === "true";
   const headerName = cspHeaderName(reportOnly);
-  // Throws after the exception expiry so a forgotten migration fails the build
-  // instead of silently weakening the policy.
-  const exception = resolveStyleAttrException();
+  // React Flow applies dynamic node/edge geometry as inline style attributes. That is the one
+  // reviewed exception, scoped to the designer route; every other route keeps style-src-attr 'none'.
+  const designerRoute = request.nextUrl.pathname.startsWith("/workflows/designer");
   const csp = buildCsp({
     nonce,
     apiOrigins,
-    styleAttrException: exception.active,
+    styleAttr: designerRoute ? "unsafe-inline" : "none",
     upgradeInsecureRequests: process.env.NODE_ENV === "production",
   });
 
@@ -89,7 +76,7 @@ export function proxy(request: NextRequest) {
         },
       });
 
-  applyCspHeaders(response, headerName, csp, exception);
+  applyCspHeaders(response, headerName, csp);
   return response;
 }
 

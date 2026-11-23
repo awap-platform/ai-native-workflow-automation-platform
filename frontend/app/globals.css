@@ -2256,3 +2256,156 @@
     background: var(--awap-primary);
   }
 }
+
+/* ------------------------------------------------- inline-style migration (363) */
+
+.awap-edge-editor {
+  width: 100%;
+}
+
+.awap-edge-editor__heading {
+  margin: 0 0 var(--awap-space-1);
+  font-size: var(--awap-text-md);
+  font-weight: 700;
+}
+
+.awap-edge-editor__meta {
+  margin: 0 0 var(--awap-space-2);
+  color: var(--awap-muted);
+  font-size: var(--awap-text-sm);
+}
+
+.awap-edge-editor__textarea {
+  display: block;
+  width: 100%;
+  min-height: 6rem;
+  margin-top: var(--awap-space-1);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.awap-edge-editor__meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--awap-space-2);
+  color: var(--awap-muted);
+  font-size: var(--awap-text-xs);
+}
+
+.awap-edge-editor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--awap-space-2);
+  margin-top: var(--awap-space-2);
+}
+
+.awap-edge-editor__suggestions {
+  list-style: none;
+  padding: var(--awap-space-1);
+  margin: var(--awap-space-1) 0 var(--awap-space-2);
+  border: 1px solid var(--awap-border);
+  border-radius: var(--awap-radius-sm);
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.awap-edge-editor__suggestion {
+  display: block;
+  width: 100%;
+  padding: 4px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--awap-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.awap-edge-editor__suggestion[data-active="true"] {
+  background: var(--awap-surface-raised);
+}
+
+.awap-edge-editor__mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.awap-edge-editor__suggestion-description {
+  color: var(--awap-muted);
+  font-size: var(--awap-text-xs);
+}
+
+.awap-edge-editor__error {
+  color: var(--awap-danger);
+}
+
+.awap-edge-editor__muted {
+  color: var(--awap-muted);
+}
+
+.awap-edge-editor__success {
+  color: var(--awap-success);
+}
+
+.awap-edge-editor__fieldset {
+  margin-top: var(--awap-space-3);
+  border: 1px solid var(--awap-border);
+  border-radius: var(--awap-radius-sm);
+}
+
+.awap-edge-editor__legend {
+  font-size: var(--awap-text-sm);
+  font-weight: 700;
+}
+
+.awap-edge-editor__control {
+  display: block;
+  width: 100%;
+  margin-top: var(--awap-space-1);
+}
+
+.awap-edge-editor__insert {
+  margin-top: var(--awap-space-2);
+}
+
+.awap-transition-composer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--awap-space-2);
+  margin-top: var(--awap-space-2);
+}
+
+.awap-transition-composer__heading {
+  width: 100%;
+  margin: 0;
+  font-size: var(--awap-text-md);
+  font-weight: 700;
+}
+
+.awap-transition-composer__field {
+  display: grid;
+  gap: 2px;
+  font-size: var(--awap-text-sm);
+}
+
+.awap-form-file {
+  margin-top: var(--awap-space-1);
+}
+
+.awap-form-file__progress {
+  display: block;
+  width: 100%;
+}
+
+.awap-form-file__status {
+  margin: var(--awap-space-1) 0;
+  font-size: var(--awap-text-sm);
+}
+
+.awap-designer__edge {
+  stroke: var(--awap-primary);
+  stroke-width: 2;
+}
+
+.awap-designer__edge--selected {
+  stroke-width: 3;
+}

@@ -98,29 +98,30 @@ export default function FormFileField({
   }
 
   return (
-    <div style={{ marginTop: 4 }}>
+    <div className="awap-form-file">
       <input
         type="file"
         aria-label={`${fieldId} file`}
         onChange={handleChange}
         disabled={uploading}
+        className="awap-form-file__input"
       />
       {uploading ? (
         <progress
           aria-label={`${fieldId} upload progress`}
           value={progress}
           max={100}
-          style={{ display: "block", width: "100%" }}
+          className="awap-form-file__progress"
         />
       ) : null}
       {fileId ? (
-        <p role="status" style={{ margin: "4px 0", fontSize: 13 }}>
+        <p role="status" className="awap-form-file__status">
           Uploaded. Scan status: {scanStatusLabel(status)}
           {isScanReady(status) ? " — ready to submit" : ""}
         </p>
       ) : null}
       {fileId ? (
-        <button type="button" onClick={clear}>
+        <button type="button" onClick={clear} className="awap-button">
           Remove file
         </button>
       ) : null}

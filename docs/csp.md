@@ -13,7 +13,7 @@ script-src 'self' 'nonce-<per-request>' 'strict-dynamic';
 script-src-attr 'none';
 style-src 'self' 'nonce-<per-request>';
 style-src-elem 'self' 'nonce-<per-request>';
-style-src-attr 'unsafe-inline';   <- temporary, tracked, expiring
+style-src-attr 'none';            <- /workflows/designer scopes it to 'unsafe-inline'
 img-src 'self' data: blob:;
 font-src 'self';
 media-src 'self' blob:;
@@ -31,8 +31,8 @@ report-to csp-endpoint
 ```
 
 - `unsafe-eval` is never emitted.
-- `unsafe-inline` is scoped to `style-src-attr` only. Inline `<script>` and
-  `<style>` elements require the nonce.
+- `unsafe-inline` is never emitted. Inline `<script>` and `<style>` elements
+  require the nonce; style attributes are forbidden entirely (issue 363).
 - Next.js reads the CSP request header and applies the nonce to its bootstrap
   scripts. Application code can read `x-nonce` when it must render an inline
   tag.
@@ -44,22 +44,18 @@ report-to csp-endpoint
 - `frame-ancestors 'none'`, `frame-src 'none'`, `object-src 'none'`,
   `base-uri 'self'` and `form-action 'self'` stay locked down.
 
-## Time-limited style-attribute exception
+## Scoped designer style-attribute exception (issue 363)
 
-The legacy screens still set React `style` attributes. The programme allows one
-narrow exception, with an owner, a tracking reference and a hard expiry:
+Every React `style` attribute in application code was migrated to a token class
+in `globals.css`, and the inline-style ratchet baseline is empty;
+`pnpm lint:inline` fails on any new occurrence *or* a stale baseline entry.
 
-| Field | Value |
-|---|---|
-| Tracking reference | `AWAP-UIUX-PHASE-0` |
-| Expiry | `2026-12-31T00:00:00.000Z` |
-| Explicit switch-off | `CSP_STYLE_ATTR_UNSAFE_INLINE=false` |
-| Header | `X-CSP-Style-Attr-Exception: active;expires=...;issue=...` |
-
-`resolveStyleAttrException()` throws after the expiry. A forgotten migration
-therefore fails the build instead of silently weakening the policy. The inline
-style ratchet (`pnpm lint:inline`) records the remaining debt and fails on any
-new occurrence.
+One reviewed exception remains: `/workflows/designer`. React Flow applies
+dynamic node/edge geometry as inline style attributes during SSR, which
+`style-src-attr 'none'` would block. The proxy emits
+`style-src-attr 'unsafe-inline'` **only** for that route; every other route keeps
+`'none'`. The application's own edge-label geometry is applied through the
+CSSOM, and the `X-CSP-Style-Attr-Exception` response header is gone.
 
 ## Reporting
 
@@ -67,7 +63,6 @@ new occurrence.
 |---|---|
 | `Report-To` | `{"group":"csp-endpoint","max_age":10886400,"endpoints":[{"url":"/api/csp-report"}]}` |
 | `Reporting-Endpoints` | `csp-endpoint="/api/csp-report"` |
-| `X-CSP-Style-Attr-Exception` | Exception status, expiry and tracking reference |
 
 [`frontend/app/api/csp-report/route.ts`](../frontend/app/api/csp-report/route.ts)
 accepts both the legacy `csp-report` body and the Reporting API

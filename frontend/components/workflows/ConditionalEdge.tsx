@@ -37,21 +37,31 @@ export default function ConditionalEdge({
   const display =
     condition.length > MAX_BADGE_LENGTH ? `${condition.slice(0, MAX_BADGE_LENGTH)}…` : condition;
 
+  // Dynamic edge geometry is the one unavoidable runtime position. It is applied through the
+  // CSSOM rather than a React `style` attribute, so the CSP can drop `style-src-attr
+  // 'unsafe-inline'` while the badge still follows the bezier midpoint (issue 363).
+  const positionBadge = (element: HTMLDivElement | null) => {
+    if (element) {
+      element.style.transform = `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`;
+    }
+  };
+
   return (
     <>
       <BaseEdge
         id={id}
         path={edgePath}
-        className="awap-designer__edge"
-        style={{ strokeWidth: selected ? 3 : 2 }}
+        className={
+          selected ? "awap-designer__edge awap-designer__edge--selected" : "awap-designer__edge"
+        }
       />
       <EdgeLabelRenderer>
         <div
+          ref={positionBadge}
           data-testid="condition-badge"
           title={condition}
           aria-label={`Conditional transition: ${condition}`}
           className="nodrag nopan awap-designer__badge"
-          style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
         >
           IF: {display}
         </div>
