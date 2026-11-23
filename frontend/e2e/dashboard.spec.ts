@@ -20,8 +20,9 @@ test("dashboard surfaces pending work, SLA risk, activity and trend", async ({ p
     "/tasks?task=task-1",
   );
 
-  await expect(page.getByTestId("dashboard-sla-overdue")).toHaveText("1");
-  await expect(page.getByTestId("dashboard-sla-unassigned")).toHaveText("0");
+  // The visual fixture has three tasks: task-1 and task-long are overdue; task-tr is unassigned.
+  await expect(page.getByTestId("dashboard-sla-overdue")).toHaveText("2");
+  await expect(page.getByTestId("dashboard-sla-unassigned")).toHaveText("1");
 
   await expect(page.getByTestId("dashboard-recent-activity")).toContainText("wf-1");
   await expect(page.getByTestId("dashboard-trend")).toContainText("44");
