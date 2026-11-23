@@ -45,7 +45,7 @@ const BULK_COPY: Record<BulkActionKind, { title: string; body: string }> = {
  * and a row tap opens `/tasks/[id]`, so the split never squeezes into an unusable column (R3-07).
  */
 export default function TaskInbox({ initialTaskId = null, detailOnly = false }: TaskInboxProps) {
-  const { t } = useI18n();
+  const { t, tp } = useI18n();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -298,7 +298,9 @@ export default function TaskInbox({ initialTaskId = null, detailOnly = false }: 
     <div className="grid gap-4" data-testid="task-inbox">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="awap-page-title">{t("tasks.title")}</h1>
-        <p className="text-sm awap-muted">{t("tasks.subtitle", { count: String(counts.total) })}</p>
+        <p className="text-sm awap-muted" data-testid="task-subtitle">
+          {tp("tasks.subtitle", counts.total)}
+        </p>
       </div>
 
       {inboxBody}

@@ -200,7 +200,7 @@ test("catalogue searches, filters by status and shows running counts", async ({ 
   await expect(page.getByTestId("workflow-running-wf-1")).toHaveText("0 / 2");
 
   await page.getByTestId("workflow-search").fill("vendor");
-  await expect(page.getByTestId("workflow-result-count")).toHaveText("1 results");
+  await expect(page.getByTestId("workflow-result-count")).toHaveText("1 result");
   await page.getByTestId("workflow-status").selectOption("PUBLISHED");
   await expect(page.getByTestId("workflow-result-count")).toHaveText("0 results");
 

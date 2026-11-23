@@ -153,6 +153,13 @@ test("filters narrow the inbox to the matching rows", async ({ page }) => {
   await expect(page.getByTestId("task-list-empty")).toBeVisible();
 });
 
+test("a single work item uses singular count copy", async ({ page }) => {
+  await openInbox(page, { tasks: [openTask] });
+
+  await expect(page.getByTestId("task-subtitle")).toHaveText("1 work item in this tenant");
+  await expect(page.getByTestId("task-result-count")).toHaveText("1 result");
+});
+
 test("selecting a work item opens the 360 detail with its form and context", async ({ page }) => {
   await openInbox(page);
   await page.getByTestId("task-row-t-open").click();
@@ -442,7 +449,7 @@ test("filtering a 1000-row inbox stays under one second", async ({ page }) => {
     }),
   );
   await openInbox(page, { tasks: many });
-  await expect(page.getByTestId("task-result-count")).toHaveText("1000 results");
+  await expect(page.getByTestId("task-result-count")).toHaveText("1,000 results");
 
   const elapsed = await page.evaluate(async () => {
     const button = document.querySelector<HTMLButtonElement>('[data-testid="task-filter-overdue"]');

@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import type { WorkflowDefinitionDto } from "../../lib/api";
 import { useTasks, useWorkflowDefinitions, useWorkflowInstances } from "../../lib/hooks/resources";
 import { formatUtcDateTime } from "../../lib/format";
+import { useI18n } from "../../lib/locale";
 import {
   DEFAULT_WORKFLOW_QUERY,
   filterWorkflows,
@@ -28,6 +29,7 @@ const PAGE_SIZE = 12;
  * Designer instead (U4-01).
  */
 export default function WorkflowCatalogue() {
+  const { tp } = useI18n();
   const workflows = useWorkflowDefinitions();
   const instances = useWorkflowInstances();
   const tasks = useTasks();
@@ -65,7 +67,8 @@ export default function WorkflowCatalogue() {
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="awap-page-title">Workflows</h1>
         <p className="text-sm awap-muted">
-          {rows.length} definitions · {tasks.data?.length ?? 0} open work items
+          {tp("workflows.summary.definitions", rows.length)} ·{" "}
+          {tp("workflows.summary.openItems", tasks.data?.length ?? 0)}
         </p>
       </div>
 
@@ -134,7 +137,7 @@ export default function WorkflowCatalogue() {
           Table
         </button>
         <span className="text-xs awap-muted" data-testid="workflow-result-count">
-          {paged.total} results
+          {tp("workflows.resultCount", paged.total)}
         </span>
       </div>
 
