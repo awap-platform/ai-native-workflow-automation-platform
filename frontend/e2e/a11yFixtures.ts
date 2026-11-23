@@ -30,6 +30,27 @@ export const taskFixture = {
   completedAt: null,
 };
 
+/** Issue 360: a realistic multi-row inbox, including a hostile-length and a Turkish title. */
+export const longTaskFixture = {
+  ...taskFixture,
+  id: "task-long",
+  title:
+    "Approve the international travel and accommodation request for the Q4 finance conference in Amsterdam",
+  status: "IN_PROGRESS",
+  escalateAt: "2026-11-21T23:00:00Z",
+};
+
+export const turkishTaskFixture = {
+  ...taskFixture,
+  id: "task-tr",
+  title: "Şirketler arası ödeme onayı ve belge kontrolü",
+  status: "OPEN",
+  assigneeId: null,
+  escalateAt: null,
+};
+
+export const inboxTaskFixtures = [taskFixture, longTaskFixture, turkishTaskFixture];
+
 export const instanceFixture = {
   id: "inst-1",
   tenantId: "tenant-a",
@@ -620,10 +641,10 @@ export function responseFor(pathname: string, populated: boolean): unknown {
     return {};
   }
   if (pathname.endsWith("/api/v1/tasks/mine")) {
-    return populated ? [taskFixture] : [];
+    return populated ? inboxTaskFixtures : [];
   }
   if (pathname.endsWith("/api/v1/tasks")) {
-    return populated ? [taskFixture] : [];
+    return populated ? inboxTaskFixtures : [];
   }
   if (pathname.endsWith("/api/v1/workflow-instances")) {
     return populated ? [instanceFixture] : [];
@@ -1013,7 +1034,8 @@ export async function openScreen(
 ): Promise<void> {
   await page.emulateMedia({ reducedMotion: "reduce" });
   if (screen.protected) {
-    await setSession(page, { tenant: "tenant-a" });
+    // Issue 360: realistic role and locale so baselines never contain "Role: Unknown".
+    await setSession(page, { tenant: "tenant-a", role: "MANAGER", locale: "en" });
   } else if (screen.sessionOnly) {
     await setSession(page, { tenant: null });
   }
