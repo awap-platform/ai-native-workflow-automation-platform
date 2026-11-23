@@ -1261,6 +1261,7 @@
   pointer-events: none;
 }
 
+.awap-designer__empty [data-slot="button"],
 .awap-designer__empty .awap-button {
   pointer-events: auto;
 }
