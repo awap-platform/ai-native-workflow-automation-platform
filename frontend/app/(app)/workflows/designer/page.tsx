@@ -843,28 +843,6 @@ function DesignerCanvas() {
         </section>
       ) : null}
 
-      {nodes.length === 0 ? (
-        <section
-          className="awap-card awap-designer__empty"
-          data-testid="designer-empty-state"
-          aria-labelledby="designer-empty-heading"
-        >
-          <h2 id="designer-empty-heading">Start with a trigger</h2>
-          <p className="awap-designer__hint">
-            Every workflow needs exactly one START node. Add one, then connect it to a task or an
-            END node.
-          </p>
-          <div className="awap-designer__row">
-            <Button type="button" onClick={() => addNode("START")}>
-              Add START
-            </Button>
-            <Button type="button" variant="outline" onClick={() => addNode("END")}>
-              Add END
-            </Button>
-          </div>
-        </section>
-      ) : null}
-
       <div className="awap-designer__layout">
         <NodePalette
           onAdd={addNode}
@@ -881,6 +859,27 @@ function DesignerCanvas() {
             event.dataTransfer.dropEffect = "copy";
           }}
         >
+          {nodes.length === 0 ? (
+            <section
+              className="awap-card awap-designer__empty"
+              data-testid="designer-empty-state"
+              aria-labelledby="designer-empty-heading"
+            >
+              <h2 id="designer-empty-heading">Start with a trigger</h2>
+              <p className="awap-designer__hint">
+                Every workflow needs exactly one START node. Add one, then connect it to a task or
+                an END node.
+              </p>
+              <div className="awap-designer__row">
+                <Button type="button" onClick={() => addNode("START")}>
+                  Add START
+                </Button>
+                <Button type="button" variant="outline" onClick={() => addNode("END")}>
+                  Add END
+                </Button>
+              </div>
+            </section>
+          ) : null}
           <ReactFlow
             nodes={nodes}
             edges={displayEdges}

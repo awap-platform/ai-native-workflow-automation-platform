@@ -1245,6 +1245,18 @@
   border: 1px solid var(--awap-border);
   border-radius: var(--awap-radius-md);
   background: var(--awap-surface);
+  position: relative;
+}
+
+/* The onboarding card overlays the canvas so its removal never shifts the canvas geometry
+   (issue 361; the drag-drop pointer test depends on a stable canvas origin). */
+.awap-designer__empty {
+  position: absolute;
+  inset: var(--awap-space-3);
+  z-index: 3;
+  display: grid;
+  align-content: start;
+  gap: var(--awap-space-2);
 }
 
 /* Below the tablet breakpoint the fixed palette/side columns would force a

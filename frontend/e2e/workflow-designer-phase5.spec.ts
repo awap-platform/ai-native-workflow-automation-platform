@@ -329,10 +329,11 @@ test("an empty designer shows onboarding instead of a red validation error", asy
   await mockApi(page);
   await openDesigner(page);
 
+  const panel = page.getByTestId("validation-panel");
   await expect(page.getByTestId("designer-empty-state")).toBeVisible();
-  await expect(page.getByTestId("validation-panel")).toContainText("Nothing to validate yet.");
-  await expect(page.getByRole("alert")).toHaveCount(0);
-  await expect(page.getByText(/^Error:/)).toHaveCount(0);
+  await expect(panel).toContainText("Nothing to validate yet.");
+  await expect(panel.getByRole("alert")).toHaveCount(0);
+  await expect(panel.getByText(/^Error:/)).toHaveCount(0);
 
   await page.getByRole("button", { name: "Add START" }).click();
   await expect(page.getByTestId("designer-empty-state")).toHaveCount(0);
