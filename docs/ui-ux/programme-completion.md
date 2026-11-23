@@ -43,7 +43,9 @@ honestly recorded manual step.
   CLS < 0.1, TBT < 200 ms, INP warning) and a per-route bundle ceiling.
 - [x] **Visual regression** — 112 committed snapshots covering route × state ×
   viewport; baselines regenerated and verified twice against the production
-  build on port 3100.
+  build on port 3100. Structural overlap/overflow assertions and a human
+  baseline review checklist live in
+  [`visual-baseline-review.md`](visual-baseline-review.md).
 - [x] **Security** — nonce CSP with `script-src-attr 'none'`, `unsafe-eval`
   absent, secret/dependency/image scans are required checks, RUM ingest is
   same-origin and redacted.
