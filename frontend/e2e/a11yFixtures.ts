@@ -820,6 +820,9 @@ export async function installApiMocks(page: Page, populated: boolean): Promise<v
 /** The suite runs against the dev server or a production preview port; cookies follow it. */
 const SESSION_ORIGIN = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 
+/** Admin destinations require an admin role; every other protected screen uses MANAGER. */
+const ADMIN_SCREENS = new Set(["admin", "operate", "audit", "admin-csp", "design-system"]);
+
 /** Seeds the cookies the middleware, RouteGuard and shell rely on. */
 export async function setSession(
   page: Page,
@@ -1034,8 +1037,14 @@ export async function openScreen(
 ): Promise<void> {
   await page.emulateMedia({ reducedMotion: "reduce" });
   if (screen.protected) {
-    // Issue 360: realistic role and locale so baselines never contain "Role: Unknown".
-    await setSession(page, { tenant: "tenant-a", role: "MANAGER", locale: "en" });
+    // Issue 360: realistic role and locale so baselines never contain "Role: Unknown". Admin
+    // destinations keep their required role instead of rendering ForbiddenState.
+    const admin = ADMIN_SCREENS.has(screen.name);
+    await setSession(page, {
+      tenant: "tenant-a",
+      role: admin ? "TENANT_ADMIN" : "MANAGER",
+      locale: "en",
+    });
   } else if (screen.sessionOnly) {
     await setSession(page, { tenant: null });
   }
