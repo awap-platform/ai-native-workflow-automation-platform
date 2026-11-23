@@ -484,6 +484,17 @@
     align-items: center;
     gap: var(--awap-space-2);
     min-height: 44px;
+    /* A label in a flex row must be allowed to shrink; otherwise long copy pushes siblings out. */
+    min-width: 0;
+  }
+  .awap-checkbox-row > .awap-checkbox-input {
+    flex: 0 0 auto;
+  }
+  .awap-checkbox-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /* --------------------------------------------------------------------- */
@@ -604,8 +615,13 @@
    */
   .awap-task-row {
     min-height: 92px;
+    /* The row is a flex container: the checkbox stays fixed and the title column may shrink. */
+    min-width: 0;
     content-visibility: auto;
     contain-intrinsic-size: auto 92px;
+  }
+  .awap-task-row > .awap-checkbox-row {
+    flex: 0 0 auto;
   }
 
   .awap-badge {

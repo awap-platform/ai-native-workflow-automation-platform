@@ -66,6 +66,7 @@ export default function TaskList({
                 className={`awap-task-row flex items-start gap-2 border-b border-border p-2 ${selected ? "bg-muted" : ""}`}
               >
                 <Checkbox
+                  hideLabel
                   label={t("tasks.list.selectRow", { title: task.title })}
                   checked={checked}
                   onChange={() => onToggleCheck(task.id)}

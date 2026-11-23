@@ -58,6 +58,7 @@ surfaces as `403`/`404` rather than leaking data.
 | R3-05 wrong SLA | Deadline comes from the server; `lib/serverClock.ts` derives skew from the HTTP `Date` header so the countdown uses server time |
 | R3-06 lost comment | Drafts autosave per task in `localStorage` and clear on success; Turkish text and emoji round-trip in tests |
 | R3-07 unusable mobile split | `/tasks` is list-only below `lg`; the work item lives at `/tasks/[id]` |
+| R3-08 row label overlaps the title (issue #357) | `Checkbox` gained a `hideLabel` mode that keeps `aria-label` on the input and renders no visible label; `.awap-task-row` keeps the checkbox at `flex: 0 0 auto` while the title column has `min-width: 0`, so the badge and SLA cannot be pushed under the checkbox |
 
 ## Test matrix
 
@@ -75,6 +76,8 @@ surfaces as `403`/`404` rather than leaking data.
 | T3-10 visual | `task-detail` added to the visual baseline set (four viewports) |
 | T3-11 SLA boundary | [`lib/__tests__/taskInbox.test.ts`](../../frontend/lib/__tests__/taskInbox.test.ts) — exact 15 minute boundary and one millisecond past it |
 | T3-12 escalate | E2E asserts the new assignee payload and the restarted deadline |
+| T3-13 row geometry (issue #357) | E2E asserts the checkbox, title, badge and SLA bounding boxes do not intersect and that no visible "Select …" text is rendered |
+| T3-14 long-title overflow (issue #357) | Unit test asserts the hidden-label contract and row shape; E2E asserts a 500-character title creates no horizontal scroll at 320 px |
 
 Unhappy paths covered: someone else's task (`403`), removed task (`404`), two
 tabs (`409`), timeout (`5xx` retry copy), offline banner, long comment limit

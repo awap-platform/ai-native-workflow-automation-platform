@@ -73,13 +73,37 @@ export function Select({ className, children, ...props }: ComponentProps<"select
 
 export interface CheckboxProps extends Omit<ComponentProps<"input">, "type"> {
   label: string;
+  /**
+   * Keeps the label as the accessible name but hides it visually. Used for row-selection
+   * checkboxes where a visible "Select …" label would consume the row width (issue 357).
+   * The hidden mode renders exactly one name source: `aria-label` on the input.
+   */
+  hideLabel?: boolean;
 }
 
-export function Checkbox({ label, className, ...props }: CheckboxProps) {
+export function Checkbox({
+  label,
+  hideLabel = false,
+  className,
+  disabled,
+  onChange,
+  onClick,
+  ...props
+}: CheckboxProps) {
   return (
     <label className={cn("awap-checkbox-row", className)}>
-      <input type="checkbox" className="size-4" {...props} />
-      <span>{label}</span>
+      <input
+        type="checkbox"
+        className="awap-checkbox-input size-4"
+        aria-label={hideLabel ? label : undefined}
+        disabled={disabled}
+        // A disabled control must never run a handler, even when a synthetic event is dispatched
+        // directly at the input (issue 357, T9).
+        onChange={disabled ? undefined : onChange}
+        onClick={disabled ? undefined : onClick}
+        {...props}
+      />
+      {hideLabel ? null : <span className="awap-checkbox-label">{label}</span>}
     </label>
   );
 }
