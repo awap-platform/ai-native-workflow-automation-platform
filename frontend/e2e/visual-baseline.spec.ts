@@ -194,3 +194,43 @@ test("designer canvas matches its element baseline", async ({ page }, testInfo) 
     maxDiffPixelRatio: 0.001,
   });
 });
+
+/**
+ * Issue 359: a selected START node with the properties panel open, in both themes. This pins the
+ * migrated Input/Textarea/Select/Button surfaces so an unstyled native control is caught visually.
+ */
+test("designer selected-node properties match their element baselines", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.context().addCookies([
+    { name: "awap_session", value: "1", url: process.env.E2E_BASE_URL ?? "http://localhost:3000" },
+    {
+      name: "awap_tenant",
+      value: "tenant-a",
+      url: process.env.E2E_BASE_URL ?? "http://localhost:3000",
+    },
+    { name: "XSRF-TOKEN", value: "e2e-csrf", url: "http://localhost:8080" },
+  ]);
+  await page.goto("/workflows/designer");
+  await expect(page.getByRole("heading", { name: "Workflow Designer" })).toBeVisible();
+  await page.getByRole("button", { name: "START", exact: true }).click();
+
+  const panel = page.getByTestId("node-properties");
+  await expect(panel).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(250);
+
+  for (const theme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: theme });
+    const snapshot = `visual/designer-properties-${theme}-1280x900.png`;
+    const snapshotPath = testInfo.snapshotPath(snapshot);
+    if (!existsSync(snapshotPath)) {
+      await panel.screenshot({ path: snapshotPath, animations: "disabled" });
+      testInfo.annotations.push({ type: "baseline-created", description: snapshotPath });
+      continue;
+    }
+    await expect(panel).toHaveScreenshot(snapshot, {
+      animations: "disabled",
+      maxDiffPixelRatio: 0.001,
+    });
+  }
+});

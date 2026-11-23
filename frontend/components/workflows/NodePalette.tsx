@@ -3,6 +3,7 @@
 import { useMemo, useState, type KeyboardEvent } from "react";
 
 import { NODE_DRAG_MIME } from "../../lib/workflowDesigner";
+import { Input } from "../ui/form-controls";
 import {
   filterPaletteItems,
   paletteByGroup,
@@ -61,7 +62,7 @@ export default function NodePalette({ onAdd, onDragIntent }: NodePaletteProps) {
       </p>
       <label className="awap-designer__field" htmlFor="node-palette-search">
         Search node types
-        <input
+        <Input
           id="node-palette-search"
           className="awap-designer__palette-search"
           type="search"

@@ -9,9 +9,9 @@ BPMN converter; no existing endpoint or table changed.
 
 | Area | What shipped |
 |---|---|
-| Palette | Events, Activities, Gateways, Structural and Extensions groups; case-insensitive search; arrow-key cursor and Enter insertion; drag and button insertion preserved |
-| Properties | Name, timeout, retry policy, assignees, form, AI action/prompt/schema, script, gateway guard, delay, webhook, sub-process and parallel-join fields |
-| Canvas | Process navigator, mini-map, explicit zoom in/out/fit controls and React Flow controls |
+| Palette | Events, Activities, Gateways, Structural and Extensions groups; case-insensitive search through the shared `Input` primitive; arrow-key cursor and Enter insertion; drag and button insertion preserved |
+| Properties | Name, timeout, retry policy, assignees, form, AI action/prompt/schema, script, gateway guard, delay, webhook, sub-process and parallel-join fields rendered with `Input`, `Textarea`, `Select` and `Button` |
+| Canvas | Process navigator, mini-map, explicit zoom in/out/fit controls rendered with the shared `Button` primitive and React Flow controls |
 | Validation | Errors and warnings with click-to-focus; missing START blocks save, missing END warns, cycles and unreachable nodes are reported, invalid edge conditions block save |
 | Autosave | Debounced localStorage draft keyed by tenant; restore after reload/crash; beforeunload and in-app navigation guards |
 | Versions | Side-by-side snapshot comparison, rollback and archive using the existing version endpoints |
@@ -50,11 +50,22 @@ characters. The OpenAPI contract documents both paths plus the 413 response.
 | T5-10 | Keyboard-only palette search, insertion and transition composer E2E |
 | T5-11 | `BpmnXmlServiceTest.rejectsDoctypeAndExternalEntities` |
 | T5-12 | `visual/designer-canvas-1280x900.png` element baseline |
+| T5-13 | [`designer-controls.test.tsx`](../../frontend/components/workflows/__tests__/designer-controls.test.tsx) asserts `awap-input`/`awap-textarea`/`awap-select` and `data-slot="button"` on the palette, properties and zoom controls |
+| T5-14 | `designer selected-node properties match their element baselines` adds light/dark element baselines; the axe E2E scans the designer in both themes |
 
 Unhappy paths covered: missing START blocked, missing END warning, cycle warning, disconnected
 node error, invalid BPMN 400 with a line, oversized XML 413, tab-close guard, two-tab publish
 conflict, long/hostile label truncation and escaping, and autosave after a crash (reload with the
 draft still in storage).
+
+## Design-system migration (issue 359)
+
+The palette search, every property field and the zoom/fit controls now use the shared design-system
+primitives instead of bare native elements, so border, height, focus ring, disabled and dark-mode
+surfaces come from the same tokens as the rest of the product. A compact laptop layout keeps the
+palette, canvas, properties and navigator usable at 1280 px and stacks them below 1024 px. The
+element baselines for a selected START node are generated in light and dark themes; the axe E2E
+scans the designer in both themes and fails on critical or serious findings.
 
 ## Risk mitigations
 

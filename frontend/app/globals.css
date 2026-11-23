@@ -1183,8 +1183,21 @@
 }
 
 .awap-designer__palette-search {
+  display: block;
   width: 100%;
+  margin-top: var(--awap-space-1);
   margin-bottom: var(--awap-space-2);
+}
+
+/* Compact designer at laptop widths: keep palette, canvas, properties and navigator visible
+   without letting the fixed side columns squeeze the canvas (issue 359). */
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .awap-designer__palette {
+    flex-basis: 13rem;
+  }
+  .awap-designer__side {
+    flex-basis: 18rem;
+  }
 }
 
 .awap-designer__group {

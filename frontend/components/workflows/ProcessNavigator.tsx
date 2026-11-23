@@ -3,6 +3,7 @@
 import { Panel, useReactFlow } from "@xyflow/react";
 
 import type { WorkflowNode } from "../../lib/workflowGraph";
+import { Button } from "../ui/button";
 
 interface ProcessNavigatorProps {
   nodes: WorkflowNode[];
@@ -57,15 +58,21 @@ export function CanvasZoomControls() {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   return (
     <Panel position="top-right" className="awap-designer__row">
-      <button type="button" aria-label="Zoom in" onClick={() => void zoomIn()}>
+      <Button type="button" variant="outline" size="sm" aria-label="Zoom in" onClick={() => void zoomIn()}>
         Zoom in
-      </button>
-      <button type="button" aria-label="Zoom out" onClick={() => void zoomOut()}>
+      </Button>
+      <Button type="button" variant="outline" size="sm" aria-label="Zoom out" onClick={() => void zoomOut()}>
         Zoom out
-      </button>
-      <button type="button" aria-label="Fit view" onClick={() => void fitView({ padding: 0.2 })}>
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        aria-label="Fit view"
+        onClick={() => void fitView({ padding: 0.2 })}
+      >
         Fit view
-      </button>
+      </Button>
     </Panel>
   );
 }

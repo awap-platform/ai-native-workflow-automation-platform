@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 /**
@@ -286,6 +287,42 @@ test("edits every node through the properties panel and escapes hostile labels",
   await expect(page.getByLabel("Script expression")).toBeVisible();
   await page.getByRole("button", { name: "WEBHOOK", exact: true }).click();
   await expect(page.getByLabel("Webhook URL")).toBeVisible();
+});
+
+test("designer controls use the design system and pass axe with properties open", async ({
+  page,
+}) => {
+  await mockApi(page);
+  await openDesigner(page);
+
+  await expect(page.getByLabel("Search node types")).toHaveClass(/awap-input/);
+
+  await page.getByRole("button", { name: "APPROVAL", exact: true }).click();
+  await expect(page.getByTestId("node-properties")).toBeVisible();
+  await expect(page.getByLabel("Node name")).toHaveClass(/awap-input/);
+  await expect(page.getByLabel("Timeout seconds")).toHaveClass(/awap-input/);
+  await expect(page.getByLabel("Assignees")).toHaveClass(/awap-textarea/);
+
+  for (const name of ["Zoom in", "Zoom out", "Fit view"]) {
+    // React Flow ships its own controls with title/screen-reader labels ("Zoom In"); exact
+    // matching selects the design-system buttons this issue migrated.
+    await expect(page.getByRole("button", { name, exact: true })).toHaveAttribute(
+      "data-slot",
+      "button",
+    );
+  }
+
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    const results = await new AxeBuilder({ page })
+      .include('[data-testid="node-properties"]')
+      .include(".awap-designer")
+      .analyze();
+    const blocking = results.violations.filter(
+      (violation) => violation.impact === "critical" || violation.impact === "serious",
+    );
+    expect(blocking, `${colorScheme} designer axe: ${JSON.stringify(blocking)}`).toEqual([]);
+  }
 });
 
 test("validation blocks a missing START, warns for END and focuses a disconnected node", async ({
