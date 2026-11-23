@@ -1,0 +1,29 @@
+{
+  "_note": "Template only. Replace every value with a real, consented session before running the gate. This example is not evidence that UAT happened.",
+  "releaseTag": "v1.7.0-rc.1",
+  "environment": "staging",
+  "participants": [
+    { "id": "P1", "persona": "approver", "consent": true },
+    { "id": "P2", "persona": "approver", "consent": true },
+    { "id": "P3", "persona": "operations", "consent": true },
+    { "id": "P4", "persona": "operations", "consent": true },
+    { "id": "P5", "persona": "tenant-admin", "consent": true },
+    { "id": "P6", "persona": "tenant-admin", "consent": true },
+    { "id": "P7", "persona": "employee", "consent": true },
+    { "id": "P8", "persona": "employee", "consent": true },
+    { "id": "P9", "persona": "designer", "consent": true },
+    { "id": "P10", "persona": "designer", "consent": true }
+  ],
+  "sessions": [
+    { "participantId": "P1", "taskId": "UAT-01", "success": true, "durationSeconds": 72, "errors": 0 },
+    { "participantId": "P2", "taskId": "UAT-01", "success": true, "durationSeconds": 80, "errors": 0 }
+  ],
+  "susScores": [
+    { "participantId": "P1", "score": 88 },
+    { "participantId": "P2", "score": 90 }
+  ],
+  "findings": [
+    { "id": "F1", "severity": "P2", "status": "open", "issue": "#000", "owner": "frontend" }
+  ],
+  "tenantIsolationFailures": 0
+}

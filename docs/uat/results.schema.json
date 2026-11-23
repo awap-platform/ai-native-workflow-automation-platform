@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://awap.dev/schemas/uat-results.json",
+  "title": "UAT results",
+  "type": "object",
+  "required": ["releaseTag", "environment", "participants", "sessions", "susScores", "findings", "tenantIsolationFailures"],
+  "additionalProperties": false,
+  "properties": {
+    "_note": { "type": "string" },
+    "releaseTag": { "type": "string", "minLength": 1 },
+    "environment": { "type": "string", "minLength": 1 },
+    "participants": {
+      "type": "array",
+      "minItems": 10,
+      "items": {
+        "type": "object",
+        "required": ["id", "persona", "consent"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "persona": { "type": "string", "enum": ["approver", "operations", "tenant-admin", "employee", "designer"] },
+          "consent": { "type": "boolean" }
+        }
+      }
+    },
+    "sessions": {
+      "type": "array",
+      "minItems": 100,
+      "items": {
+        "type": "object",
+        "required": ["participantId", "taskId", "success", "durationSeconds", "errors"],
+        "additionalProperties": false,
+        "properties": {
+          "participantId": { "type": "string", "minLength": 1 },
+          "taskId": {
+            "type": "string",
+            "enum": ["UAT-01", "UAT-02", "UAT-03", "UAT-04", "UAT-05", "UAT-06", "UAT-07", "UAT-08", "UAT-09", "UAT-10"]
+          },
+          "success": { "type": "boolean" },
+          "durationSeconds": { "type": "number", "minimum": 0 },
+          "errors": { "type": "integer", "minimum": 0 },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "susScores": {
+      "type": "array",
+      "minItems": 10,
+      "items": {
+        "type": "object",
+        "required": ["participantId", "score"],
+        "additionalProperties": false,
+        "properties": {
+          "participantId": { "type": "string", "minLength": 1 },
+          "score": { "type": "number", "minimum": 0, "maximum": 100 }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "severity", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "severity": { "type": "string", "enum": ["P0", "P1", "P2"] },
+          "status": { "type": "string", "enum": ["open", "triaged", "fixed", "closed"] },
+          "issue": { "type": "string" },
+          "owner": { "type": "string" }
+        }
+      }
+    },
+    "tenantIsolationFailures": { "type": "integer", "minimum": 0 }
+  }
+}

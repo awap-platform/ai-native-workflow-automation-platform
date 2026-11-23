@@ -8,6 +8,14 @@ the result cannot be inferred from a green CI run.
 as a defect, a documentation gap or a test-script problem; a severity-1 defect
 blocks the release regardless of the pass ratio.
 
+**Executable gate (issue 365):** the runbook is [`uat/README.md`](uat/README.md),
+results follow [`uat/results.schema.json`](uat/results.schema.json), and
+`cd frontend && pnpm uat:check ../../docs/uat/results.json` fails until there are
+at least ten consented participants, every task was executed ten times, success
+is ≥ 90%, SUS is ≥ 80, no P0 finding is open and no cross-tenant observation was
+recorded. The gate itself is unit-tested in
+[`../frontend/scripts/test/uat-results.test.mjs`](../frontend/scripts/test/uat-results.test.mjs).
+
 ## Participants and environment
 
 | Item | Value |
