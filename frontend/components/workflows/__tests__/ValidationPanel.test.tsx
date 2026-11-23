@@ -48,6 +48,24 @@ describe("ValidationPanel", () => {
   it("says the graph is ready when there are no issues", () => {
     render(<ValidationPanel report={{ blocking: false, issues: [] }} onFocusIssue={jest.fn()} />);
     expect(screen.getByRole("status")).toHaveTextContent("Ready to save");
-    expect(screen.getByText("No validation issues.")).toBeInTheDocument();
+    expect(screen.getByText("No issues yet.")).toBeInTheDocument();
+  });
+
+  it("shows onboarding copy instead of errors before the first interaction", () => {
+    render(<ValidationPanel report={report} onFocusIssue={jest.fn()} touched={false} empty />);
+
+    expect(screen.getByTestId("validation-empty")).toHaveTextContent(
+      "Nothing to validate yet. Add a START node to begin.",
+    );
+    expect(screen.queryByText(/^Error:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Saving is blocked/)).not.toBeInTheDocument();
+  });
+
+  it("becomes authoritative once the user has touched the canvas", () => {
+    render(<ValidationPanel report={report} onFocusIssue={jest.fn()} touched empty />);
+
+    expect(screen.getByText(/A workflow needs exactly one START node/)).toBeInTheDocument();
+    expect(screen.getByText(/Saving is blocked/)).toBeInTheDocument();
+    expect(screen.queryByTestId("validation-empty")).not.toBeInTheDocument();
   });
 });

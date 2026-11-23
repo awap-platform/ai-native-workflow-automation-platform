@@ -94,6 +94,7 @@ import ProcessNavigator, {
 } from "../../../../components/workflows/ProcessNavigator";
 import TransitionComposer from "../../../../components/workflows/TransitionComposer";
 import ValidationPanel from "../../../../components/workflows/ValidationPanel";
+import { Button } from "../../../../components/ui/button";
 import VersionHistoryPanel from "../../../../components/workflows/VersionHistoryPanel";
 
 const workflowVariables = [...DEFAULT_WORKFLOW_VARIABLES];
@@ -150,6 +151,9 @@ function DesignerCanvas() {
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  // Validation is informational on an untouched empty canvas; it becomes authoritative after the
+  // first node or a save/publish attempt (issue 361).
+  const [validationTouched, setValidationTouched] = useState(false);
   const [publishedVersion, setPublishedVersion] = useState<number | null>(null);
   const [autosavedAt, setAutosavedAt] = useState<string | null>(null);
   const [historyFlags, setHistoryFlags] = useState({ undo: false, redo: false });
@@ -331,6 +335,7 @@ function DesignerCanvas() {
       [...nodes.map((candidate) => ({ ...candidate, selected: false })), node],
       edges,
     );
+    setValidationTouched(true);
     setSelectedNodeIds([node.id]);
     setSelectedEdgeId(null);
     setNotice(`${type} node added.`);
@@ -373,6 +378,7 @@ function DesignerCanvas() {
       return;
     }
     setError("");
+    setValidationTouched(true);
     commit(nodes, result.edges);
     setNotice("Transition added.");
   }
@@ -584,6 +590,7 @@ function DesignerCanvas() {
   async function save(): Promise<string | null> {
     setError("");
     setNotice("");
+    setValidationTouched(true);
     if (name.trim() === "") {
       setError("Workflow name is required.");
       return null;
@@ -706,6 +713,7 @@ function DesignerCanvas() {
     try {
       const parsed = parseDefinitionJson(json);
       commit(parsed.nodes, parsed.edges);
+      setValidationTouched(true);
       setNotice(`BPMN imported: ${parsed.nodes.length} node(s), ${parsed.edges.length} transition(s).`);
     } catch {
       setError("The imported BPMN produced an invalid definition.");
@@ -851,6 +859,27 @@ function DesignerCanvas() {
             event.dataTransfer.dropEffect = "copy";
           }}
         >
+          {nodes.length === 0 ? (
+            <section
+              className="awap-card awap-designer__empty"
+              data-testid="designer-empty-state"
+              aria-labelledby="designer-empty-heading"
+            >
+              <h2 id="designer-empty-heading">Start with a trigger</h2>
+              <p className="awap-designer__hint">
+                Every workflow needs exactly one START node. Add one, then connect it to a task or
+                an END node.
+              </p>
+              <div className="awap-designer__row">
+                <Button type="button" onClick={() => addNode("START")}>
+                  Add START
+                </Button>
+                <Button type="button" variant="outline" onClick={() => addNode("END")}>
+                  Add END
+                </Button>
+              </div>
+            </section>
+          ) : null}
           <ReactFlow
             nodes={nodes}
             edges={displayEdges}
@@ -920,7 +949,12 @@ function DesignerCanvas() {
               onClose={() => setSelectedNodeIds([])}
             />
           ) : null}
-          <ValidationPanel report={report} onFocusIssue={focusIssue} />
+          <ValidationPanel
+            report={report}
+            onFocusIssue={focusIssue}
+            touched={validationTouched}
+            empty={nodes.length === 0}
+          />
           <ProcessNavigator
             nodes={nodes}
             selectedNodeIds={selectedNodeIds}
