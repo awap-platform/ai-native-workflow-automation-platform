@@ -78,8 +78,7 @@ public class TaskController {
 
   @DeleteMapping("/{id}/comments/{commentId}")
   @PreAuthorize("hasAuthority('TASK_MANAGE')")
-  public ResponseEntity<Void> deleteComment(
-      @PathVariable UUID id, @PathVariable UUID commentId) {
+  public ResponseEntity<Void> deleteComment(@PathVariable UUID id, @PathVariable UUID commentId) {
     collaborationService.deleteComment(currentTenantId(), id, commentId, currentUserId());
     return ResponseEntity.noContent().build();
   }
