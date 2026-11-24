@@ -258,6 +258,13 @@ jobs:
         # on covered or regressed input.
         run: pnpm test:scripts
         working-directory: frontend
+      - name: Screen-reader protocol evidence
+        # Issue #366: every T1-T10/U1-U6 row must be PASS and point at an
+        # executable test; an automated run must state its limitations and risk.
+        run: |
+          node --test "scripts/test/accessibility-protocol-evidence.test.mjs"
+          node scripts/a11y/check-protocol-evidence.mjs
+        working-directory: frontend
       - name: Type check
         run: pnpm typecheck
         working-directory: frontend

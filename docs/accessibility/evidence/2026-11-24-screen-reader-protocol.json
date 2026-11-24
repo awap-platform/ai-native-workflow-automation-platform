@@ -1,0 +1,115 @@
+{
+  "issue": 366,
+  "executedAt": "2026-11-24",
+  "executor": "release-engineering",
+  "executionMode": "automated-accessibility-tree-protocol",
+  "assistiveTechnology": [
+    {
+      "name": "NVDA protocol",
+      "version": "2025.1 protocol-equivalent",
+      "browser": "Chromium 141 accessibility tree",
+      "platform": "Linux CI (Playwright)"
+    },
+    {
+      "name": "VoiceOver protocol",
+      "version": "macOS 15 protocol-equivalent",
+      "browser": "Chromium 141 accessibility tree",
+      "platform": "Linux CI (Playwright)"
+    }
+  ],
+  "journeys": [
+    {
+      "id": "T1",
+      "result": "PASS",
+      "evidence": "frontend/e2e/accessibility-protocol.spec.ts#T1:"
+    },
+    {
+      "id": "T2",
+      "result": "PASS",
+      "evidence": "frontend/e2e/accessibility-protocol.spec.ts#T2:"
+    },
+    {
+      "id": "T3",
+      "result": "PASS",
+      "evidence": "frontend/e2e/accessibility-protocol.spec.ts#T3:"
+    },
+    {
+      "id": "T4",
+      "result": "PASS",
+      "evidence": "frontend/e2e/accessibility-protocol.spec.ts#T4:"
+    },
+    {
+      "id": "T5",
+      "result": "PASS",
+      "evidence": "frontend/e2e/accessibility-protocol.spec.ts#T5:"
+    },
+    {
+      "id": "T6",
+      "result": "PASS",
+      "evidence": "frontend/e2e/accessibility-protocol.spec.ts#T6:"
+    },
+    {
+      "id": "T7",
+      "result": "PASS",
+      "evidence": "frontend/e2e/accessibility-protocol.spec.ts#T7:"
+    },
+    {
+      "id": "T8",
+      "result": "PASS",
+      "evidence": "frontend/e2e/accessibility-protocol.spec.ts#T8:"
+    },
+    {
+      "id": "T9",
+      "result": "PASS",
+      "evidence": "frontend/e2e/accessibility-protocol.spec.ts#T9:"
+    },
+    {
+      "id": "T10",
+      "result": "PASS",
+      "evidence": "frontend/e2e/accessibility-protocol.spec.ts#T10:"
+    }
+  ],
+  "unhappyPaths": [
+    {
+      "id": "U1",
+      "result": "PASS",
+      "evidence": "frontend/e2e/session-timeout.spec.ts"
+    },
+    {
+      "id": "U2",
+      "result": "PASS",
+      "evidence": "frontend/e2e/accessibility-protocol.spec.ts#U2:"
+    },
+    {
+      "id": "U3",
+      "result": "PASS",
+      "evidence": "frontend/e2e/accessibility-protocol.spec.ts#U3:"
+    },
+    {
+      "id": "U4",
+      "result": "PASS",
+      "evidence": "frontend/e2e/accessibility-protocol.spec.ts#U4:"
+    },
+    {
+      "id": "U5",
+      "result": "PASS",
+      "evidence": "frontend/e2e/accessibility-protocol.spec.ts#U5:"
+    },
+    {
+      "id": "U6",
+      "result": "PASS",
+      "evidence": "frontend/e2e/accessibility-protocol.spec.ts#U6:"
+    }
+  ],
+  "findings": [],
+  "severityCounts": {
+    "P0": 0,
+    "P1": 0
+  },
+  "limitations": "This run executes the exact protocol against the Chromium accessibility tree in Linux CI. It proves roles, names, descriptions, focus order and live-region semantics, but it cannot capture the synthesized speech of NVDA or VoiceOver. The physical NVDA + Windows and VoiceOver + macOS passes remain a release-ticket attestation; see riskAcceptance.",
+  "riskAcceptance": {
+    "required": true,
+    "owner": "release-engineering",
+    "reason": "Physical NVDA and VoiceOver output cannot be produced on the Linux build runner. The automated protocol is the CI gate; the release owner must attach the signed physical run sheet before GA."
+  }
+}

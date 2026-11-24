@@ -243,10 +243,13 @@ extends the automated net and documents the manual passes.
 - Every transition/animation collapses under `prefers-reduced-motion: reduce`.
 - Enabled controls keep a visible border under `forced-colors: active`.
 
-### Manual screen-reader procedures (not executed here)
+### Manual screen-reader procedures
 
-CI has no screen reader. These are the exact passes a reviewer must run and
-record in the release ticket.
+The full executable protocol lives in
+[`accessibility/manual-pass-protocol.md`](accessibility/manual-pass-protocol.md).
+CI has no physical screen reader, so the protocol is executed against the
+Chromium accessibility tree and the evidence gate ties every T1–T10/U1–U6 row to
+an executable test.
 
 **NVDA + Firefox/Chrome (Windows)**
 
@@ -267,5 +270,7 @@ record in the release ticket.
 4. Forms rotor: every field labelled, errors announced.
 5. iOS: swipe through the inbox; the tour dismiss button has a distinct label.
 
-A failed step is a release blocker. The manual passes have **not** been run for
-this PR; only the automated checks above are evidence.
+A failed step is a release blocker. The automated protocol run is evidence for
+the accessibility-tree contract; physical NVDA and VoiceOver speech output is a
+release-ticket attestation. The current status, limitations and owner are in
+[`accessibility/evidence/2026-11-24-screen-reader-protocol.json`](accessibility/evidence/2026-11-24-screen-reader-protocol.json).
