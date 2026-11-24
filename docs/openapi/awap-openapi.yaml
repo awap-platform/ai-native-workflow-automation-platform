@@ -2168,6 +2168,215 @@ paths:
                 items:
                   $ref: "#/components/schemas/DocumentVersionResponse"
 
+  /api/v1/documents/multipart:
+    post:
+      operationId: initiateMultipartUpload
+      summary: Start a resumable upload
+      description: >-
+        Fixes the part plan and the SHA-256 the client promises, then returns one short-lived
+        presigned URL per part. Every staging key is generated server-side and scoped to the tenant,
+        so a part can only ever be written inside this upload. Nothing reaches the scan pipeline
+        until every part is acknowledged and the assembled bytes hash to this checksum.
+      tags: [Documents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, size, sha256]
+              properties:
+                name:
+                  type: string
+                contentType:
+                  type: string
+                size:
+                  type: integer
+                  format: int64
+                sha256:
+                  type: string
+                  pattern: "^[0-9a-fA-F]{64}$"
+      responses:
+        "201":
+          description: Upload plan.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MultipartUpload"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          description: The file exceeds the size limit or would need more than 10000 parts.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "415":
+          description: The extension is not on the allow-list.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /api/v1/documents/multipart/{uploadId}:
+    get:
+      operationId: getMultipartUpload
+      summary: Resume view of a resumable upload
+      description: >-
+        Returns the plan, the acknowledged parts and the expiry so a reload can continue instead of
+        restarting the transfer.
+      tags: [Documents]
+      parameters:
+        - $ref: "#/components/parameters/UploadId"
+      responses:
+        "200":
+          description: Upload status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MultipartUpload"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: abortMultipartUpload
+      summary: Cancel a resumable upload
+      description: >-
+        Deletes every staged part and marks the upload aborted. Repeating the call is idempotent; a
+        completed upload answers 409.
+      tags: [Documents]
+      parameters:
+        - $ref: "#/components/parameters/UploadId"
+      responses:
+        "204":
+          description: Upload aborted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/documents/multipart/{uploadId}/parts/{partNumber}/url:
+    post:
+      operationId: presignMultipartPart
+      summary: Refresh one part URL
+      description: >-
+        Issues a new presigned PUT for a single part when the original one expired. The URL is scoped
+        to that part object and expires after the configured presign window.
+      tags: [Documents]
+      parameters:
+        - $ref: "#/components/parameters/UploadId"
+        - $ref: "#/components/parameters/PartNumber"
+      responses:
+        "200":
+          description: Fresh part URL.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MultipartPartUrl"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/documents/multipart/{uploadId}/parts/{partNumber}:
+    post:
+      operationId: acknowledgeMultipartPart
+      summary: Acknowledge one uploaded part
+      description: >-
+        Verifies that the staged part exists and has exactly the planned byte count, then records it.
+        A missing part answers 409 and a size mismatch 422, so a truncated or padded part is rejected
+        before completion.
+      tags: [Documents]
+      parameters:
+        - $ref: "#/components/parameters/UploadId"
+        - $ref: "#/components/parameters/PartNumber"
+      responses:
+        "200":
+          description: Updated status with the acknowledged parts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MultipartUpload"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          description: The part byte count does not match the plan.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /api/v1/documents/multipart/{uploadId}/complete:
+    post:
+      operationId: completeMultipartUpload
+      summary: Complete a resumable upload
+      description: >-
+        Composes the staged parts, verifies the assembled size and SHA-256, then registers the file in
+        the quarantine bucket and opens a pending document version. A checksum mismatch answers 422
+        and deletes the assembled object, so a corrupted upload can never be scanned or promoted.
+      tags: [Documents]
+      parameters:
+        - $ref: "#/components/parameters/UploadId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sha256]
+              properties:
+                sha256:
+                  type: string
+                  pattern: "^[0-9a-fA-F]{64}$"
+      responses:
+        "201":
+          description: File accepted for scanning.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MultipartCompleted"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          description: The assembled bytes do not match the declared checksum.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
   /api/v1/documents/events:
     get:
       operationId: streamDocumentScanEvents
@@ -4347,6 +4556,22 @@ components:
       schema:
         type: string
         format: uuid
+    UploadId:
+      name: uploadId
+      in: path
+      required: true
+      description: Resumable upload UUID returned by the initiate call.
+      schema:
+        type: string
+        format: uuid
+    PartNumber:
+      name: partNumber
+      in: path
+      required: true
+      description: One-based part number of the upload plan.
+      schema:
+        type: integer
+        minimum: 1
     FormId:
       name: id
       in: path
@@ -5402,6 +5627,77 @@ components:
         downloadable:
           type: boolean
           description: True only when scanStatus is PROMOTED.
+
+    MultipartPartUrl:
+      type: object
+      properties:
+        uploadId:
+          type: string
+          format: uuid
+        partNumber:
+          type: integer
+        url:
+          type: string
+          description: Presigned PUT scoped to this part object; expires after the presign window.
+        expiresInSeconds:
+          type: integer
+
+    MultipartUpload:
+      type: object
+      description: The plan, the acknowledged parts and the expiry of a resumable upload.
+      properties:
+        uploadId:
+          type: string
+          format: uuid
+        fileId:
+          type: string
+          format: uuid
+          description: Present on the initiate response.
+        partSize:
+          type: integer
+          format: int64
+        partCount:
+          type: integer
+        status:
+          type: string
+          enum: [IN_PROGRESS, COMPLETED, ABORTED]
+        acknowledgedParts:
+          type: array
+          items:
+            type: integer
+        size:
+          type: integer
+          format: int64
+        expiresAt:
+          type: string
+          format: date-time
+        parts:
+          type: array
+          description: Ready-to-use part URLs returned by the initiate call.
+          items:
+            $ref: "#/components/schemas/MultipartPartUrl"
+
+    MultipartCompleted:
+      type: object
+      properties:
+        fileId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        status:
+          type: string
+          description: Scan state of the accepted file, QUARANTINED until the scanner runs.
+        expiresAt:
+          type: string
+          format: date-time
+        scanned:
+          type: boolean
+        versionId:
+          type: string
+          format: uuid
+        version:
+          type: integer
 
     CreateDocumentResponse:
       type: object

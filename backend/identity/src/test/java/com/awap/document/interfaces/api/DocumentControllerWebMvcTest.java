@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -16,13 +17,16 @@ import com.awap.common.api.AwapException;
 import com.awap.common.api.ErrorCode;
 import com.awap.document.application.DocumentScanSseService;
 import com.awap.document.application.DocumentService;
+import com.awap.document.application.MultipartUploadService;
 import com.awap.document.domain.DocumentStatus;
 import com.awap.document.domain.DocumentVersion;
+import com.awap.document.domain.MultipartUploadStatus;
 import com.awap.file.application.FileService;
 import com.awap.file.application.FileService.FileScanInfo;
 import com.awap.file.domain.FileScanStatus;
 import com.awap.identity.IdentityApplication;
 import com.awap.identity.infrastructure.security.TenantContext;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -31,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -48,6 +53,7 @@ class DocumentControllerWebMvcTest {
   @MockitoBean private DocumentService documentService;
   @MockitoBean private FileService fileService;
   @MockitoBean private DocumentScanSseService scanSseService;
+  @MockitoBean private MultipartUploadService multipartUploadService;
 
   private MockMvc mockMvc;
 
@@ -186,5 +192,144 @@ class DocumentControllerWebMvcTest {
                 .with(user("manager").authorities(new SimpleGrantedAuthority("INSTANCE_READ"))))
         .andExpect(request().asyncStarted())
         .andExpect(status().isOk());
+  }
+
+  @Test
+  void initiateMultipartReturnsThePartPlan() throws Exception {
+    UUID uploadId = UUID.randomUUID();
+    UUID fileId = UUID.randomUUID();
+    String checksum = "a".repeat(64);
+    when(multipartUploadService.initiate(
+            eq(TENANT), eq("big.pdf"), eq("application/pdf"), eq(20L * 1024 * 1024), eq(checksum)))
+        .thenReturn(
+            new MultipartUploadService.InitiatedUpload(
+                uploadId,
+                fileId,
+                8L * 1024 * 1024,
+                3,
+                Instant.parse("2026-12-01T00:00:00Z"),
+                List.of(new MultipartUploadService.PartUrl(1, "https://minio/part-1", 300))));
+
+    mockMvc
+        .perform(
+            post("/api/v1/documents/multipart")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"name\":\"big.pdf\",\"contentType\":\"application/pdf\",\"size\":"
+                        + (20L * 1024 * 1024)
+                        + ",\"sha256\":\""
+                        + checksum
+                        + "\"}")
+                .with(csrf())
+                .with(user("uploader").authorities(new SimpleGrantedAuthority("FILE_UPLOAD"))))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.uploadId").value(uploadId.toString()))
+        .andExpect(jsonPath("$.partCount").value(3))
+        .andExpect(jsonPath("$.parts[0].url").value("https://minio/part-1"));
+  }
+
+  @Test
+  void multipartStatusListsAcknowledgedParts() throws Exception {
+    UUID uploadId = UUID.randomUUID();
+    when(multipartUploadService.status(TENANT, uploadId))
+        .thenReturn(
+            new MultipartUploadService.UploadStatus(
+                uploadId,
+                MultipartUploadStatus.IN_PROGRESS,
+                8L * 1024 * 1024,
+                3,
+                List.of(1, 2),
+                20L * 1024 * 1024,
+                Instant.parse("2026-12-01T00:00:00Z")));
+
+    mockMvc
+        .perform(
+            get("/api/v1/documents/multipart/" + uploadId)
+                .with(user("uploader").authorities(new SimpleGrantedAuthority("FILE_UPLOAD"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.acknowledgedParts[1]").value(2))
+        .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+  }
+
+  @Test
+  void multipartPartUrlIssuesAFreshSlot() throws Exception {
+    UUID uploadId = UUID.randomUUID();
+    when(multipartUploadService.presignPart(TENANT, uploadId, 2))
+        .thenReturn(new MultipartUploadService.PartUrl(2, "https://minio/fresh", 300));
+
+    mockMvc
+        .perform(
+            post("/api/v1/documents/multipart/" + uploadId + "/parts/2/url")
+                .with(csrf())
+                .with(user("uploader").authorities(new SimpleGrantedAuthority("FILE_UPLOAD"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.uploadId").value(uploadId.toString()))
+        .andExpect(jsonPath("$.url").value("https://minio/fresh"));
+  }
+
+  @Test
+  void multipartAcknowledgeReflectsTheServerObservation() throws Exception {
+    UUID uploadId = UUID.randomUUID();
+    when(multipartUploadService.acknowledgePart(TENANT, uploadId, 1))
+        .thenReturn(
+            new MultipartUploadService.UploadStatus(
+                uploadId,
+                MultipartUploadStatus.IN_PROGRESS,
+                8L * 1024 * 1024,
+                3,
+                List.of(1),
+                20L * 1024 * 1024,
+                Instant.parse("2026-12-01T00:00:00Z")));
+
+    mockMvc
+        .perform(
+            post("/api/v1/documents/multipart/" + uploadId + "/parts/1")
+                .with(csrf())
+                .with(user("uploader").authorities(new SimpleGrantedAuthority("FILE_UPLOAD"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.acknowledgedParts[0]").value(1));
+  }
+
+  @Test
+  void multipartCompleteReturnsTheScannableFile() throws Exception {
+    UUID uploadId = UUID.randomUUID();
+    UUID fileId = UUID.randomUUID();
+    when(multipartUploadService.complete(TENANT, uploadId, "b".repeat(64)))
+        .thenReturn(
+            new MultipartUploadService.CompletedUpload(
+                fileId,
+                "big.pdf",
+                FileScanStatus.QUARANTINED,
+                Instant.parse("2026-12-01T00:00:00Z")));
+    DocumentVersion version =
+        new DocumentVersion(TENANT, fileId, 1, "awap-documents", fileId + "/v1", 10, "pdf");
+    when(documentService.registerPending(TENANT, fileId)).thenReturn(version);
+
+    mockMvc
+        .perform(
+            post("/api/v1/documents/multipart/" + uploadId + "/complete")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"sha256\":\"" + "b".repeat(64) + "\"}")
+                .with(csrf())
+                .with(user("uploader").authorities(new SimpleGrantedAuthority("FILE_UPLOAD"))))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.fileId").value(fileId.toString()))
+        .andExpect(jsonPath("$.status").value("QUARANTINED"))
+        .andExpect(jsonPath("$.scanned").value(false))
+        .andExpect(jsonPath("$.version").value(1));
+  }
+
+  @Test
+  void multipartAbortAnswersNoContent() throws Exception {
+    UUID uploadId = UUID.randomUUID();
+
+    mockMvc
+        .perform(
+            delete("/api/v1/documents/multipart/" + uploadId)
+                .with(csrf())
+                .with(user("uploader").authorities(new SimpleGrantedAuthority("FILE_UPLOAD"))))
+        .andExpect(status().isNoContent());
+
+    org.mockito.Mockito.verify(multipartUploadService).abort(TENANT, uploadId);
   }
 }

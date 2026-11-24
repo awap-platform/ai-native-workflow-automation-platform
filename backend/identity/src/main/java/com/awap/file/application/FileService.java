@@ -60,6 +60,27 @@ public class FileService {
     return new UploadSlot(record.getId(), uploadUrl);
   }
 
+  /**
+   * Accepts bytes that were assembled by the resumable upload protocol (issue #372) into the
+   * quarantine bucket. The validations are identical to {@link #createUpload} so a chunked upload
+   * cannot bypass the size or format rules, and the scan pipeline starts exactly as it does for a
+   * single-PUT upload.
+   */
+  @Transactional
+  public FileScanInfo acceptStagedUpload(
+      UUID tenantId, UUID fileId, String name, String contentType, long size, String objectKey) {
+    validateName(name);
+    validateSize(size);
+    validateFormat(name);
+    FileRecord record =
+        new FileRecord(
+            fileId, tenantId, name, contentType, size, properties.quarantineBucket(), objectKey);
+    repository.save(record);
+    eventBus.publish(
+        FileScanStatusEvent.of(record, "Resumable upload assembled in the quarantine bucket."));
+    return toScanInfo(record);
+  }
+
   /** Issues a presigned GET only when the file reached PROMOTED. */
   @Transactional(readOnly = true)
   public String downloadUrl(UUID tenantId, UUID id) {
@@ -238,12 +259,12 @@ public class FileService {
         : "";
   }
 
-  static String objectKey(UUID tenantId, UUID fileId, String name) {
+  public static String objectKey(UUID tenantId, UUID fileId, String name) {
     return tenantId + "/" + fileId + "/" + sanitize(name);
   }
 
   /** Produces a single path segment: no separators, no {@code ..} traversal sequences. */
-  static String sanitize(String name) {
+  public static String sanitize(String name) {
     if (name == null || name.isBlank()) {
       return "file";
     }

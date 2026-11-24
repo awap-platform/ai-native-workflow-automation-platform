@@ -11,6 +11,7 @@ com.awap.ai.domain.AutomationAudit
 com.awap.analytics.domain.AnalyticsAggregate
 com.awap.analytics.domain.AnalyticsEventSample
 com.awap.document.domain.DocumentVersion
+com.awap.document.domain.MultipartUpload
 com.awap.engine.domain.ExecutionContext
 com.awap.engine.domain.ExecutionLog
 com.awap.engine.domain.NodeExecution

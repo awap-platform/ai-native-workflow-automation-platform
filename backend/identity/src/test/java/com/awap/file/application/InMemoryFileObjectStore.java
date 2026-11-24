@@ -81,6 +81,31 @@ final class InMemoryFileObjectStore implements FileObjectStore {
   }
 
   @Override
+  public long statSize(String bucket, String objectKey) {
+    byte[] content = objects.get(id(bucket, objectKey));
+    if (content == null) {
+      throw new FileStorageException("Missing object " + bucket + "/" + objectKey);
+    }
+    return content.length;
+  }
+
+  @Override
+  public void compose(String bucket, String targetObjectKey, List<String> sourceObjectKeys) {
+    if (sourceObjectKeys.isEmpty()) {
+      throw new FileStorageException("Cannot compose an empty object list");
+    }
+    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+    for (String key : sourceObjectKeys) {
+      byte[] part = objects.get(id(bucket, key));
+      if (part == null) {
+        throw new FileStorageException("Missing part " + bucket + "/" + key);
+      }
+      out.writeBytes(part);
+    }
+    objects.put(id(bucket, targetObjectKey), out.toByteArray());
+  }
+
+  @Override
   public String presignedGet(String bucket, String objectKey, Duration ttl) {
     presignTtls.add(ttl);
     return "https://minio/" + bucket + "/" + objectKey + "?method=GET&ttl=" + ttl.toSeconds();
