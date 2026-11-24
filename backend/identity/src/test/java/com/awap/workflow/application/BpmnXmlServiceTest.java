@@ -208,4 +208,368 @@ class BpmnXmlServiceTest {
             AwapException.class,
             exception -> assertThat(exception.status()).isEqualTo(HttpStatus.BAD_REQUEST));
   }
+
+  @Test
+  void exportAndImportPreserveNodeGeometryAndEdgeWaypoints() throws Exception {
+    String definition =
+        """
+        {"nodes":[
+          {"id":"start","type":"START","di":{"x":120,"y":80,"width":200,"height":70,
+           "laneId":"lane-1","poolId":"pool-1"}},
+          {"id":"end","type":"END","di":{"x":460,"y":300,"width":180,"height":64}}],
+         "transitions":[{"id":"t1","from":"start","to":"end",
+           "di":{"waypoints":[{"x":220,"y":150},{"x":550,"y":300}],
+                 "labelPosition":{"x":300,"y":180}}}]}
+        """;
+
+    String xml = service.exportDefinition(definition);
+    assertThat(xml)
+        .contains("bpmndi:BPMNDiagram")
+        .contains("bpmndi:BPMNPlane")
+        .contains("bpmndi:BPMNShape")
+        .contains("bpmndi:BPMNEdge")
+        .contains("di:waypoint")
+        .contains("dc:Bounds");
+
+    JsonNode imported = objectMapper.readTree(service.importDefinition(xml).definitionJson());
+    JsonNode start = imported.get("nodes").get(0).get("di");
+    assertThat(start.get("x").asDouble()).isEqualTo(120d);
+    assertThat(start.get("y").asDouble()).isEqualTo(80d);
+    assertThat(start.get("width").asDouble()).isEqualTo(200d);
+    assertThat(start.get("height").asDouble()).isEqualTo(70d);
+    assertThat(start.get("laneId").asText()).isEqualTo("lane-1");
+    assertThat(start.get("poolId").asText()).isEqualTo("pool-1");
+
+    JsonNode transition = imported.get("transitions").get(0).get("di");
+    assertThat(transition.get("waypoints")).hasSize(2);
+    assertThat(transition.get("waypoints").get(0).get("x").asDouble()).isEqualTo(220d);
+    assertThat(transition.get("waypoints").get(1).get("y").asDouble()).isEqualTo(300d);
+    assertThat(transition.get("labelPosition").get("x").asDouble()).isEqualTo(300d);
+  }
+
+  @Test
+  void exportGeneratesDeterministicDiWhenAbsentAndImportDropsIt() throws Exception {
+    String definition =
+        """
+        {"nodes":[{"id":"s","type":"START"},{"id":"e","type":"END"}],
+         "transitions":[{"id":"t","from":"s","to":"e"}]}
+        """;
+
+    String first = service.exportDefinition(definition);
+    String second = service.exportDefinition(definition);
+    assertThat(first).isEqualTo(second);
+    assertThat(first).contains("awap:diGenerated=\"true\"");
+
+    JsonNode imported = objectMapper.readTree(service.importDefinition(first).definitionJson());
+    assertThat(imported).isEqualTo(objectMapper.readTree(definition));
+    assertThat(imported.get("nodes").get(0).has("di")).isFalse();
+    assertThat(imported.get("transitions").get(0).has("di")).isFalse();
+  }
+
+  @Test
+  void importsExternalBpmnDiGeometry() throws Exception {
+    String xml =
+        """
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+            xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+            xmlns:di="http://www.omg.org/spec/DD/20100524/DI">
+          <bpmn:process id="p">
+            <bpmn:startEvent id="s"/>
+            <bpmn:endEvent id="e"/>
+            <bpmn:sequenceFlow id="t" sourceRef="s" targetRef="e"/>
+          </bpmn:process>
+          <bpmndi:BPMNDiagram id="d">
+            <bpmndi:BPMNPlane id="p1" bpmnElement="p">
+              <bpmndi:BPMNShape id="shape-s" bpmnElement="s">
+                <dc:Bounds x="100" y="50" width="180" height="64"/>
+              </bpmndi:BPMNShape>
+              <bpmndi:BPMNEdge id="edge-t" bpmnElement="t">
+                <di:waypoint x="190" y="114"/>
+                <di:waypoint x="190" y="260"/>
+              </bpmndi:BPMNEdge>
+            </bpmndi:BPMNPlane>
+          </bpmndi:BPMNDiagram>
+        </bpmn:definitions>
+        """;
+
+    JsonNode imported = objectMapper.readTree(service.importDefinition(xml).definitionJson());
+    assertThat(imported.get("nodes").get(0).get("di").get("x").asDouble()).isEqualTo(100d);
+    assertThat(imported.get("nodes").get(0).get("di").get("height").asDouble()).isEqualTo(64d);
+    assertThat(imported.get("transitions").get(0).get("di").get("waypoints")).hasSize(2);
+  }
+
+  @Test
+  void rejectsScriptTaskWithAnExecutableScriptBody() {
+    String xml =
+        """
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+          <bpmn:process id="p">
+            <bpmn:scriptTask id="script" scriptFormat="groovy">
+              <bpmn:script>System.exit(1)</bpmn:script>
+            </bpmn:scriptTask>
+          </bpmn:process>
+        </bpmn:definitions>
+        """;
+
+    assertThatThrownBy(() -> service.importDefinition(xml))
+        .isInstanceOfSatisfying(
+            AwapException.class,
+            exception -> {
+              assertThat(exception.status()).isEqualTo(HttpStatus.BAD_REQUEST);
+              assertThat(exception.getMessage()).contains("Script tasks are not supported");
+            });
+  }
+
+  @Test
+  void rejectsMoreWaypointsThanTheLimit() {
+    StringBuilder waypoints = new StringBuilder();
+    for (int index = 0; index <= BpmnXmlService.MAX_DI_WAYPOINTS; index++) {
+      waypoints.append("<di:waypoint x=\"").append(index).append("\" y=\"0\"/>");
+    }
+    String xml =
+        """
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+            xmlns:di="http://www.omg.org/spec/DD/20100524/DI">
+          <bpmn:process id="p">
+            <bpmn:startEvent id="s"/><bpmn:endEvent id="e"/>
+            <bpmn:sequenceFlow id="t" sourceRef="s" targetRef="e"/>
+          </bpmn:process>
+          <bpmndi:BPMNDiagram id="d">
+            <bpmndi:BPMNPlane id="p1" bpmnElement="p">
+              <bpmndi:BPMNEdge id="edge-t" bpmnElement="t">
+        """
+            + waypoints
+            + """
+              </bpmndi:BPMNEdge>
+            </bpmndi:BPMNPlane>
+          </bpmndi:BPMNDiagram>
+        </bpmn:definitions>
+        """;
+
+    assertThatThrownBy(() -> service.importDefinition(xml))
+        .isInstanceOfSatisfying(
+            AwapException.class,
+            exception -> {
+              assertThat(exception.status()).isEqualTo(HttpStatus.BAD_REQUEST);
+              assertThat(exception.getMessage()).contains("waypoint limit");
+            });
+  }
+
+  @Test
+  void regeneratesAnEmptyWaypointListInsteadOfWritingAnInvalidEdge() {
+    String xml =
+        service.exportDefinition(
+            "{\"nodes\":[{\"id\":\"s\",\"type\":\"START\"},{\"id\":\"e\",\"type\":\"END\"}],"
+                + "\"transitions\":[{\"id\":\"t\",\"from\":\"s\",\"to\":\"e\","
+                + "\"di\":{\"waypoints\":[]}}]}");
+
+    assertThat(xml).contains("awap:diGenerated=\"true\"").contains("di:waypoint");
+  }
+
+  @Test
+  void regeneratesAWaypointWithNonNumericCoordinates() {
+    String xml =
+        service.exportDefinition(
+            "{\"nodes\":[{\"id\":\"s\",\"type\":\"START\"},{\"id\":\"e\",\"type\":\"END\"}],"
+                + "\"transitions\":[{\"id\":\"t\",\"from\":\"s\",\"to\":\"e\","
+                + "\"di\":{\"waypoints\":[{\"x\":\"bad\",\"y\":1}]}}]}");
+
+    assertThat(xml).contains("awap:diGenerated=\"true\"");
+  }
+
+  @Test
+  void preservesFractionalCoordinatesAndASelfLoopWaypoint() throws Exception {
+    String definition =
+        """
+        {"nodes":[{"id":"loop","type":"TASK",
+          "di":{"x":100.5,"y":60.25,"width":180.5,"height":64.5}}],
+         "transitions":[{"id":"t","from":"loop","to":"loop"}]}
+        """;
+
+    String xml = service.exportDefinition(definition);
+    JsonNode imported = objectMapper.readTree(service.importDefinition(xml).definitionJson());
+    assertThat(imported.get("nodes").get(0).get("di").get("x").asDouble()).isEqualTo(100.5d);
+    assertThat(imported.get("nodes").get(0).get("di").get("width").asDouble()).isEqualTo(180.5d);
+    assertThat(imported.get("transitions").get(0).get("di")).isNull();
+  }
+
+  @Test
+  void exportsAGeneratedSelfLoopWithAThirdWaypoint() {
+    String xml =
+        service.exportDefinition(
+            "{\"nodes\":[{\"id\":\"loop\",\"type\":\"TASK\"}],"
+                + "\"transitions\":[{\"id\":\"t\",\"from\":\"loop\",\"to\":\"loop\"}]}");
+
+    assertThat(xml).contains("di:waypoint");
+    // Source center-bottom and target center-top are identical for a one-node loop, so the
+    // generator inserts a middle point instead of a zero-length edge.
+    assertThat(xml.split("<di:waypoint", -1).length - 1).isEqualTo(3);
+  }
+
+  @Test
+  void ignoresDiagramEdgesWithoutWaypoints() throws Exception {
+    String xml =
+        """
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI">
+          <bpmn:process id="p">
+            <bpmn:startEvent id="s"/><bpmn:endEvent id="e"/>
+            <bpmn:sequenceFlow id="t" sourceRef="s" targetRef="e"/>
+          </bpmn:process>
+          <bpmndi:BPMNDiagram id="d">
+            <bpmndi:BPMNPlane id="p1" bpmnElement="p">
+              <bpmndi:BPMNEdge id="edge-t" bpmnElement="t"/>
+            </bpmndi:BPMNPlane>
+          </bpmndi:BPMNDiagram>
+        </bpmn:definitions>
+        """;
+
+    JsonNode imported = objectMapper.readTree(service.importDefinition(xml).definitionJson());
+    assertThat(imported.get("transitions").get(0).has("di")).isFalse();
+  }
+
+  @Test
+  void rejectsAnEdgeWaypointWithoutAnXAttribute() {
+    String xml =
+        """
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+            xmlns:di="http://www.omg.org/spec/DD/20100524/DI">
+          <bpmn:process id="p">
+            <bpmn:startEvent id="s"/><bpmn:endEvent id="e"/>
+            <bpmn:sequenceFlow id="t" sourceRef="s" targetRef="e"/>
+          </bpmn:process>
+          <bpmndi:BPMNDiagram id="d">
+            <bpmndi:BPMNPlane id="p1" bpmnElement="p">
+              <bpmndi:BPMNEdge id="edge-t" bpmnElement="t">
+                <di:waypoint y="1"/>
+              </bpmndi:BPMNEdge>
+            </bpmndi:BPMNPlane>
+          </bpmndi:BPMNDiagram>
+        </bpmn:definitions>
+        """;
+
+    assertThatThrownBy(() -> service.importDefinition(xml))
+        .isInstanceOfSatisfying(
+            AwapException.class,
+            exception -> {
+              assertThat(exception.status()).isEqualTo(HttpStatus.BAD_REQUEST);
+              assertThat(exception.getMessage()).contains("without numeric x/y");
+            });
+  }
+
+  @Test
+  void rejectsAnEdgeWaypointWithoutNumericCoordinates() {
+    String xml =
+        """
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+            xmlns:di="http://www.omg.org/spec/DD/20100524/DI">
+          <bpmn:process id="p">
+            <bpmn:startEvent id="s"/><bpmn:endEvent id="e"/>
+            <bpmn:sequenceFlow id="t" sourceRef="s" targetRef="e"/>
+          </bpmn:process>
+          <bpmndi:BPMNDiagram id="d">
+            <bpmndi:BPMNPlane id="p1" bpmnElement="p">
+              <bpmndi:BPMNEdge id="edge-t" bpmnElement="t">
+                <di:waypoint x="nope" y="1"/>
+              </bpmndi:BPMNEdge>
+            </bpmndi:BPMNPlane>
+          </bpmndi:BPMNDiagram>
+        </bpmn:definitions>
+        """;
+
+    assertThatThrownBy(() -> service.importDefinition(xml))
+        .isInstanceOfSatisfying(
+            AwapException.class,
+            exception -> {
+              assertThat(exception.status()).isEqualTo(HttpStatus.BAD_REQUEST);
+              assertThat(exception.getMessage()).contains("without numeric x/y");
+            });
+  }
+
+  @Test
+  void rejectsALabelWithoutNumericCoordinates() {
+    String xml =
+        """
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+            xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+            xmlns:di="http://www.omg.org/spec/DD/20100524/DI">
+          <bpmn:process id="p">
+            <bpmn:startEvent id="s"/><bpmn:endEvent id="e"/>
+            <bpmn:sequenceFlow id="t" sourceRef="s" targetRef="e"/>
+          </bpmn:process>
+          <bpmndi:BPMNDiagram id="d">
+            <bpmndi:BPMNPlane id="p1" bpmnElement="p">
+              <bpmndi:BPMNEdge id="edge-t" bpmnElement="t">
+                <di:waypoint x="1" y="2"/>
+                <bpmndi:BPMNLabel><dc:Bounds x="nope" y="2"/></bpmndi:BPMNLabel>
+              </bpmndi:BPMNEdge>
+            </bpmndi:BPMNPlane>
+          </bpmndi:BPMNDiagram>
+        </bpmn:definitions>
+        """;
+
+    assertThatThrownBy(() -> service.importDefinition(xml))
+        .isInstanceOfSatisfying(
+            AwapException.class,
+            exception -> {
+              assertThat(exception.status()).isEqualTo(HttpStatus.BAD_REQUEST);
+              assertThat(exception.getMessage()).contains("label without numeric x/y");
+            });
+  }
+
+  @Test
+  void rejectsAShapeWithoutBounds() {
+    String xml =
+        """
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI">
+          <bpmn:process id="p"><bpmn:startEvent id="s"/></bpmn:process>
+          <bpmndi:BPMNDiagram id="d">
+            <bpmndi:BPMNPlane id="p1" bpmnElement="p">
+              <bpmndi:BPMNShape id="shape-s" bpmnElement="s"/>
+            </bpmndi:BPMNPlane>
+          </bpmndi:BPMNDiagram>
+        </bpmn:definitions>
+        """;
+
+    assertThatThrownBy(() -> service.importDefinition(xml))
+        .isInstanceOfSatisfying(
+            AwapException.class,
+            exception -> {
+              assertThat(exception.status()).isEqualTo(HttpStatus.BAD_REQUEST);
+              assertThat(exception.getMessage()).contains("has no dc:Bounds");
+            });
+  }
+
+  @Test
+  void rejectsAShapeWithoutNumericBounds() {
+    String xml =
+        """
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+            xmlns:dc="http://www.omg.org/spec/DD/20100524/DC">
+          <bpmn:process id="p"><bpmn:startEvent id="s"/></bpmn:process>
+          <bpmndi:BPMNDiagram id="d">
+            <bpmndi:BPMNPlane id="p1" bpmnElement="p">
+              <bpmndi:BPMNShape id="shape-s" bpmnElement="s">
+                <dc:Bounds x="abc" y="50" width="180" height="64"/>
+              </bpmndi:BPMNShape>
+            </bpmndi:BPMNPlane>
+          </bpmndi:BPMNDiagram>
+        </bpmn:definitions>
+        """;
+
+    assertThatThrownBy(() -> service.importDefinition(xml))
+        .isInstanceOfSatisfying(
+            AwapException.class,
+            exception -> {
+              assertThat(exception.status()).isEqualTo(HttpStatus.BAD_REQUEST);
+              assertThat(exception.getMessage()).contains("invalid x/y/width/height");
+            });
+  }
 }
