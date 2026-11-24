@@ -90,12 +90,31 @@ scans the designer in both themes and fails on critical or serious findings.
 | R5-07 XML XXE | DOCTYPE disallowed, external entities/DTD/schema disabled, secure processing enabled, plus a dedicated rejection test |
 | R5-08 unpublished draft loss | localStorage drafts are separate from server saves; publish saves first; export works on unsaved state |
 
+## Diagram interchange
+
+Issue #368 adds an optional, additive `di` object to the definition contract:
+
+- node: `{ x, y, width, height, laneId?, poolId? }`
+- transition: `{ waypoints: [{ x, y }], labelPosition?: { x, y } }`
+
+`toDefinitionJson` writes the React Flow position and measured size, so a drag survives save and
+reload. `parseDefinitionJson` uses the saved geometry and only falls back to the deterministic
+diagonal auto-layout when `di` is absent or invalid. The backend treats `di` as opaque visual
+metadata: it validates finite coordinates, positive sizes, a 10,000-waypoint budget and optional
+lane/pool identifiers, but never interprets geometry in engine logic.
+
+BPMN export emits `bpmndi:BPMNDiagram`, one `bpmndi:BPMNShape` per node and one
+`bpmndi:BPMNEdge` per transition with `di:waypoint` entries and an optional label bounds. When a
+definition has no DI, export generates a deterministic layout and marks it
+`awap:diGenerated="true"`; import drops generated geometry so a legacy definition still round-trips
+without gaining a `di` block. Import rejects script tasks that carry an executable
+`bpmn:script` body and caps waypoint arrays.
+
 ## Honest limitations
 
-- BPMN diagram interchange (positions, lanes, edge waypoints) is **not** round-tripped. Positions are
-  not part of the definition JSON either; the canvas regenerates a deterministic layout on import.
-- Only the engine's node subset is supported. Boundary events, event-based gateways, choreographies
-  and multi-instance markers are rejected with a 400 rather than approximated.
+- Lane/pool ids round-trip as optional DI metadata, but the palette does not yet create lane/pool
+  containers; boundary events, event-based gateways, choreographies and multi-instance markers are
+  rejected with a 400 rather than approximated.
 - Draft updates use the definition `updatedAt` value as an optimistic-concurrency token. Two tabs
   that load the same draft cannot silently overwrite each other: the stale tab gets a 409 and the
   conflict dialog offers reload or "keep mine as a new definition". A published or archived
@@ -104,5 +123,5 @@ scans the designer in both themes and fails on critical or serious findings.
   server DRAFT in place. The server is authoritative after a save and the local backup is cleared.
 - The in-app unsaved-changes guard intercepts ordinary same-origin link clicks; programmatic
   router navigation is not intercepted.
-- Moving a node does not mark the draft dirty because positions are not persisted in the
-  definition JSON.
+- Moving a node now marks the draft dirty because position and size are persisted in the definition
+  JSON.

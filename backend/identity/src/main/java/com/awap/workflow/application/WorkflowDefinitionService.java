@@ -387,9 +387,113 @@ public class WorkflowDefinitionService {
           }
         }
       }
+      validateDiagram(root);
     } catch (JsonProcessingException ex) {
       throw invalidDefinition();
     }
+  }
+
+  /**
+   * DI is opaque visual metadata for the engine, but it still has a bounded, validated shape so a
+   * hostile definition cannot exhaust memory or store unusable geometry. See issue #368.
+   */
+  private void validateDiagram(JsonNode root) {
+    for (JsonNode node : root.path("nodes")) {
+      JsonNode di = node.get("di");
+      if (di != null && !di.isNull()) {
+        String nodeId = node.path("id").asText("node");
+        if (!di.isObject()) {
+          throw invalidDiagram("Node '" + nodeId + "' has a non-object di block.");
+        }
+        requireCoordinate(di, "x", "Node '" + nodeId + "'");
+        requireCoordinate(di, "y", "Node '" + nodeId + "'");
+        double width = requirePositive(di, "width", "Node '" + nodeId + "'");
+        double height = requirePositive(di, "height", "Node '" + nodeId + "'");
+        if (width > 100_000 || height > 100_000) {
+          throw invalidDiagram("Node '" + nodeId + "' has an out-of-range size.");
+        }
+        validateOptionalIdentifier(di, "laneId", "Node '" + nodeId + "'");
+        validateOptionalIdentifier(di, "poolId", "Node '" + nodeId + "'");
+      }
+    }
+
+    JsonNode transitions = root.get("transitions");
+    if (transitions == null) {
+      transitions = root.get("edges");
+    }
+    if (transitions == null || !transitions.isArray()) {
+      return;
+    }
+    int totalWaypoints = 0;
+    for (JsonNode transition : transitions) {
+      JsonNode di = transition.get("di");
+      if (di != null && !di.isNull()) {
+        String transitionId = transition.path("id").asText("transition");
+        if (!di.isObject()) {
+          throw invalidDiagram("Transition '" + transitionId + "' has a non-object di block.");
+        }
+        JsonNode waypoints = di.get("waypoints");
+        if (waypoints != null && !waypoints.isNull()) {
+          if (!waypoints.isArray()) {
+            throw invalidDiagram(
+                "Transition '" + transitionId + "' di.waypoints must be an array.");
+          }
+          totalWaypoints += waypoints.size();
+          if (totalWaypoints > 10_000) {
+            throw invalidDiagram("Diagram exceeds the 10000 waypoint limit.");
+          }
+          for (JsonNode point : waypoints) {
+            if (!point.isObject()) {
+              throw invalidDiagram("Transition '" + transitionId + "' has a non-object waypoint.");
+            }
+            requireCoordinate(point, "x", "Transition '" + transitionId + "' waypoint");
+            requireCoordinate(point, "y", "Transition '" + transitionId + "' waypoint");
+          }
+        }
+        JsonNode labelPosition = di.get("labelPosition");
+        if (labelPosition != null && !labelPosition.isNull()) {
+          if (!labelPosition.isObject()) {
+            throw invalidDiagram(
+                "Transition '" + transitionId + "' di.labelPosition must be an object.");
+          }
+          requireCoordinate(labelPosition, "x", "Transition '" + transitionId + "' label");
+          requireCoordinate(labelPosition, "y", "Transition '" + transitionId + "' label");
+        }
+      }
+    }
+  }
+
+  private double requireCoordinate(JsonNode value, String field, String target) {
+    JsonNode coordinate = value.get(field);
+    if (coordinate == null || !coordinate.isNumber() || !Double.isFinite(coordinate.asDouble())) {
+      throw invalidDiagram(target + " has an invalid di." + field + ".");
+    }
+    return coordinate.asDouble();
+  }
+
+  private double requirePositive(JsonNode value, String field, String target) {
+    double number = requireCoordinate(value, field, target);
+    if (number <= 0) {
+      throw invalidDiagram(target + " has a non-positive di." + field + ".");
+    }
+    return number;
+  }
+
+  private void validateOptionalIdentifier(JsonNode value, String field, String target) {
+    JsonNode identifier = value.get(field);
+    if (identifier == null || identifier.isNull()) {
+      return;
+    }
+    if (!identifier.isTextual() || identifier.asText().length() > 128) {
+      throw invalidDiagram(target + " has an invalid di." + field + ".");
+    }
+  }
+
+  private AwapException invalidDiagram(String message) {
+    return new AwapException(
+        ErrorCode.VALIDATION_FAILED,
+        HttpStatus.BAD_REQUEST,
+        "Invalid diagram geometry: " + message);
   }
 
   /** Issue #287: an EXTRACT node must carry a valid schema before it can be published. */

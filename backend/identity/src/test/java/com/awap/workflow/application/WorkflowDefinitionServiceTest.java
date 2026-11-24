@@ -336,4 +336,180 @@ class WorkflowDefinitionServiceTest {
         .isInstanceOf(AwapException.class)
         .hasMessageContaining("not found");
   }
+
+  @Test
+  void createAcceptsValidDiagramGeometry() {
+    when(definitionRepository.save(any(WorkflowDefinition.class)))
+        .thenAnswer(inv -> inv.getArgument(0));
+    when(versionRepository.save(any(WorkflowVersion.class))).thenAnswer(inv -> inv.getArgument(0));
+    String graph =
+        "{\"nodes\":[{\"id\":\"start\",\"type\":\"START\","
+            + "\"di\":{\"x\":120,\"y\":80,\"width\":200,\"height\":70,"
+            + "\"laneId\":\"lane-1\",\"poolId\":\"pool-1\"}}],"
+            + "\"transitions\":[{\"id\":\"t1\",\"from\":\"start\",\"to\":\"start\","
+            + "\"di\":{\"waypoints\":[{\"x\":10,\"y\":20},{\"x\":30,\"y\":40}],"
+            + "\"labelPosition\":{\"x\":20,\"y\":30}}}]}";
+
+    service.create(tenantId, new WorkflowDefinitionRequest("W", null, graph));
+
+    verify(versionRepository).save(any(WorkflowVersion.class));
+  }
+
+  @Test
+  void createAcceptsALegacyGraphWithoutDiagramInterchange() {
+    when(definitionRepository.save(any(WorkflowDefinition.class)))
+        .thenAnswer(inv -> inv.getArgument(0));
+    when(versionRepository.save(any(WorkflowVersion.class))).thenAnswer(inv -> inv.getArgument(0));
+
+    service.create(tenantId, new WorkflowDefinitionRequest("W", null, VALID_GRAPH));
+
+    verify(versionRepository).save(any(WorkflowVersion.class));
+  }
+
+  @Test
+  void createRejectsANonObjectTransitionDiagram() {
+    String graph =
+        "{\"nodes\":[{\"id\":\"start\",\"type\":\"START\"},{\"id\":\"end\",\"type\":\"END\"}],"
+            + "\"transitions\":[{\"from\":\"start\",\"to\":\"end\",\"di\":\"bad\"}]}";
+
+    assertThatThrownBy(
+            () -> service.create(tenantId, new WorkflowDefinitionRequest("W", null, graph)))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("Transition 'transition' has a non-object di block");
+  }
+
+  @Test
+  void createAcceptsDiagramWithoutLaneOrPoolMembership() {
+    when(definitionRepository.save(any(WorkflowDefinition.class)))
+        .thenAnswer(inv -> inv.getArgument(0));
+    when(versionRepository.save(any(WorkflowVersion.class))).thenAnswer(inv -> inv.getArgument(0));
+    String graph =
+        "{\"nodes\":[{\"id\":\"start\",\"type\":\"START\","
+            + "\"di\":{\"x\":10,\"y\":20,\"width\":180,\"height\":64}}],"
+            + "\"transitions\":[]}";
+
+    service.create(tenantId, new WorkflowDefinitionRequest("W", null, graph));
+
+    verify(versionRepository).save(any(WorkflowVersion.class));
+  }
+
+  @Test
+  void createRejectsNonPositiveDiagramSize() {
+    String graph =
+        "{\"nodes\":[{\"id\":\"start\",\"type\":\"START\","
+            + "\"di\":{\"x\":0,\"y\":0,\"width\":-1,\"height\":64}}]}";
+
+    assertThatThrownBy(
+            () -> service.create(tenantId, new WorkflowDefinitionRequest("W", null, graph)))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("Invalid diagram geometry");
+  }
+
+  @Test
+  void createRejectsNonObjectDiagram() {
+    String graph = "{\"nodes\":[{\"id\":\"start\",\"type\":\"START\",\"di\":\"bad\"}]}";
+
+    assertThatThrownBy(
+            () -> service.create(tenantId, new WorkflowDefinitionRequest("W", null, graph)))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("non-object di");
+  }
+
+  @Test
+  void createRejectsNonNumericWaypoint() {
+    String graph =
+        "{\"nodes\":[{\"id\":\"start\",\"type\":\"START\"},{\"id\":\"end\",\"type\":\"END\"}],"
+            + "\"transitions\":[{\"from\":\"start\",\"to\":\"end\","
+            + "\"di\":{\"waypoints\":[{\"x\":\"bad\",\"y\":2}]}}]}";
+
+    assertThatThrownBy(
+            () -> service.create(tenantId, new WorkflowDefinitionRequest("W", null, graph)))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("invalid di.x");
+  }
+
+  @Test
+  void createRejectsANonArrayWaypointList() {
+    String graph =
+        "{\"nodes\":[{\"id\":\"start\",\"type\":\"START\"},{\"id\":\"end\",\"type\":\"END\"}],"
+            + "\"transitions\":[{\"from\":\"start\",\"to\":\"end\","
+            + "\"di\":{\"waypoints\":{}}}]}";
+
+    assertThatThrownBy(
+            () -> service.create(tenantId, new WorkflowDefinitionRequest("W", null, graph)))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("waypoints must be an array");
+  }
+
+  @Test
+  void createRejectsANonObjectWaypoint() {
+    String graph =
+        "{\"nodes\":[{\"id\":\"start\",\"type\":\"START\"},{\"id\":\"end\",\"type\":\"END\"}],"
+            + "\"transitions\":[{\"from\":\"start\",\"to\":\"end\","
+            + "\"di\":{\"waypoints\":[\"bad\"]}}]}";
+
+    assertThatThrownBy(
+            () -> service.create(tenantId, new WorkflowDefinitionRequest("W", null, graph)))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("non-object waypoint");
+  }
+
+  @Test
+  void createRejectsAnInvalidLabelPosition() {
+    String graph =
+        "{\"nodes\":[{\"id\":\"start\",\"type\":\"START\"},{\"id\":\"end\",\"type\":\"END\"}],"
+            + "\"transitions\":[{\"from\":\"start\",\"to\":\"end\","
+            + "\"di\":{\"waypoints\":[{\"x\":1,\"y\":2}],\"labelPosition\":\"bad\"}}]}";
+
+    assertThatThrownBy(
+            () -> service.create(tenantId, new WorkflowDefinitionRequest("W", null, graph)))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("labelPosition must be an object");
+  }
+
+  @Test
+  void createRejectsAnInvalidLaneIdentifier() {
+    String graph =
+        "{\"nodes\":[{\"id\":\"start\",\"type\":\"START\","
+            + "\"di\":{\"x\":0,\"y\":0,\"width\":10,\"height\":10,\"laneId\":42}}]}";
+
+    assertThatThrownBy(
+            () -> service.create(tenantId, new WorkflowDefinitionRequest("W", null, graph)))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("invalid di.laneId");
+  }
+
+  @Test
+  void createRejectsAnOutOfRangeSize() {
+    String graph =
+        "{\"nodes\":[{\"id\":\"start\",\"type\":\"START\","
+            + "\"di\":{\"x\":0,\"y\":0,\"width\":100001,\"height\":10}}]}";
+
+    assertThatThrownBy(
+            () -> service.create(tenantId, new WorkflowDefinitionRequest("W", null, graph)))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("out-of-range size");
+  }
+
+  @Test
+  void createRejectsMoreThanTheWaypointLimit() {
+    StringBuilder points = new StringBuilder();
+    for (int index = 0; index <= 10_000; index++) {
+      if (index > 0) {
+        points.append(',');
+      }
+      points.append("{\"x\":").append(index).append(",\"y\":0}");
+    }
+    String graph =
+        "{\"nodes\":[{\"id\":\"start\",\"type\":\"START\"},{\"id\":\"end\",\"type\":\"END\"}],"
+            + "\"transitions\":[{\"from\":\"start\",\"to\":\"end\","
+            + "\"di\":{\"waypoints\":["
+            + points
+            + "]}}]}";
+
+    assertThatThrownBy(
+            () -> service.create(tenantId, new WorkflowDefinitionRequest("W", null, graph)))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("waypoint limit");
+  }
 }

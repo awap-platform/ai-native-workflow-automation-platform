@@ -833,6 +833,12 @@ paths:
                   nullable: true
                 definitionJson:
                   type: string
+                  description: >-
+                    Workflow definition JSON. Nodes may carry an optional `di` object with
+                    finite `x`, `y`, positive `width`/`height` and optional `laneId`/`poolId`.
+                    Transitions may carry `di.waypoints` (ordered `{x, y}` points, max 10000 in
+                    total) and an optional `di.labelPosition`. The engine treats DI as opaque
+                    visual metadata.
       responses:
         "201":
           description: Draft created.
@@ -4774,7 +4780,10 @@ components:
       properties:
         definitionJson:
           type: string
-          description: Internal definition JSON from a saved version or an unsaved draft.
+          description: >-
+            Internal definition JSON from a saved version or an unsaved draft. Optional node and
+            transition `di` objects are exported as bpmndi:BPMNShape/BPMNEdge; absent DI is
+            generated deterministically and marked `awap:diGenerated`.
 
     BpmnExportResponse:
       type: object
