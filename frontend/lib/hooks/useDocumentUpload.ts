@@ -12,12 +12,7 @@ import {
 import { queryKeys } from "../queryKeys";
 
 export type DocumentUploadPhase =
-  | "idle"
-  | "uploading"
-  | "paused"
-  | "complete"
-  | "cancelled"
-  | "error";
+  "idle" | "uploading" | "paused" | "complete" | "cancelled" | "error";
 
 export interface DocumentUploadResult {
   fileId: string;

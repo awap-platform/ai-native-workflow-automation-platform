@@ -18,8 +18,7 @@ function fakeFile(bytes: number, name = "big.pdf", lastModified = 1): File {
     type: "application/pdf",
     lastModified,
     arrayBuffer: async () => data.buffer,
-    slice: (start: number, end: number) =>
-      ({ size: end - start } as Blob),
+    slice: (start: number, end: number) => ({ size: end - start }) as Blob,
   } as unknown as File;
 }
 

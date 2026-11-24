@@ -146,7 +146,12 @@ export default function UploadDropzone({ onUploaded }: UploadDropzoneProps) {
       ) : null}
 
       {upload.phase === "cancelled" ? (
-        <p role="status" aria-live="polite" className="awap-warning-text m-0" data-testid="upload-cleanup">
+        <p
+          role="status"
+          aria-live="polite"
+          className="awap-warning-text m-0"
+          data-testid="upload-cleanup"
+        >
           {upload.message}
         </p>
       ) : null}

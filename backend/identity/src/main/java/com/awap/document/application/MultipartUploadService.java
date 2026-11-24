@@ -256,14 +256,7 @@ public class MultipartUploadService {
             List.of(MultipartUploadStatus.IN_PROGRESS), now);
     int aborted = 0;
     for (MultipartUpload upload : stale) {
-      try {
-        purgeParts(upload);
-      } catch (FileStorageException ex) {
-        log.warn(
-            "Could not purge staged parts for upload {}: {}",
-            upload.getUploadId(),
-            ex.getMessage());
-      }
+      purgeParts(upload);
       upload.markAborted();
       repository.save(upload);
       metrics.staleAborted();
@@ -371,7 +364,7 @@ public class MultipartUploadService {
         digest.update(buffer, 0, read);
       }
       return HexFormat.of().formatHex(digest.digest());
-    } catch (IOException | NoSuchAlgorithmException ex) {
+    } catch (IOException | NoSuchAlgorithmException | FileStorageException ex) {
       throw new AwapException(
           ErrorCode.GENERIC_INTERNAL_ERROR,
           HttpStatus.INTERNAL_SERVER_ERROR,

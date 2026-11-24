@@ -393,4 +393,43 @@ class MultipartUploadServiceTest {
     assertThat(status.size()).isEqualTo(10);
     assertThat(status.acknowledgedParts()).isEmpty();
   }
+
+  @Test
+  void aChecksumMismatchStillCleansUpWhenStorageDeletesFail() throws Exception {
+    byte[] content = "hello world".getBytes(StandardCharsets.UTF_8);
+    String checksum = sha256(content);
+    MultipartUploadService.InitiatedUpload upload =
+        service.initiate(TENANT, "report.txt", "text/plain", content.length, checksum);
+    MultipartUpload row = rows.get(upload.uploadId());
+    row.acknowledgePart(1);
+    when(objectStore.statSize("awap-quarantine", row.getObjectKey()))
+        .thenReturn((long) content.length);
+    when(objectStore.open("awap-quarantine", row.getObjectKey()))
+        .thenReturn(new ByteArrayInputStream("tampered".getBytes(StandardCharsets.UTF_8)));
+    org.mockito.Mockito.doThrow(new FileStorageException("locked"))
+        .when(objectStore)
+        .delete(anyString(), anyString());
+
+    assertThatThrownBy(() -> service.complete(TENANT, upload.uploadId(), checksum))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("SHA-256");
+  }
+
+  @Test
+  void anUnreadableAssembledObjectFailsClosedWithA500() throws Exception {
+    byte[] content = "hello".getBytes(StandardCharsets.UTF_8);
+    String checksum = sha256(content);
+    MultipartUploadService.InitiatedUpload upload =
+        service.initiate(TENANT, "report.txt", "text/plain", content.length, checksum);
+    MultipartUpload row = rows.get(upload.uploadId());
+    row.acknowledgePart(1);
+    when(objectStore.statSize("awap-quarantine", row.getObjectKey()))
+        .thenReturn((long) content.length);
+    when(objectStore.open("awap-quarantine", row.getObjectKey()))
+        .thenThrow(new FileStorageException("unreadable"));
+
+    assertThatThrownBy(() -> service.complete(TENANT, upload.uploadId(), checksum))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("could not be verified");
+  }
 }

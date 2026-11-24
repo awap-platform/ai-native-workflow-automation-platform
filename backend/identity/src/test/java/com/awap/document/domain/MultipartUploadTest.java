@@ -96,4 +96,11 @@ class MultipartUploadTest {
     MultipartUpload upload = upload(20, 8, 3);
     assertThat(upload.acknowledgedParts()).isEmpty();
   }
+
+  @Test
+  void theJpaNoArgConstructorIsRetained() throws Exception {
+    MultipartUpload upload = MultipartUpload.class.getDeclaredConstructor().newInstance();
+    assertThat(upload.getId()).isNull();
+    assertThat(upload.acknowledgedParts()).isEmpty();
+  }
 }

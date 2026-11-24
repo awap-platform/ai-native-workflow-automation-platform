@@ -315,6 +315,48 @@ class FileServiceTest {
             });
   }
 
+  @Test
+  void acceptStagedUploadRegistersTheAssembledObject() {
+    UUID fileId = UUID.randomUUID();
+
+    FileService.FileScanInfo info =
+        service.acceptStagedUpload(
+            TENANT,
+            fileId,
+            "assembled.pdf",
+            "application/pdf",
+            20,
+            TENANT + "/" + fileId + "/assembled.pdf");
+
+    assertThat(info.fileId()).isEqualTo(fileId);
+    assertThat(info.status()).isEqualTo(FileScanStatus.QUARANTINED);
+    ArgumentCaptor<FileRecord> saved = ArgumentCaptor.forClass(FileRecord.class);
+    verify(repository).save(saved.capture());
+    assertThat(saved.getValue().getObjectKey()).endsWith("/assembled.pdf");
+    verify(eventBus).publish(any(FileScanStatusEvent.class));
+  }
+
+  @Test
+  void acceptStagedUploadAppliesTheSameValidationsAsASinglePut() {
+    UUID fileId = UUID.randomUUID();
+    assertThatThrownBy(
+            () ->
+                service.acceptStagedUpload(
+                    TENANT, fileId, "assembled.pdf", "application/pdf", 0, "k"))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("must not be empty");
+    assertThatThrownBy(
+            () ->
+                service.acceptStagedUpload(
+                    TENANT, fileId, "malware.exe", "application/x-msdownload", 10, "k"))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("format");
+    assertThatThrownBy(
+            () -> service.acceptStagedUpload(TENANT, fileId, "  ", "text/plain", 10, "k"))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("name");
+  }
+
   private FileRecord promotedRecord() {
     FileRecord record = recordWith(FileScanStatus.QUARANTINED);
     record.beginScan();

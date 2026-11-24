@@ -193,7 +193,7 @@ public class MultipartUpload {
   }
 
   public List<Integer> acknowledgedParts() {
-    if (uploadedParts.isBlank()) {
+    if (uploadedParts == null || uploadedParts.isBlank()) {
       return List.of();
     }
     return Arrays.stream(uploadedParts.split(","))
