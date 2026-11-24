@@ -777,6 +777,13 @@ export function createTaskComment(id: string, body: string): Promise<TaskComment
   return authPost<TaskCommentDto>(`/api/v1/tasks/${encodeURIComponent(id)}/comments`, { body });
 }
 
+/** Soft-deletes a comment; the backend only accepts this for the comment's author. */
+export function deleteTaskComment(id: string, commentId: string): Promise<void> {
+  return authDelete<void>(
+    `/api/v1/tasks/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`,
+  );
+}
+
 export function fetchTaskAttachments(id: string): Promise<TaskAttachmentDto[]> {
   return authFetch<TaskAttachmentDto[]>(`/api/v1/tasks/${encodeURIComponent(id)}/attachments`);
 }

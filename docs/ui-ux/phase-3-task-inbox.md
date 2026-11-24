@@ -107,6 +107,40 @@ All suites run against mocked task contracts; the production-stack gates
 (`console-errors`, `accessibility`, `responsive`, `visual-baseline`) include the
 new inbox and work item screens.
 
+## Collaboration and the unified activity stream (issue 371)
+
+The work item gained a third **Activity** tab. It is an append-only, reverse
+chronological merge of three sources:
+
+| Source | Rows | Notes |
+| --- | --- | --- |
+| Task row | `TASK_CREATED`, `TASK_UPDATED`, `TASK_DECIDED` | Derived, never duplicated in a second table |
+| `task_comments` | `COMMENT` | Author and timestamp come from the session, never the body |
+| `task_attachments` | `ATTACHMENT` | Scan state copied from the document pipeline |
+
+- Schema: `V63__task_collaboration.sql` creates both tables with a tenant and
+  task foreign key plus a row-level-security policy, so a cross-tenant read is
+  impossible at the database boundary as well as in the service.
+- Comments are stored and rendered as plain text (`whitespace-pre-wrap`, no
+  `dangerouslySetInnerHTML`), so markup cannot execute. Empty bodies return 400,
+  bodies above 10000 characters return 413.
+- `DELETE /api/v1/tasks/{id}/comments/{commentId}` soft-deletes a comment and is
+  restricted to its author (403 otherwise). The row, its `TASK_COMMENT_DELETED`
+  outbox event and the earlier `TASK_COMMENT_ADDED` event all survive, so a
+  decision stays reconstructable.
+- Attachments reuse the document upload/quarantine pipeline; `downloadable` is
+  only true for `PROMOTED` files, so a quarantined or infected file is visible
+  with its badge and has no download link.
+- Both mutations publish their audit event in the same transaction as the write,
+  which is what makes the "0 missing events" gate meaningful.
+
+```bash
+cd backend
+mvn -pl identity test -Dtest='TaskCollaboration*,TaskControllerWebMvcTest&Task*'
+cd ../frontend
+pnpm jest --runTestsByPath components/tasks/__tests__/TaskWorkItem.test.tsx
+```
+
 ## Count copy (issue 358)
 
 Every count now goes through the plural-aware `tPlural` helper

@@ -47,6 +47,7 @@ import {
   registerTenant,
   rejectTask,
   createTaskComment,
+  deleteTaskComment,
   replayDryRun,
   replayInstance,
   retryAdminDlq,
@@ -99,6 +100,17 @@ export function useAddTaskComment(taskId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: string) => createTaskComment(taskId, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.comments(taskId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.activity(taskId) });
+    },
+  });
+}
+
+export function useDeleteTaskComment(taskId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (commentId: string) => deleteTaskComment(taskId, commentId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.comments(taskId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.activity(taskId) });

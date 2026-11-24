@@ -9,10 +9,11 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import type { TaskActionKind, TaskDto } from "../../lib/api";
+import type { TaskActionKind, TaskActivityDto, TaskDto } from "../../lib/api";
 import {
   useAddTaskComment,
   useAttachTaskFile,
+  useDeleteTaskComment,
   useTaskAction,
   useTaskActivity,
   useTaskAttachments,
@@ -35,6 +36,19 @@ import { ConfirmDialog, useToast } from "../ui/overlays";
 import { EmptyState, LoadingState } from "../ui/QueryState";
 import { Card } from "../ui/surface";
 import { SlaChip, TaskStatusBadge } from "./TaskBadges";
+
+/**
+ * COMMENT activity entries carry their comment id in the stable `comment-<uuid>` id, so the
+ * activity list can offer a soft delete without a second round trip.
+ */
+function commentIdOf(entry: TaskActivityDto): string | null {
+  const prefix = "comment-";
+  if (entry.kind !== "COMMENT" || !entry.id.startsWith(prefix)) {
+    return null;
+  }
+  const commentId = entry.id.slice(prefix.length);
+  return commentId === "" ? null : commentId;
+}
 
 export interface TaskWorkItemHandle {
   /** Opens the confirmation for a decision, used by the J/K/A/R keyboard shortcuts. */
@@ -77,6 +91,7 @@ const TaskWorkItem = forwardRef<TaskWorkItemHandle, TaskWorkItemProps>(function 
   const attachmentsQuery = useTaskAttachments(task.id);
   const addComment = useAddTaskComment(task.id);
   const attachFile = useAttachTaskFile(task.id);
+  const deleteComment = useDeleteTaskComment(task.id);
   const [tab, setTab] = useState("context");
   const [comment, setComment] = useState("");
   const [newComment, setNewComment] = useState("");
@@ -487,14 +502,34 @@ const TaskWorkItem = forwardRef<TaskWorkItemHandle, TaskWorkItemProps>(function 
         <EmptyState message="No activity yet." />
       ) : null}
       <ol className="grid gap-2" data-testid="task-activity-list">
-        {(activityQuery.data ?? []).map((entry) => (
-          <li key={entry.id} className="awap-card grid gap-1 text-sm">
-            <span className="text-xs awap-muted">
-              {entry.kind} · {formatUtcDateTime(entry.createdAt)}
-            </span>
-            <span className="whitespace-pre-wrap">{entry.summary}</span>
-          </li>
-        ))}
+        {(activityQuery.data ?? []).map((entry) => {
+          const commentId = commentIdOf(entry);
+          return (
+            <li key={entry.id} className="awap-card grid gap-1 text-sm">
+              <span className="text-xs awap-muted">
+                {entry.kind} · {formatUtcDateTime(entry.createdAt)}
+              </span>
+              <span className="whitespace-pre-wrap">{entry.summary}</span>
+              {commentId ? (
+                <button
+                  type="button"
+                  className="awap-button awap-button--ghost justify-self-start"
+                  disabled={deleteComment.isPending}
+                  onClick={() => {
+                    setCollaborationError(null);
+                    deleteComment.mutate(commentId, {
+                      onError: () =>
+                        setCollaborationError("Only the author can delete this comment."),
+                    });
+                  }}
+                  data-testid={`task-comment-delete-${commentId}`}
+                >
+                  Delete comment
+                </button>
+              ) : null}
+            </li>
+          );
+        })}
       </ol>
     </div>
   );

@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -258,6 +259,35 @@ class TaskControllerWebMvcTest {
     verify(taskService)
         .escalate(
             any(UUID.class), eq(id), argThat(request -> assignee.equals(request.assigneeId())));
+  }
+
+  @Test
+  void deleteCommentReturns204AndScopesItToTheTask() throws Exception {
+    UUID taskId = UUID.randomUUID();
+    UUID commentId = UUID.randomUUID();
+
+    mockMvc
+        .perform(
+            delete("/api/v1/tasks/{id}/comments/{commentId}", taskId, commentId)
+                .with(csrf())
+                .with(user("user").authorities(new SimpleGrantedAuthority("TASK_MANAGE"))))
+        .andExpect(status().isNoContent());
+
+    verify(collaborationService)
+        .deleteComment(any(UUID.class), eq(taskId), eq(commentId), any(UUID.class));
+  }
+
+  @Test
+  void deleteCommentForbiddenWithoutAuthority() throws Exception {
+    UUID taskId = UUID.randomUUID();
+    UUID commentId = UUID.randomUUID();
+
+    mockMvc
+        .perform(
+            delete("/api/v1/tasks/{id}/comments/{commentId}", taskId, commentId)
+                .with(csrf())
+                .with(user("user").authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE"))))
+        .andExpect(status().isForbidden());
   }
 
   private TaskResponse taskResponse() {

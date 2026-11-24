@@ -75,6 +75,30 @@ public class TaskCollaborationService {
     return toResponse(comment);
   }
 
+  /** Soft-deletes a comment; only the author may delete their own comment. */
+  @Transactional
+  public void deleteComment(UUID tenantId, UUID taskId, UUID commentId, UUID actorId) {
+    Task task = requireTask(tenantId, taskId);
+    TaskComment comment =
+        commentRepository
+            .findByIdAndTenantIdAndDeletedFalse(commentId, tenantId)
+            .filter(found -> found.getTaskId().equals(taskId))
+            .orElseThrow(
+                () ->
+                    new AwapException(
+                        ErrorCode.TASK_NOT_FOUND,
+                        HttpStatus.NOT_FOUND,
+                        "The comment was not found."));
+    if (!comment.getAuthorId().equals(actorId)) {
+      throw new AwapException(
+          ErrorCode.FORBIDDEN, HttpStatus.FORBIDDEN, "Only the author can delete a comment.");
+    }
+    comment.softDelete();
+    commentRepository.save(comment);
+    outboxEventPublisher.publish(
+        tenantId, "TASK", task.getId(), "TASK_COMMENT_DELETED", Map.of("commentId", commentId));
+  }
+
   public List<TaskCommentResponse> comments(UUID tenantId, UUID taskId) {
     requireTask(tenantId, taskId);
     return commentRepository

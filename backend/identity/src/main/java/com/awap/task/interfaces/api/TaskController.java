@@ -20,6 +20,7 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -73,6 +74,14 @@ public class TaskController {
         .body(
             collaborationService.addComment(
                 currentTenantId(), id, currentUserId(), request.body()));
+  }
+
+  @DeleteMapping("/{id}/comments/{commentId}")
+  @PreAuthorize("hasAuthority('TASK_MANAGE')")
+  public ResponseEntity<Void> deleteComment(
+      @PathVariable UUID id, @PathVariable UUID commentId) {
+    collaborationService.deleteComment(currentTenantId(), id, commentId, currentUserId());
+    return ResponseEntity.noContent().build();
   }
 
   @GetMapping("/{id}/attachments")

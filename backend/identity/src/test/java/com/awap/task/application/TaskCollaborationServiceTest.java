@@ -143,6 +143,54 @@ class TaskCollaborationServiceTest {
   }
 
   @Test
+  void deleteCommentSoftDeletesTheAuthorsOwnComment() {
+    stubTask();
+    TaskComment comment = new TaskComment(tenantId, taskId, userId, "hello");
+    when(commentRepository.findByIdAndTenantIdAndDeletedFalse(comment.getId(), tenantId))
+        .thenReturn(Optional.of(comment));
+
+    service.deleteComment(tenantId, taskId, comment.getId(), userId);
+
+    assertThat(comment.isDeleted()).isTrue();
+    assertThat(comment.getUpdatedAt()).isAfterOrEqualTo(comment.getCreatedAt());
+    verify(commentRepository).save(comment);
+    verify(outboxEventPublisher).publish(any(), any(), any(), any(), any());
+  }
+
+  @Test
+  void deleteCommentRejectsAnotherAuthor() {
+    stubTask();
+    UUID commentId = UUID.randomUUID();
+    TaskComment comment = new TaskComment(tenantId, taskId, UUID.randomUUID(), "hello");
+    when(commentRepository.findByIdAndTenantIdAndDeletedFalse(commentId, tenantId))
+        .thenReturn(Optional.of(comment));
+
+    assertThatThrownBy(() -> service.deleteComment(tenantId, taskId, commentId, userId))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("Only the author");
+    assertThat(comment.isDeleted()).isFalse();
+  }
+
+  @Test
+  void deleteCommentRejectsAMissingOrForeignComment() {
+    stubTask();
+    UUID commentId = UUID.randomUUID();
+    UUID otherTaskId = UUID.randomUUID();
+    when(commentRepository.findByIdAndTenantIdAndDeletedFalse(commentId, tenantId))
+        .thenReturn(Optional.empty());
+    assertThatThrownBy(() -> service.deleteComment(tenantId, taskId, commentId, userId))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("comment was not found");
+
+    TaskComment foreign = new TaskComment(tenantId, otherTaskId, userId, "hello");
+    when(commentRepository.findByIdAndTenantIdAndDeletedFalse(foreign.getId(), tenantId))
+        .thenReturn(Optional.of(foreign));
+    assertThatThrownBy(() -> service.deleteComment(tenantId, taskId, foreign.getId(), userId))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("comment was not found");
+  }
+
+  @Test
   void activityMergesTaskCommentsAttachmentsAndDecision() {
     Task task = task();
     task.approve("Looks good");
