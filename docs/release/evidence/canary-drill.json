@@ -1,0 +1,241 @@
+{
+  "issue": 367,
+  "executedAt": "2026-11-24T15:19:37.756Z",
+  "startedAt": "2026-11-24T15:19:31.292Z",
+  "environment": "local-http-canary-harness",
+  "liveProduction": false,
+  "policy": {
+    "stages": [
+      5,
+      25,
+      100
+    ],
+    "observationWindowMinutes": 30,
+    "automaticRollback": true,
+    "thresholds": {
+      "errorRate": 0.01,
+      "p95LatencyMs": 1500,
+      "lcpMs": 2500,
+      "cls": 0.1,
+      "tbtMs": 200,
+      "inpMs": 200
+    }
+  },
+  "stages": [
+    {
+      "percent": 5,
+      "requests": 120,
+      "errors": 0,
+      "errorRate": 0,
+      "p95Ms": 9.222312000000784,
+      "withinSlo": true,
+      "failures": []
+    },
+    {
+      "percent": 25,
+      "requests": 120,
+      "errors": 0,
+      "errorRate": 0,
+      "p95Ms": 8.829823000000033,
+      "withinSlo": true,
+      "failures": []
+    },
+    {
+      "percent": 100,
+      "requests": 120,
+      "errors": 0,
+      "errorRate": 0,
+      "p95Ms": 9.088590000000295,
+      "withinSlo": true,
+      "failures": []
+    }
+  ],
+  "promotion": {
+    "completed": true,
+    "stages": [
+      5,
+      25,
+      100
+    ]
+  },
+  "rollback": {
+    "auto": true,
+    "alertFired": true,
+    "alertRoutedTo": "on-call",
+    "fallbackChannel": {
+      "primaryDelivered": false,
+      "fallbackDelivered": true
+    },
+    "detectedAfterMs": 37,
+    "restoredAfterMs": 54,
+    "rtoSeconds": 0.054,
+    "previousVersionServing": true,
+    "canaryPercent": 0
+  },
+  "tenantIsolation": {
+    "crossTenant": 0,
+    "partialTenantFailure": {
+      "status": "PASS",
+      "healthyTenantErrors": 0,
+      "failedTenantErrors": 20
+    }
+  },
+  "migration": {
+    "forwardSafe": true,
+    "backwardSafe": true,
+    "strategy": "expand-migrate-contract with nullable columns and dual reads"
+  },
+  "featureFlagKill": {
+    "status": "PASS",
+    "immediate": true,
+    "effectMs": 19
+  },
+  "checks": {
+    "U2": {
+      "status": "PASS",
+      "promoted": false,
+      "reason": "p95Latency 2004ms > 1500ms"
+    },
+    "T1": {
+      "status": "PASS"
+    },
+    "T2": {
+      "status": "PASS"
+    },
+    "T3": {
+      "status": "PASS"
+    },
+    "T4": {
+      "status": "PASS",
+      "previousVersionServing": true
+    },
+    "T5": {
+      "status": "PASS",
+      "rtoSeconds": 0.054
+    },
+    "T6": {
+      "status": "PASS",
+      "alertFired": true,
+      "alertRoutedTo": "on-call",
+      "fallbackChannel": {
+        "primaryDelivered": false,
+        "fallbackDelivered": true
+      }
+    },
+    "U1": {
+      "status": "PASS",
+      "rtoSeconds": 0.054
+    },
+    "U3": {
+      "status": "PASS",
+      "fallbackDelivered": true
+    },
+    "U4": {
+      "status": "PASS",
+      "manualRunbook": "docs/operations-runbook.md#o35--release-guard-and-rollback"
+    },
+    "T7": {
+      "status": "PASS",
+      "correlationIntact": true
+    },
+    "T8": {
+      "status": "PASS",
+      "crossTenant": 0
+    },
+    "U6": {
+      "status": "PASS",
+      "healthyTenantErrors": 0,
+      "failedTenantErrors": 20
+    },
+    "T9": {
+      "status": "PASS",
+      "forwardSafe": true,
+      "backwardSafe": true,
+      "strategy": "expand-migrate-contract with nullable columns and dual reads"
+    },
+    "U5": {
+      "status": "PASS",
+      "rollbackPlan": "revert the release; the previous image reads the expanded schema"
+    },
+    "T10": {
+      "status": "PASS",
+      "immediate": true,
+      "effectMs": 19
+    }
+  },
+  "journeys": [
+    {
+      "id": "T1",
+      "status": "PASS"
+    },
+    {
+      "id": "T2",
+      "status": "PASS"
+    },
+    {
+      "id": "T3",
+      "status": "PASS"
+    },
+    {
+      "id": "T4",
+      "status": "PASS"
+    },
+    {
+      "id": "T5",
+      "status": "PASS"
+    },
+    {
+      "id": "T6",
+      "status": "PASS"
+    },
+    {
+      "id": "T7",
+      "status": "PASS"
+    },
+    {
+      "id": "T8",
+      "status": "PASS"
+    },
+    {
+      "id": "T9",
+      "status": "PASS"
+    },
+    {
+      "id": "T10",
+      "status": "PASS"
+    }
+  ],
+  "unhappyPaths": [
+    {
+      "id": "U1",
+      "status": "PASS"
+    },
+    {
+      "id": "U2",
+      "status": "PASS"
+    },
+    {
+      "id": "U3",
+      "status": "PASS"
+    },
+    {
+      "id": "U4",
+      "status": "PASS"
+    },
+    {
+      "id": "U5",
+      "status": "PASS"
+    },
+    {
+      "id": "U6",
+      "status": "PASS"
+    }
+  ],
+  "findings": [],
+  "limitations": "This is a controlled local HTTP drill with two real deployments and a percentage router. It exercises the policy, detection, rollback and RTO math, not production traffic or the production ingress/Argo controller.",
+  "riskAcceptance": {
+    "required": true,
+    "owner": "release-engineering",
+    "reason": "The production canary and live rollback still require a service window and real traffic; this drill records the executable staging evidence and the remaining production risk."
+  }
+}
