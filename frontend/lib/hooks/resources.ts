@@ -3,6 +3,7 @@ import {
   archiveDocumentVersion,
   archiveWorkflowVersion,
   approveTask,
+  attachTaskFile,
   createAdminInvitation,
   createDocumentUpload,
   createFormDefinition,
@@ -23,6 +24,9 @@ import {
   fetchFormSchemaVersion,
   fetchInstanceLogs,
   fetchInstanceSaga,
+  fetchTaskActivity,
+  fetchTaskAttachments,
+  fetchTaskComments,
   fetchWorkflowDefinition,
   fetchWorkflowInstance,
   fetchWorkflowVersions,
@@ -43,6 +47,8 @@ import {
   publishWorkflowDefinition,
   registerTenant,
   rejectTask,
+  createTaskComment,
+  deleteTaskComment,
   replayDryRun,
   replayInstance,
   retryAdminDlq,
@@ -69,6 +75,63 @@ import { queryKeys } from "../queryKeys";
 /* ---------------------------------------------------------------- tasks */
 
 /** Tenant task list. */
+export function useTaskComments(taskId: string) {
+  return useQuery({
+    queryKey: queryKeys.tasks.comments(taskId || "none"),
+    queryFn: () => fetchTaskComments(taskId),
+    enabled: taskId !== "",
+  });
+}
+
+export function useTaskAttachments(taskId: string) {
+  return useQuery({
+    queryKey: queryKeys.tasks.attachments(taskId || "none"),
+    queryFn: () => fetchTaskAttachments(taskId),
+    enabled: taskId !== "",
+  });
+}
+
+export function useTaskActivity(taskId: string) {
+  return useQuery({
+    queryKey: queryKeys.tasks.activity(taskId || "none"),
+    queryFn: () => fetchTaskActivity(taskId),
+    enabled: taskId !== "",
+  });
+}
+
+export function useAddTaskComment(taskId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: string) => createTaskComment(taskId, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.comments(taskId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.activity(taskId) });
+    },
+  });
+}
+
+export function useDeleteTaskComment(taskId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (commentId: string) => deleteTaskComment(taskId, commentId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.comments(taskId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.activity(taskId) });
+    },
+  });
+}
+
+export function useAttachTaskFile(taskId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (fileId: string) => attachTaskFile(taskId, fileId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.attachments(taskId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.activity(taskId) });
+    },
+  });
+}
+
 export function useTasks() {
   return useQuery({ queryKey: queryKeys.tasks.list(), queryFn: listTasks });
 }

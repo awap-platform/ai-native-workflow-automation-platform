@@ -1506,6 +1506,181 @@ paths:
                 items:
                   $ref: "#/components/schemas/TaskResponse"
 
+  /api/v1/tasks/{id}/comments:
+    get:
+      operationId: listTaskComments
+      summary: List task comments
+      description: Lists the tenant-scoped comment thread of a task in chronological order.
+      tags: [Tasks]
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: Comments.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TaskComment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      operationId: addTaskComment
+      summary: Add a task comment
+      description: >-
+        Appends a plain-text comment. The author and the timestamp always come from the session,
+        never from the request body. An empty body is rejected with 400 and a body above 10000
+        characters with 413.
+      tags: [Tasks]
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body:
+                  type: string
+                  maxLength: 10000
+                  description: Plain text; rendered escaped so stored markup cannot execute.
+      responses:
+        "201":
+          description: Comment created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskComment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          description: The comment exceeds the 10000 character limit.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /api/v1/tasks/{id}/comments/{commentId}:
+    delete:
+      operationId: deleteTaskComment
+      summary: Soft-delete a task comment
+      description: >-
+        Marks a comment as deleted. Only the comment author may delete it; the row and every audit
+        event stay in place so a decision can still be reconstructed.
+      tags: [Tasks]
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+        - $ref: "#/components/parameters/CommentId"
+      responses:
+        "204":
+          description: Comment deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/tasks/{id}/attachments:
+    get:
+      operationId: listTaskAttachments
+      summary: List task attachments
+      description: >-
+        Lists the documents linked to a task together with the scan state copied from the document
+        pipeline; only PROMOTED files report `downloadable`.
+      tags: [Tasks]
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: Attachments.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TaskAttachment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      operationId: attachTaskFile
+      summary: Link an uploaded document to a task
+      description: >-
+        Links an already uploaded document to the task. The scan state is copied from the document
+        module, so a quarantined file is visible but never downloadable.
+      tags: [Tasks]
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fileId]
+              properties:
+                fileId:
+                  type: string
+                  format: uuid
+      responses:
+        "201":
+          description: Attachment created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskAttachment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/tasks/{id}/activity:
+    get:
+      operationId: getTaskActivity
+      summary: Unified task activity stream
+      description: >-
+        Merges the task lifecycle fields, comments and attachment links into one reverse
+        chronological stream so a reviewer can reconstruct who saw what and when.
+      tags: [Tasks]
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: Activity entries, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TaskActivityEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/v1/tasks/{id}/assign:
     post:
       operationId: assignTask
@@ -4164,6 +4339,14 @@ components:
       schema:
         type: string
         format: uuid
+    CommentId:
+      name: commentId
+      in: path
+      required: true
+      description: Task comment UUID.
+      schema:
+        type: string
+        format: uuid
     FormId:
       name: id
       in: path
@@ -4970,6 +5153,73 @@ components:
         payload:
           type: string
           nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    TaskComment:
+      type: object
+      description: A plain-text comment on a task; the author always comes from the session.
+      properties:
+        id:
+          type: string
+          format: uuid
+        taskId:
+          type: string
+          format: uuid
+        authorId:
+          type: string
+          format: uuid
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    TaskAttachment:
+      type: object
+      description: A document linked to a task with the scan state copied from the document pipeline.
+      properties:
+        id:
+          type: string
+          format: uuid
+        taskId:
+          type: string
+          format: uuid
+        fileId:
+          type: string
+          format: uuid
+        fileName:
+          type: string
+        scanStatus:
+          type: string
+          description: Document scan state such as PROMOTED or QUARANTINED.
+        downloadable:
+          type: boolean
+          description: True only when the file has been promoted by the scanner.
+        createdBy:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+
+    TaskActivityEntry:
+      type: object
+      description: One entry of the merged task activity stream.
+      properties:
+        id:
+          type: string
+          description: Stable entry id, for example `comment-<uuid>` or `task-created`.
+        kind:
+          type: string
+          enum: [TASK_CREATED, TASK_UPDATED, TASK_DECIDED, COMMENT, ATTACHMENT]
+        actorId:
+          type: string
+          format: uuid
+          nullable: true
+        summary:
+          type: string
         createdAt:
           type: string
           format: date-time

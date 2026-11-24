@@ -1,14 +1,21 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { ApiError, type TaskDto } from "../../../lib/api";
+import { ApiError, type TaskActivityDto, type TaskDto } from "../../../lib/api";
 import { clearDraft, loadDraft } from "../../../lib/tasks/drafts";
 import { ToastProvider } from "../../ui/overlays";
 import TaskWorkItem from "../TaskWorkItem";
 
 const mutateAsync = jest.fn();
 const reset = jest.fn();
+const deleteCommentMutate = jest.fn();
+let mockActivity: TaskActivityDto[] = [];
 
 jest.mock("../../../lib/hooks/resources", () => ({
   useTaskAction: () => ({ mutateAsync, isPending: false, reset }),
+  useTaskActivity: () => ({ data: mockActivity, isLoading: false }),
+  useTaskAttachments: () => ({ data: [], isLoading: false }),
+  useAddTaskComment: () => ({ mutate: jest.fn(), isPending: false }),
+  useAttachTaskFile: () => ({ mutate: jest.fn(), isPending: false }),
+  useDeleteTaskComment: () => ({ mutate: deleteCommentMutate, isPending: false }),
 }));
 
 const NOW = Date.parse("2026-11-20T12:00:00Z");
@@ -44,6 +51,7 @@ function renderItem(overrides: Partial<TaskDto> = {}, onReload = jest.fn()) {
 
 beforeEach(() => {
   jest.resetAllMocks();
+  mockActivity = [];
   window.localStorage.clear();
   clearDraft("task-1");
 });
@@ -129,5 +137,53 @@ describe("TaskWorkItem decisions", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Variables" }));
     expect(screen.getByTestId("task-variables")).toHaveTextContent("Workflow instance");
     expect(screen.getByTestId("task-variables")).toHaveTextContent("inst-1");
+  });
+
+  it("offers a soft delete only for comment entries in the activity list", () => {
+    mockActivity = [
+      {
+        id: "comment-c-1",
+        kind: "COMMENT",
+        actorId: "user-1",
+        summary: "hello",
+        createdAt: "2026-11-20T10:00:00Z",
+      },
+      {
+        id: "task-created",
+        kind: "TASK_CREATED",
+        actorId: null,
+        summary: "Task created",
+        createdAt: "2026-11-20T09:00:00Z",
+      },
+    ];
+    renderItem();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Activity" }));
+    expect(screen.getByTestId("task-activity-list")).toHaveTextContent("hello");
+    fireEvent.click(screen.getByTestId("task-comment-delete-c-1"));
+
+    expect(deleteCommentMutate).toHaveBeenCalledWith("c-1", expect.anything());
+    expect(screen.queryByTestId("task-comment-delete-task-created")).not.toBeInTheDocument();
+  });
+
+  it("explains a forbidden comment delete instead of showing a status code", async () => {
+    mockActivity = [
+      {
+        id: "comment-c-2",
+        kind: "COMMENT",
+        actorId: "user-9",
+        summary: "someone else",
+        createdAt: "2026-11-20T10:00:00Z",
+      },
+    ];
+    renderItem();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Activity" }));
+    fireEvent.click(screen.getByTestId("task-comment-delete-c-2"));
+
+    const mutate = deleteCommentMutate.mock.calls[0][1] as { onError: () => void };
+    mutate.onError();
+
+    expect(await screen.findByText("Only the author can delete this comment.")).toBeInTheDocument();
   });
 });

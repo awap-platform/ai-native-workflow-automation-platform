@@ -9,13 +9,19 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.awap.identity.IdentityApplication;
 import com.awap.identity.infrastructure.security.TenantContext;
+import com.awap.task.application.TaskCollaborationService;
 import com.awap.task.application.TaskService;
+import com.awap.task.interfaces.dto.TaskActivityResponse;
+import com.awap.task.interfaces.dto.TaskAttachmentResponse;
+import com.awap.task.interfaces.dto.TaskCommentResponse;
 import com.awap.task.interfaces.dto.TaskResponse;
 import java.time.Instant;
 import java.util.List;
@@ -37,6 +43,7 @@ class TaskControllerWebMvcTest {
 
   @Autowired private WebApplicationContext context;
   @MockitoBean private TaskService taskService;
+  @MockitoBean private TaskCollaborationService collaborationService;
 
   private MockMvc mockMvc;
 
@@ -49,6 +56,94 @@ class TaskControllerWebMvcTest {
   @AfterEach
   void tearDown() {
     TenantContext.clear();
+  }
+
+  @Test
+  void commentsListReturnsOk() throws Exception {
+    UUID taskId = UUID.randomUUID();
+    when(collaborationService.comments(any(UUID.class), eq(taskId))).thenReturn(List.of());
+
+    mockMvc
+        .perform(
+            get("/api/v1/tasks/{id}/comments", taskId)
+                .with(user("u").authorities(new SimpleGrantedAuthority("TASK_MANAGE"))))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void addCommentReturnsCreated() throws Exception {
+    UUID taskId = UUID.randomUUID();
+    UUID author = UUID.randomUUID();
+    when(collaborationService.addComment(any(UUID.class), eq(taskId), any(UUID.class), eq("hi")))
+        .thenReturn(
+            new TaskCommentResponse(
+                UUID.randomUUID(), taskId, author, "hi", Instant.parse("2026-01-01T00:00:00Z")));
+
+    mockMvc
+        .perform(
+            post("/api/v1/tasks/{id}/comments", taskId)
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"body\":\"hi\"}")
+                .with(user("u").authorities(new SimpleGrantedAuthority("TASK_MANAGE"))))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.body").value("hi"));
+  }
+
+  @Test
+  void attachmentsListReturnsOk() throws Exception {
+    UUID taskId = UUID.randomUUID();
+    when(collaborationService.attachments(any(UUID.class), eq(taskId))).thenReturn(List.of());
+
+    mockMvc
+        .perform(
+            get("/api/v1/tasks/{id}/attachments", taskId)
+                .with(user("u").authorities(new SimpleGrantedAuthority("TASK_MANAGE"))))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void attachReturnsCreated() throws Exception {
+    UUID taskId = UUID.randomUUID();
+    UUID fileId = UUID.randomUUID();
+    when(collaborationService.attach(any(UUID.class), eq(taskId), any(UUID.class), any(UUID.class)))
+        .thenReturn(
+            new TaskAttachmentResponse(
+                UUID.randomUUID(),
+                taskId,
+                fileId,
+                "file.pdf",
+                "PROMOTED",
+                true,
+                UUID.randomUUID(),
+                Instant.parse("2026-01-01T00:00:00Z")));
+
+    mockMvc
+        .perform(
+            post("/api/v1/tasks/{id}/attachments", taskId)
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fileId\":\"" + fileId + "\"}")
+                .with(user("u").authorities(new SimpleGrantedAuthority("TASK_MANAGE"))))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.downloadable").value(true));
+  }
+
+  @Test
+  void activityReturnsTheChronologicalStream() throws Exception {
+    UUID taskId = UUID.randomUUID();
+    when(collaborationService.activity(any(UUID.class), eq(taskId)))
+        .thenReturn(
+            List.of(
+                new TaskActivityResponse(
+                    "comment-1", "COMMENT", UUID.randomUUID(), "hi", Instant.EPOCH)));
+
+    mockMvc
+        .perform(
+            get("/api/v1/tasks/{id}/activity", taskId)
+                .with(user("u").authorities(new SimpleGrantedAuthority("TASK_MANAGE"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].kind").value("COMMENT"));
   }
 
   @Test
@@ -164,6 +259,35 @@ class TaskControllerWebMvcTest {
     verify(taskService)
         .escalate(
             any(UUID.class), eq(id), argThat(request -> assignee.equals(request.assigneeId())));
+  }
+
+  @Test
+  void deleteCommentReturns204AndScopesItToTheTask() throws Exception {
+    UUID taskId = UUID.randomUUID();
+    UUID commentId = UUID.randomUUID();
+
+    mockMvc
+        .perform(
+            delete("/api/v1/tasks/{id}/comments/{commentId}", taskId, commentId)
+                .with(csrf())
+                .with(user("user").authorities(new SimpleGrantedAuthority("TASK_MANAGE"))))
+        .andExpect(status().isNoContent());
+
+    verify(collaborationService)
+        .deleteComment(any(UUID.class), eq(taskId), eq(commentId), any(UUID.class));
+  }
+
+  @Test
+  void deleteCommentForbiddenWithoutAuthority() throws Exception {
+    UUID taskId = UUID.randomUUID();
+    UUID commentId = UUID.randomUUID();
+
+    mockMvc
+        .perform(
+            delete("/api/v1/tasks/{id}/comments/{commentId}", taskId, commentId)
+                .with(csrf())
+                .with(user("user").authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE"))))
+        .andExpect(status().isForbidden());
   }
 
   private TaskResponse taskResponse() {

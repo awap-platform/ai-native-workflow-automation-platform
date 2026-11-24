@@ -9,8 +9,15 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import type { TaskActionKind, TaskDto } from "../../lib/api";
-import { useTaskAction } from "../../lib/hooks/resources";
+import type { TaskActionKind, TaskActivityDto, TaskDto } from "../../lib/api";
+import {
+  useAddTaskComment,
+  useAttachTaskFile,
+  useDeleteTaskComment,
+  useTaskAction,
+  useTaskActivity,
+  useTaskAttachments,
+} from "../../lib/hooks/resources";
 import { useI18n } from "../../lib/locale";
 import { formatUtcDateTime } from "../../lib/format";
 import { clearDraft, DRAFT_LIMIT, loadDraft, saveDraft } from "../../lib/tasks/drafts";
@@ -29,6 +36,19 @@ import { ConfirmDialog, useToast } from "../ui/overlays";
 import { EmptyState, LoadingState } from "../ui/QueryState";
 import { Card } from "../ui/surface";
 import { SlaChip, TaskStatusBadge } from "./TaskBadges";
+
+/**
+ * COMMENT activity entries carry their comment id in the stable `comment-<uuid>` id, so the
+ * activity list can offer a soft delete without a second round trip.
+ */
+function commentIdOf(entry: TaskActivityDto): string | null {
+  const prefix = "comment-";
+  if (entry.kind !== "COMMENT" || !entry.id.startsWith(prefix)) {
+    return null;
+  }
+  const commentId = entry.id.slice(prefix.length);
+  return commentId === "" ? null : commentId;
+}
 
 export interface TaskWorkItemHandle {
   /** Opens the confirmation for a decision, used by the J/K/A/R keyboard shortcuts. */
@@ -67,8 +87,16 @@ const TaskWorkItem = forwardRef<TaskWorkItemHandle, TaskWorkItemProps>(function 
   const { t } = useI18n();
   const { toast } = useToast();
   const action = useTaskAction();
+  const activityQuery = useTaskActivity(task.id);
+  const attachmentsQuery = useTaskAttachments(task.id);
+  const addComment = useAddTaskComment(task.id);
+  const attachFile = useAttachTaskFile(task.id);
+  const deleteComment = useDeleteTaskComment(task.id);
   const [tab, setTab] = useState("context");
   const [comment, setComment] = useState("");
+  const [newComment, setNewComment] = useState("");
+  const [attachmentFileId, setAttachmentFileId] = useState("");
+  const [collaborationError, setCollaborationError] = useState<string | null>(null);
   const [assignee, setAssignee] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingAction | null>(null);
@@ -182,7 +210,11 @@ const TaskWorkItem = forwardRef<TaskWorkItemHandle, TaskWorkItemProps>(function 
       });
       clearDraft(task.id);
       setComment("");
-      toast({ title: t("tasks.toast.success"), description: t("tasks.toast.successBody"), variant: "success" });
+      toast({
+        title: t("tasks.toast.success"),
+        description: t("tasks.toast.successBody"),
+        variant: "success",
+      });
       onClose?.();
     } catch (failure) {
       const description = describeTaskError(failure);
@@ -356,14 +388,157 @@ const TaskWorkItem = forwardRef<TaskWorkItemHandle, TaskWorkItemProps>(function 
     );
 
   const attachmentsPanel = (
-    <div className="grid gap-2">
-      <EmptyState message={t("tasks.detail.noAttachments")} />
-      <p className="text-xs awap-muted">{t("tasks.detail.attachmentsNote")}</p>
+    <div className="grid gap-3" data-testid="task-attachments">
+      {attachmentsQuery.isLoading ? <LoadingState label="Loading attachments…" /> : null}
+      {attachmentsQuery.data && attachmentsQuery.data.length === 0 ? (
+        <EmptyState message={t("tasks.detail.noAttachments")} />
+      ) : null}
+      <ul className="grid gap-2">
+        {(attachmentsQuery.data ?? []).map((attachment) => (
+          <li key={attachment.id} className="awap-card flex flex-wrap items-center gap-2 text-sm">
+            <span className="break-all">{attachment.fileName}</span>
+            <span
+              className={
+                attachment.downloadable
+                  ? "awap-badge awap-badge-success"
+                  : "awap-badge awap-badge-warning"
+              }
+            >
+              {attachment.scanStatus}
+            </span>
+            {!attachment.downloadable ? (
+              <span className="text-xs awap-muted">Download unlocks after the scan is clean.</span>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      <form
+        className="grid gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setCollaborationError(null);
+          if (attachmentFileId.trim() === "") {
+            setCollaborationError("Enter a document file id to attach.");
+            return;
+          }
+          attachFile.mutate(attachmentFileId.trim(), {
+            onSuccess: () => setAttachmentFileId(""),
+            onError: () => setCollaborationError("The file could not be attached."),
+          });
+        }}
+      >
+        <FormField
+          id="task-attachment-file"
+          label="Attach a document file"
+          hint="Upload the file in Documents first, then paste its file id here."
+        >
+          <Input
+            id="task-attachment-file"
+            value={attachmentFileId}
+            onChange={(event) => setAttachmentFileId(event.target.value)}
+            placeholder="00000000-0000-0000-0000-000000000000"
+            data-testid="task-attachment-file"
+          />
+        </FormField>
+        <button
+          type="submit"
+          className="awap-button"
+          disabled={attachFile.isPending}
+          data-testid="task-attach"
+        >
+          Attach file
+        </button>
+      </form>
+      {collaborationError ? (
+        <p role="alert" className="awap-error">
+          {collaborationError}
+        </p>
+      ) : null}
+    </div>
+  );
+
+  const activityPanel = (
+    <div className="grid gap-3" data-testid="task-activity">
+      <form
+        className="grid gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setCollaborationError(null);
+          if (newComment.trim() === "") {
+            setCollaborationError("A comment cannot be empty.");
+            return;
+          }
+          addComment.mutate(newComment.trim(), {
+            onSuccess: () => setNewComment(""),
+            onError: () => setCollaborationError("The comment could not be posted."),
+          });
+        }}
+      >
+        <FormField id="task-new-comment" label="Add a comment">
+          <Textarea
+            id="task-new-comment"
+            value={newComment}
+            maxLength={10_000}
+            onChange={(event) => setNewComment(event.target.value)}
+            data-testid="task-new-comment"
+          />
+        </FormField>
+        <button
+          type="submit"
+          className="awap-button"
+          disabled={addComment.isPending}
+          data-testid="task-comment-submit"
+        >
+          Post comment
+        </button>
+      </form>
+      {collaborationError ? (
+        <p role="alert" className="awap-error">
+          {collaborationError}
+        </p>
+      ) : null}
+      {activityQuery.isLoading ? <LoadingState label="Loading activity…" /> : null}
+      {activityQuery.data && activityQuery.data.length === 0 ? (
+        <EmptyState message="No activity yet." />
+      ) : null}
+      <ol className="grid gap-2" data-testid="task-activity-list">
+        {(activityQuery.data ?? []).map((entry) => {
+          const commentId = commentIdOf(entry);
+          return (
+            <li key={entry.id} className="awap-card grid gap-1 text-sm">
+              <span className="text-xs awap-muted">
+                {entry.kind} · {formatUtcDateTime(entry.createdAt)}
+              </span>
+              <span className="whitespace-pre-wrap">{entry.summary}</span>
+              {commentId ? (
+                <button
+                  type="button"
+                  className="awap-button awap-button--ghost justify-self-start"
+                  disabled={deleteComment.isPending}
+                  onClick={() => {
+                    setCollaborationError(null);
+                    deleteComment.mutate(commentId, {
+                      onError: () =>
+                        setCollaborationError("Only the author can delete this comment."),
+                    });
+                  }}
+                  data-testid={`task-comment-delete-${commentId}`}
+                >
+                  Delete comment
+                </button>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 
   const variablesPanel = (
-    <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2 text-sm" data-testid="task-variables">
+    <dl
+      className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2 text-sm"
+      data-testid="task-variables"
+    >
       {variables.map((entry) => (
         <div key={entry.name} className="contents">
           <dt className="awap-muted">{entry.name}</dt>
@@ -414,6 +589,7 @@ const TaskWorkItem = forwardRef<TaskWorkItemHandle, TaskWorkItemProps>(function 
           { value: "decision", label: t("tasks.tab.decision"), content: decisionPanel },
           { value: "history", label: t("tasks.tab.history"), content: historyPanel },
           { value: "attachments", label: t("tasks.tab.attachments"), content: attachmentsPanel },
+          { value: "activity", label: "Activity", content: activityPanel },
           { value: "variables", label: t("tasks.tab.variables"), content: variablesPanel },
         ]}
       />

@@ -759,6 +759,62 @@ export function updateFormDefinition(
   return authPut<FormDefinitionDto>(`/api/v1/forms/${id}`, { name, schemaJson });
 }
 
+export interface TaskCommentDto {
+  id: string;
+  taskId: string;
+  authorId: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface TaskAttachmentDto {
+  id: string;
+  taskId: string;
+  fileId: string;
+  fileName: string;
+  scanStatus: string;
+  downloadable: boolean;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface TaskActivityDto {
+  id: string;
+  kind: string;
+  actorId: string | null;
+  summary: string;
+  createdAt: string;
+}
+
+export function fetchTaskComments(id: string): Promise<TaskCommentDto[]> {
+  return authFetch<TaskCommentDto[]>(`/api/v1/tasks/${encodeURIComponent(id)}/comments`);
+}
+
+export function createTaskComment(id: string, body: string): Promise<TaskCommentDto> {
+  return authPost<TaskCommentDto>(`/api/v1/tasks/${encodeURIComponent(id)}/comments`, { body });
+}
+
+/** Soft-deletes a comment; the backend only accepts this for the comment's author. */
+export function deleteTaskComment(id: string, commentId: string): Promise<void> {
+  return authDelete<void>(
+    `/api/v1/tasks/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`,
+  );
+}
+
+export function fetchTaskAttachments(id: string): Promise<TaskAttachmentDto[]> {
+  return authFetch<TaskAttachmentDto[]>(`/api/v1/tasks/${encodeURIComponent(id)}/attachments`);
+}
+
+export function attachTaskFile(id: string, fileId: string): Promise<TaskAttachmentDto> {
+  return authPost<TaskAttachmentDto>(`/api/v1/tasks/${encodeURIComponent(id)}/attachments`, {
+    fileId,
+  });
+}
+
+export function fetchTaskActivity(id: string): Promise<TaskActivityDto[]> {
+  return authFetch<TaskActivityDto[]>(`/api/v1/tasks/${encodeURIComponent(id)}/activity`);
+}
+
 export function approveTask(id: string, comment?: string): Promise<TaskDto> {
   return authPost<TaskDto>(`/api/v1/tasks/${id}/approve`, { comment });
 }

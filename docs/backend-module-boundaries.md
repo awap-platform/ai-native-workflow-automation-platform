@@ -71,6 +71,10 @@ Issue #370 added `com.awap.form.domain.FormSchemaSnapshot`, an immutable
 per-version schema row. It is part of the reviewed exception because the
 submission history must read the schema the respondent actually answered.
 
+Issue #371 added `com.awap.task.domain.TaskComment` and
+`com.awap.task.domain.TaskAttachment`, the durable collaboration records behind
+the task activity stream and scan-gated attachment list.
+
 ## Enforcement
 
 | Gate | Location | Fails when |
@@ -98,8 +102,13 @@ node scripts/module-dependency-graph.mjs --dot > /tmp/awap-modules.dot
 The current code base has one documented cycle group:
 
 ```
-ai, engine, identity, organization, script, task, usage, webhook, workflow
+ai, engine, file, identity, organization, script, task, usage, webhook, workflow
 ```
+
+Issue #371 added the `task -> file` edge (the attachment list copies the
+document scan state), which pulls `file` into the same group. The edge is
+recorded here rather than hidden: the follow-up is to expose the scan state
+through a port owned by `task`, which removes the edge again.
 
 The cycle is recorded in
 [`scripts/module-cycles-baseline.json`](../scripts/module-cycles-baseline.json).

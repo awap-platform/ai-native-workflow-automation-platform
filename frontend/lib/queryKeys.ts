@@ -13,6 +13,9 @@ export const queryKeys = {
     all: ["tasks"] as const,
     list: () => ["tasks"] as const,
     mine: () => ["tasks", "mine"] as const,
+    comments: (id: string) => ["tasks", id, "comments"] as const,
+    attachments: (id: string) => ["tasks", id, "attachments"] as const,
+    activity: (id: string) => ["tasks", id, "activity"] as const,
   },
   workflowDefinitions: {
     all: ["workflow-definitions"] as const,

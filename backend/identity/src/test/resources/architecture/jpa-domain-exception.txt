@@ -40,6 +40,8 @@ com.awap.organization.domain.OrganizationUser
 com.awap.organization.domain.Position
 com.awap.organization.domain.Team
 com.awap.task.domain.Task
+com.awap.task.domain.TaskAttachment
+com.awap.task.domain.TaskComment
 com.awap.usage.domain.TenantUsageLimit
 com.awap.usage.domain.UsageCounter
 com.awap.workflow.domain.NodeDefinition
