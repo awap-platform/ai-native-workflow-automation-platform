@@ -905,7 +905,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Draft token mismatch or a non-draft definition.
+          $ref: "#/components/responses/Conflict"
 
   /api/v1/workflow-definitions/{id}/publish:
     post:
