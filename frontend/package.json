@@ -14,6 +14,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "jest",
     "test:scripts": "node --test scripts/test/*.test.mjs",
+    "a11y:protocol:check": "node scripts/a11y/check-protocol-evidence.mjs",
     "test:e2e": "playwright test",
     "test:a11y": "playwright test e2e/accessibility.spec.ts",
     "uat:check": "node scripts/uat/check-uat-results.mjs",

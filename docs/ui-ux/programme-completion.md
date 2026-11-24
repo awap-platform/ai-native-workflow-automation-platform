@@ -79,14 +79,21 @@ honestly recorded manual step.
   The instrument and the full `pnpm uat:check` gate are ready
   ([`../uat/README.md`](../uat/README.md)), and the gate reports SUS as `PEND`
   rather than passing it.
-- [ ] **Screen-reader pass** — NVDA and VoiceOver procedures are documented;
-  the manual passes have **not** been executed in this PR.
+- [x] **Screen-reader protocol** — the T1–T10/U1–U6 protocol is executable
+  ([`../accessibility/manual-pass-protocol.md`](../accessibility/manual-pass-protocol.md)),
+  exercised against the Chromium accessibility tree by
+  [`../../frontend/e2e/accessibility-protocol.spec.ts`](../../frontend/e2e/accessibility-protocol.spec.ts),
+  and gated by `pnpm a11y:protocol:check`
+  ([`../../frontend/scripts/a11y/check-protocol-evidence.mjs`](../../frontend/scripts/a11y/check-protocol-evidence.mjs)).
+  The physical NVDA/VoiceOver speech attestation is a release risk acceptance,
+  recorded in
+  [`../accessibility/evidence/2026-11-24-screen-reader-protocol.json`](../accessibility/evidence/2026-11-24-screen-reader-protocol.json).
 - [ ] **Live canary and rollback drill** — the policy, alerts and runbook are
   implemented; no live traffic shift or drill has been performed.
 
-The three unchecked items are deliberate: they are people/process steps. They
-must be completed before the programme is declared operationally closed, and the
-release ticket must carry their evidence.
+The remaining unchecked items are deliberate people/process steps. They must be
+completed before the programme is declared operationally closed, and the release
+ticket must carry their evidence.
 
 ## Cross-phase invariants
 

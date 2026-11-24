@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { installApiMocks, setSession } from "./a11yFixtures";
 
 /**
- * Visible session expiry (UI/UX phase 2, U2-05 and T2-12).
+ * Visible session expiry (UI/UX phase 2, U2-05 and T2-12; issue #366 U1).
  */
 const API = "**/api/v1/**";
 
