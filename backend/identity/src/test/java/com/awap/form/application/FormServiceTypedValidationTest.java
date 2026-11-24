@@ -2,6 +2,7 @@ package com.awap.form.application;
 
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.awap.common.api.AwapException;
@@ -42,6 +43,7 @@ class FormServiceTypedValidationTest {
         new FormService(
             definitionRepository,
             submissionRepository,
+            mock(com.awap.form.infrastructure.FormSchemaSnapshotRepository.class),
             new ObjectMapper(),
             outboxEventPublisher,
             new FormMapperImpl(),

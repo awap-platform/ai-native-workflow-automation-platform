@@ -22,6 +22,7 @@ com.awap.engine.domain.WorkflowInstance
 com.awap.file.domain.FileRecord
 com.awap.file.domain.FileScanAudit
 com.awap.form.domain.FormDefinition
+com.awap.form.domain.FormSchemaSnapshot
 com.awap.form.domain.FormSubmission
 com.awap.identity.domain.IdempotencyRecord
 com.awap.identity.domain.Invitation

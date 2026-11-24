@@ -20,6 +20,7 @@ import {
   fetchAnalyticsSummary,
   fetchBreakGlassLog,
   fetchFormDefinition,
+  fetchFormSchemaVersion,
   fetchInstanceLogs,
   fetchInstanceSaga,
   fetchWorkflowDefinition,
@@ -393,6 +394,14 @@ export function useFormDefinitions() {
 }
 
 /** One form definition with its schema, loaded only when an id is selected. */
+export function useFormSchemaVersion(formId: string, version: number | null) {
+  return useQuery({
+    queryKey: queryKeys.forms.version(formId || "none", version ?? 0),
+    queryFn: () => fetchFormSchemaVersion(formId, version as number),
+    enabled: formId !== "" && version !== null && version > 0,
+  });
+}
+
 export function useFormDefinition(formId: string) {
   return useQuery({
     queryKey: queryKeys.forms.detail(formId),

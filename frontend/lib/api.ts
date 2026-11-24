@@ -877,6 +877,22 @@ export function fetchFormDefinition(id: string): Promise<FormDefinitionDetailDto
   return authFetch<FormDefinitionDetailDto>(`/api/v1/forms/${id}`);
 }
 
+/** Immutable schema snapshot for the version a historical submission answered (#370). */
+export interface FormSchemaVersionDto {
+  id: string;
+  formId: string;
+  version: number;
+  schemaJson: string;
+  schemaHash: string;
+  createdAt: string;
+}
+
+export function fetchFormSchemaVersion(id: string, version: number): Promise<FormSchemaVersionDto> {
+  return authFetch<FormSchemaVersionDto>(
+    `/api/v1/forms/${encodeURIComponent(id)}/versions/${version}`,
+  );
+}
+
 export interface SubmitFormPayload {
   dataJson: string;
   workflowInstanceId?: string | null;

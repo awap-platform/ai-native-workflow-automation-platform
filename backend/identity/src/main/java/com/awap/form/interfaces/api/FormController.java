@@ -5,6 +5,7 @@ import com.awap.common.api.ErrorCode;
 import com.awap.form.application.FormService;
 import com.awap.form.interfaces.dto.FormDefinitionRequest;
 import com.awap.form.interfaces.dto.FormDefinitionResponse;
+import com.awap.form.interfaces.dto.FormSchemaVersionResponse;
 import com.awap.form.interfaces.dto.FormSubmissionRequest;
 import com.awap.form.interfaces.dto.FormSubmissionResponse;
 import com.awap.identity.infrastructure.security.TenantContext;
@@ -58,6 +59,14 @@ public class FormController {
   public ResponseEntity<FormDefinitionResponse> update(
       @PathVariable UUID id, @Valid @RequestBody FormDefinitionRequest request) {
     return ResponseEntity.ok(formService.update(currentTenantId(), id, request));
+  }
+
+  /** Immutable schema snapshot for the version a historical submission answered. */
+  @GetMapping("/{id}/versions/{version}")
+  @PreAuthorize("hasAuthority('FORM_MANAGE')")
+  public ResponseEntity<FormSchemaVersionResponse> version(
+      @PathVariable UUID id, @PathVariable int version) {
+    return ResponseEntity.ok(formService.getVersion(currentTenantId(), id, version));
   }
 
   @PostMapping("/{id}/submissions")

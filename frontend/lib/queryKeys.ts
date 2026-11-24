@@ -36,6 +36,7 @@ export const queryKeys = {
     all: ["forms"] as const,
     list: () => ["forms"] as const,
     detail: (id: string) => ["forms", "detail", id] as const,
+    version: (id: string, version: number) => ["forms", "version", id, version] as const,
   },
   analytics: {
     all: ["analytics-summary"] as const,
@@ -71,13 +72,7 @@ export const queryKeys = {
         groupBy ?? null,
         limit ?? null,
       ] as const,
-    drilldown: (
-      from?: string,
-      to?: string,
-      eventType?: string,
-      page?: number,
-      size?: number,
-    ) =>
+    drilldown: (from?: string, to?: string, eventType?: string, page?: number, size?: number) =>
       [
         "analytics-drilldown",
         from ?? null,

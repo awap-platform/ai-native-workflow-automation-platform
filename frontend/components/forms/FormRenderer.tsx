@@ -34,6 +34,8 @@ export interface FormRendererProps {
   /** Tenant documents used to gate FILE downloads in read-only mode. */
   documents?: DocumentVersionDto[];
   emptyMessage?: string;
+  /** Immutable form version this renderer is bound to (issue #370). */
+  formVersion?: number | undefined;
 }
 
 function inputType(field: FormField): string {
@@ -81,11 +83,9 @@ export default function FormRenderer({
   onFileCleared,
   documents = [],
   emptyMessage = "This form has no fields yet.",
+  formVersion,
 }: FormRendererProps) {
-  const computed = useMemo(
-    () => computeCalculatedValues(schema, values).values,
-    [schema, values],
-  );
+  const computed = useMemo(() => computeCalculatedValues(schema, values).values, [schema, values]);
   const entries = useMemo(() => visibleEntries(schema, computed), [schema, computed]);
   const errorByField = useMemo(() => {
     const map = new Map<string, string>();
@@ -109,7 +109,11 @@ export default function FormRenderer({
   }
 
   return (
-    <div className="awap-form-renderer" data-testid="form-renderer">
+    <div
+      className="awap-form-renderer"
+      data-testid="form-renderer"
+      data-form-version={formVersion ?? undefined}
+    >
       <FormErrorSummary errors={errors} focusRequests={focusRequests} idPrefix={idPrefix} />
       {entries.map((entry) => {
         if (entry.kind === "section") {
@@ -119,15 +123,10 @@ export default function FormRenderer({
               className="awap-form__section"
               aria-labelledby={`${idPrefix}-${entry.field.id}-heading`}
             >
-              <h2
-                id={`${idPrefix}-${entry.field.id}-heading`}
-                className="awap-form__section-title"
-              >
+              <h2 id={`${idPrefix}-${entry.field.id}-heading`} className="awap-form__section-title">
                 {fieldLabel(entry.field)}
               </h2>
-              {entry.field.help ? (
-                <p className="awap-form__hint">{entry.field.help}</p>
-              ) : null}
+              {entry.field.help ? <p className="awap-form__hint">{entry.field.help}</p> : null}
             </section>
           );
         }

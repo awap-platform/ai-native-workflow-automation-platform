@@ -112,11 +112,13 @@ which is what proves the preview and fill surfaces render the same form.
 
 ## Honest limitations
 
-- **Form history is not versioned per row.** `form_definitions` keeps only the
-  current schema plus a counter; a submission stores the version it answered but
-  an older schema cannot be re-rendered from storage. Read-only rendering
-  therefore uses the current schema (preview) or the captured submission
-  response, not a historical snapshot.
+- Form history is now versioned per row (issue #370): every create/update writes
+  an immutable `form_schema_snapshots` row keyed by `(form_id, version)` with a
+  SHA-256 hash. The historical read is
+  `GET /api/v1/forms/{id}/versions/{version}`; `/forms/fill?formId=…&version=N`
+  fetches that snapshot, forces read-only mode and shows the answered-vs-current
+  version banner. Legacy submissions without a snapshot remain readable against
+  the current schema with an explicit warning.
 - **Drag-and-drop is covered by component-level `drop` events and the keyboard
   path in E2E.** There is no pointer-drag Playwright test; reordering is also
   available as buttons, which is the accessibility contract that is tested.
