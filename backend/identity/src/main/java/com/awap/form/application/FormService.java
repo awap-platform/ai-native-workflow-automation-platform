@@ -24,14 +24,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.MissingNode;
+import com.google.common.hash.Hashing;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.HashSet;
-import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -140,12 +138,7 @@ public class FormService {
   }
 
   private String sha256(String value) {
-    try {
-      MessageDigest digest = MessageDigest.getInstance("SHA-256");
-      return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
-    } catch (NoSuchAlgorithmException ex) {
-      throw new IllegalStateException("SHA-256 is unavailable.", ex);
-    }
+    return Hashing.sha256().hashString(value, StandardCharsets.UTF_8).toString();
   }
 
   public List<FormDefinitionResponse> list(UUID tenantId) {
