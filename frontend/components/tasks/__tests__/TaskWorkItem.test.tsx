@@ -166,7 +166,7 @@ describe("TaskWorkItem decisions", () => {
     expect(screen.queryByTestId("task-comment-delete-task-created")).not.toBeInTheDocument();
   });
 
-  it("explains a forbidden comment delete instead of showing a status code", () => {
+  it("explains a forbidden comment delete instead of showing a status code", async () => {
     mockActivity = [
       {
         id: "comment-c-2",
@@ -184,8 +184,6 @@ describe("TaskWorkItem decisions", () => {
     const mutate = deleteCommentMutate.mock.calls[0][1] as { onError: () => void };
     mutate.onError();
 
-    expect(screen.getByTestId("task-activity")).toHaveTextContent(
-      "Only the author can delete this comment.",
-    );
+    expect(await screen.findByText("Only the author can delete this comment.")).toBeInTheDocument();
   });
 });
