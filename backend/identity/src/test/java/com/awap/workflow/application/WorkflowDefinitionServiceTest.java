@@ -21,6 +21,7 @@ import com.awap.workflow.infrastructure.WorkflowDefinitionRepository;
 import com.awap.workflow.infrastructure.WorkflowVariableRepository;
 import com.awap.workflow.infrastructure.WorkflowVersionRepository;
 import com.awap.workflow.interfaces.dto.WorkflowDefinitionRequest;
+import com.awap.workflow.interfaces.dto.WorkflowDefinitionUpdateRequest;
 import com.awap.workflow.interfaces.dto.WorkflowMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
@@ -203,5 +204,136 @@ class WorkflowDefinitionServiceTest {
     assertThatThrownBy(
             () -> service.create(tenantId, new WorkflowDefinitionRequest("W", null, badGraph)))
         .isInstanceOf(AwapException.class);
+  }
+
+  @Test
+  void updateDraftUpdatesTheVersionInPlaceAndReplacesTheGraph() {
+    WorkflowDefinition definition = new WorkflowDefinition(tenantId, "Old", null);
+    WorkflowVersion draft =
+        new WorkflowVersion(tenantId, definition.getId(), 1, VALID_GRAPH, WorkflowStatus.DRAFT);
+    when(definitionRepository.findByIdAndTenantIdAndDeletedFalse(definition.getId(), tenantId))
+        .thenReturn(Optional.of(definition));
+    when(versionRepository.findTopByWorkflowIdOrderByVersionDesc(definition.getId()))
+        .thenReturn(Optional.of(draft));
+
+    service.updateDraft(
+        tenantId,
+        definition.getId(),
+        new WorkflowDefinitionUpdateRequest(
+            "New name", "New description", VALID_GRAPH, definition.getUpdatedAt()));
+
+    assertThat(definition.getName()).isEqualTo("New name");
+    assertThat(draft.getDefinitionJson()).isEqualTo(VALID_GRAPH);
+    verify(nodeDefinitionRepository).deleteByWorkflowVersionId(draft.getId());
+    verify(transitionDefinitionRepository).deleteByWorkflowVersionId(draft.getId());
+    verify(nodeDefinitionRepository, times(2)).save(any(NodeDefinition.class));
+  }
+
+  @Test
+  void updateDraftRejectsAStaleToken() {
+    WorkflowDefinition definition = new WorkflowDefinition(tenantId, "Old", null);
+    when(definitionRepository.findByIdAndTenantIdAndDeletedFalse(definition.getId(), tenantId))
+        .thenReturn(Optional.of(definition));
+
+    assertThatThrownBy(
+            () ->
+                service.updateDraft(
+                    tenantId,
+                    definition.getId(),
+                    new WorkflowDefinitionUpdateRequest(
+                        "New", null, VALID_GRAPH, definition.getUpdatedAt().minusSeconds(1))))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("changed by another request");
+  }
+
+  @Test
+  void updateDraftRejectsAPublishedDefinition() {
+    WorkflowDefinition definition = new WorkflowDefinition(tenantId, "Published", null);
+    definition.publish(1);
+    when(definitionRepository.findByIdAndTenantIdAndDeletedFalse(definition.getId(), tenantId))
+        .thenReturn(Optional.of(definition));
+
+    assertThatThrownBy(
+            () ->
+                service.updateDraft(
+                    tenantId,
+                    definition.getId(),
+                    new WorkflowDefinitionUpdateRequest(
+                        "New", null, VALID_GRAPH, definition.getUpdatedAt())))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("cannot be updated in place");
+  }
+
+  @Test
+  void updateDraftRejectsAPublishedLatestVersion() {
+    WorkflowDefinition definition = new WorkflowDefinition(tenantId, "Draft", null);
+    WorkflowVersion published =
+        new WorkflowVersion(tenantId, definition.getId(), 1, VALID_GRAPH, WorkflowStatus.PUBLISHED);
+    when(definitionRepository.findByIdAndTenantIdAndDeletedFalse(definition.getId(), tenantId))
+        .thenReturn(Optional.of(definition));
+    when(versionRepository.findTopByWorkflowIdOrderByVersionDesc(definition.getId()))
+        .thenReturn(Optional.of(published));
+
+    assertThatThrownBy(
+            () ->
+                service.updateDraft(
+                    tenantId,
+                    definition.getId(),
+                    new WorkflowDefinitionUpdateRequest(
+                        "New", null, VALID_GRAPH, definition.getUpdatedAt())))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("is immutable");
+  }
+
+  @Test
+  void updateDraftRejectsAMissingVersion() {
+    WorkflowDefinition definition = new WorkflowDefinition(tenantId, "Draft", null);
+    when(definitionRepository.findByIdAndTenantIdAndDeletedFalse(definition.getId(), tenantId))
+        .thenReturn(Optional.of(definition));
+    when(versionRepository.findTopByWorkflowIdOrderByVersionDesc(definition.getId()))
+        .thenReturn(Optional.empty());
+
+    assertThatThrownBy(
+            () ->
+                service.updateDraft(
+                    tenantId,
+                    definition.getId(),
+                    new WorkflowDefinitionUpdateRequest(
+                        "New", null, VALID_GRAPH, definition.getUpdatedAt())))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("draft version not found");
+  }
+
+  @Test
+  void updateDraftRejectsAnInvalidGraph() {
+    WorkflowDefinition definition = new WorkflowDefinition(tenantId, "Draft", null);
+    when(definitionRepository.findByIdAndTenantIdAndDeletedFalse(definition.getId(), tenantId))
+        .thenReturn(Optional.of(definition));
+
+    assertThatThrownBy(
+            () ->
+                service.updateDraft(
+                    tenantId,
+                    definition.getId(),
+                    new WorkflowDefinitionUpdateRequest(
+                        "New", null, "{\"nodes\":[]}", definition.getUpdatedAt())))
+        .isInstanceOf(AwapException.class);
+  }
+
+  @Test
+  void updateDraftRejectsAForeignTenant() {
+    UUID id = UUID.randomUUID();
+    when(definitionRepository.findByIdAndTenantIdAndDeletedFalse(id, tenantId))
+        .thenReturn(Optional.empty());
+
+    assertThatThrownBy(
+            () ->
+                service.updateDraft(
+                    tenantId,
+                    id,
+                    new WorkflowDefinitionUpdateRequest(
+                        "New", null, VALID_GRAPH, java.time.Instant.now())))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("not found");
   }
 }

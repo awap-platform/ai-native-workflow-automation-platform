@@ -77,6 +77,17 @@ public class WorkflowDefinition {
     this.updatedAt = Instant.now();
   }
 
+  /**
+   * Updates an editable draft and advances the optimistic-concurrency token. The token is
+   * millisecond-granular, so a same-millisecond update is nudged forward to stay observable.
+   */
+  public void updateDraft(String name, String description) {
+    this.name = name;
+    this.description = description;
+    Instant now = Instant.now();
+    this.updatedAt = now.isAfter(updatedAt) ? now : updatedAt.plusMillis(1);
+  }
+
   public UUID getId() {
     return id;
   }

@@ -9,10 +9,13 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.awap.common.api.AwapException;
+import com.awap.common.api.ErrorCode;
 import com.awap.identity.IdentityApplication;
 import com.awap.identity.infrastructure.security.TenantContext;
 import com.awap.workflow.application.ExpressionValidationResult;
@@ -28,6 +31,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -282,5 +286,81 @@ class WorkflowDefinitionControllerWebMvcTest {
         .andExpect(status().isNoContent());
 
     verify(service).archiveVersion(any(UUID.class), eq(definitionId), eq(1));
+  }
+
+  @Test
+  void updateDraftReturnsTheUpdatedDefinitionForWorkflowCreate() throws Exception {
+    UUID definitionId = UUID.randomUUID();
+    WorkflowDefinitionResponse response =
+        new WorkflowDefinitionResponse(
+            definitionId,
+            UUID.randomUUID(),
+            "Updated",
+            null,
+            "DRAFT",
+            1,
+            null,
+            Instant.parse("2026-11-24T10:00:00Z"),
+            null);
+    when(service.updateDraft(any(UUID.class), eq(definitionId), any())).thenReturn(response);
+
+    mockMvc
+        .perform(
+            patch("/api/v1/workflow-definitions/{id}", definitionId)
+                .with(csrf())
+                .contentType(APPLICATION_JSON)
+                .content(
+                    "{\"name\":\"Updated\",\"definitionJson\":\"{}\","
+                        + "\"expectedUpdatedAt\":\"2026-11-24T09:00:00Z\"}")
+                .with(user("u").authorities(new SimpleGrantedAuthority("WORKFLOW_CREATE"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.name").value("Updated"))
+        .andExpect(jsonPath("$.status").value("DRAFT"));
+  }
+
+  @Test
+  void updateDraftRequiresWorkflowCreate() throws Exception {
+    mockMvc
+        .perform(
+            patch("/api/v1/workflow-definitions/{id}", UUID.randomUUID())
+                .with(csrf())
+                .contentType(APPLICATION_JSON)
+                .content(
+                    "{\"name\":\"Updated\",\"definitionJson\":\"{}\","
+                        + "\"expectedUpdatedAt\":\"2026-11-24T09:00:00Z\"}")
+                .with(user("u").authorities(new SimpleGrantedAuthority("INSTANCE_READ"))))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void updateDraftPropagatesAConflict() throws Exception {
+    UUID definitionId = UUID.randomUUID();
+    when(service.updateDraft(any(UUID.class), eq(definitionId), any()))
+        .thenThrow(
+            new AwapException(
+                ErrorCode.RESOURCE_CONFLICT, HttpStatus.CONFLICT, "changed by another request"));
+
+    mockMvc
+        .perform(
+            patch("/api/v1/workflow-definitions/{id}", definitionId)
+                .with(csrf())
+                .contentType(APPLICATION_JSON)
+                .content(
+                    "{\"name\":\"Updated\",\"definitionJson\":\"{}\","
+                        + "\"expectedUpdatedAt\":\"2026-11-24T09:00:00Z\"}")
+                .with(user("u").authorities(new SimpleGrantedAuthority("WORKFLOW_CREATE"))))
+        .andExpect(status().isConflict());
+  }
+
+  @Test
+  void updateDraftRejectsAMissingConcurrencyToken() throws Exception {
+    mockMvc
+        .perform(
+            patch("/api/v1/workflow-definitions/{id}", UUID.randomUUID())
+                .with(csrf())
+                .contentType(APPLICATION_JSON)
+                .content("{\"name\":\"Updated\",\"definitionJson\":\"{}\"}")
+                .with(user("u").authorities(new SimpleGrantedAuthority("WORKFLOW_CREATE"))))
+        .andExpect(status().isBadRequest());
   }
 }

@@ -130,6 +130,11 @@ export interface CreateWorkflowPayload {
   definitionJson: string;
 }
 
+/** Update payload with the updatedAt token loaded by the designer. */
+export interface UpdateWorkflowPayload extends CreateWorkflowPayload {
+  expectedUpdatedAt: string;
+}
+
 export interface CompanyDto {
   id: string;
   name: string;
@@ -325,11 +330,7 @@ export async function login(
       );
     }
     if (response.status === 401 || response.status === 403 || response.status === 404) {
-      throw new ApiError(
-        response.status,
-        "Email or password is incorrect.",
-        correlationId,
-      );
+      throw new ApiError(response.status, "Email or password is incorrect.", correlationId);
     }
     throw new ApiError(
       response.status,
@@ -357,12 +358,7 @@ export class ApiError extends Error {
   /** Seconds until a rate-limited request may be retried. */
   readonly retryAfterSeconds: number | undefined;
 
-  constructor(
-    status: number,
-    message: string,
-    correlationId?: string,
-    retryAfterSeconds?: number,
-  ) {
+  constructor(status: number, message: string, correlationId?: string, retryAfterSeconds?: number) {
     super(message);
     this.name = "ApiError";
     this.status = status;
@@ -503,7 +499,8 @@ async function apiRequest<T>(
 }
 
 const authFetch = <T>(path: string): Promise<T> => apiRequest<T>("GET", path);
-const authPatch = <T>(path: string): Promise<T> => apiRequest<T>("PATCH", path);
+const authPatch = <T>(path: string, body?: unknown): Promise<T> =>
+  apiRequest<T>("PATCH", path, body);
 const authPut = <T>(path: string, body: unknown): Promise<T> => apiRequest<T>("PUT", path, body);
 const authPost = <T>(path: string, body: unknown): Promise<T> => apiRequest<T>("POST", path, body);
 const authDelete = <T>(path: string): Promise<T> => apiRequest<T>("DELETE", path);
@@ -621,13 +618,19 @@ export function fetchInstanceSaga(id: string): Promise<SagaDto> {
 export type InstanceAction = "retry" | "pause" | "resume" | "cancel" | "fail" | "recover";
 
 /** Operator action on one instance; the response is the authoritative new state. */
-export function runInstanceAction(id: string, action: InstanceAction): Promise<WorkflowInstanceDto> {
+export function runInstanceAction(
+  id: string,
+  action: InstanceAction,
+): Promise<WorkflowInstanceDto> {
   return authPost<WorkflowInstanceDto>(`/api/v1/workflow-instances/${id}/${action}`, undefined);
 }
 
 /** Deterministic replay projection; writes only the audit row. */
 export function replayDryRun(id: string): Promise<ReplayReportDto> {
-  return authPost<ReplayReportDto>(`/api/v1/workflow-instances/${id}/replay?dryRun=true`, undefined);
+  return authPost<ReplayReportDto>(
+    `/api/v1/workflow-instances/${id}/replay?dryRun=true`,
+    undefined,
+  );
 }
 
 /** Applies the reference replay after a matching projection. */
@@ -640,13 +643,27 @@ export function compensateSaga(id: string): Promise<SagaDto> {
 }
 
 export function retrySagaStep(id: string, stepId: string): Promise<SagaDto> {
-  return authPost<SagaDto>(`/api/v1/workflow-instances/${id}/saga/steps/${stepId}/retry`, undefined);
+  return authPost<SagaDto>(
+    `/api/v1/workflow-instances/${id}/saga/steps/${stepId}/retry`,
+    undefined,
+  );
 }
 
 export function createWorkflowDefinition(
   payload: CreateWorkflowPayload,
 ): Promise<WorkflowDefinitionDto> {
   return authPost<WorkflowDefinitionDto>("/api/v1/workflow-definitions", payload);
+}
+
+/** Updates an existing draft in place; a stale expectedUpdatedAt returns 409. */
+export function updateWorkflowDefinition(
+  id: string,
+  payload: UpdateWorkflowPayload,
+): Promise<WorkflowDefinitionDto> {
+  return authPatch<WorkflowDefinitionDto>(
+    `/api/v1/workflow-definitions/${encodeURIComponent(id)}`,
+    payload,
+  );
 }
 
 export function fetchWorkflowDefinition(id: string): Promise<WorkflowDefinitionDto> {
@@ -780,7 +797,12 @@ export interface TaskActionInput {
 }
 
 /** Single seam for every work item action so bulk execution reuses the same behaviour. */
-export function runTaskAction({ id, action, comment, assigneeId }: TaskActionInput): Promise<TaskDto> {
+export function runTaskAction({
+  id,
+  action,
+  comment,
+  assigneeId,
+}: TaskActionInput): Promise<TaskDto> {
   switch (action) {
     case "approve":
       return approveTask(id, comment);
@@ -795,9 +817,7 @@ export function runTaskAction({ id, action, comment, assigneeId }: TaskActionInp
       if (!assigneeId) {
         return Promise.reject(new ApiError(400, "Choose an assignee first."));
       }
-      return action === "assign"
-        ? assignTask(id, assigneeId)
-        : escalateTask(id, assigneeId);
+      return action === "assign" ? assignTask(id, assigneeId) : escalateTask(id, assigneeId);
   }
 }
 
@@ -1568,10 +1588,10 @@ export function createAdminInvitation(
   email: string,
   role: string,
 ): Promise<AdminInvitationCreatedDto> {
-  return authPost<AdminInvitationCreatedDto>(
-    `/api/v1/admin/invitations${tenantQuery(tenantId)}`,
-    { email, role },
-  );
+  return authPost<AdminInvitationCreatedDto>(`/api/v1/admin/invitations${tenantQuery(tenantId)}`, {
+    email,
+    role,
+  });
 }
 
 export function fetchAdminDlq(tenantId?: string): Promise<AdminDlqDeliveryDto[]> {
@@ -1679,9 +1699,7 @@ export function fetchAnalyticsOverview(
   params: AnalyticsDashboardParams = {},
 ): Promise<AnalyticsOverviewDto> {
   const query = analyticsQuery(params);
-  return authFetch<AnalyticsOverviewDto>(
-    `/api/v1/analytics/overview${query ? `?${query}` : ""}`,
-  );
+  return authFetch<AnalyticsOverviewDto>(`/api/v1/analytics/overview${query ? `?${query}` : ""}`);
 }
 
 export function fetchAnalyticsDrilldown(
@@ -1698,9 +1716,7 @@ export function fetchAnalyticsDrilldown(
     search.set("size", String(params.size));
   }
   const query = search.toString();
-  return authFetch<AnalyticsDrilldownDto>(
-    `/api/v1/analytics/drilldown${query ? `?${query}` : ""}`,
-  );
+  return authFetch<AnalyticsDrilldownDto>(`/api/v1/analytics/drilldown${query ? `?${query}` : ""}`);
 }
 
 export function analyticsExportUrl(params: AnalyticsDashboardParams = {}): string {

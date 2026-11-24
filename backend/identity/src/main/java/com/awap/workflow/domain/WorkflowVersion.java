@@ -68,6 +68,11 @@ public class WorkflowVersion {
     this.status = WorkflowStatus.PUBLISHED;
   }
 
+  /** Replaces the editable draft snapshot in place; published versions never call this. */
+  public void updateDefinitionJson(String definitionJson) {
+    this.definitionJson = definitionJson;
+  }
+
   public void archive() {
     this.deleted = true;
   }

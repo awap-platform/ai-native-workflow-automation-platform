@@ -96,11 +96,12 @@ scans the designer in both themes and fails on critical or serious findings.
   not part of the definition JSON either; the canvas regenerates a deterministic layout on import.
 - Only the engine's node subset is supported. Boundary events, event-based gateways, choreographies
   and multi-instance markers are rejected with a 400 rather than approximated.
-- There is no update-draft endpoint. Opening `?id=` loads the current version and publish/rollback
-  target that id, but pressing **Save draft** creates a new definition; version history remains on
-  the original id. This is why the designer labels the create path explicitly.
-- Autosave is per-browser localStorage, not a server-side collaborative draft; two tabs do not
-  merge. Publish conflicts surface from the backend response because publish has no ETag/If-Match.
+- Draft updates use the definition `updatedAt` value as an optimistic-concurrency token. Two tabs
+  that load the same draft cannot silently overwrite each other: the stale tab gets a 409 and the
+  conflict dialog offers reload or "keep mine as a new definition". A published or archived
+  definition is immutable, so the designer's explicit **Save as new** action is the escape hatch.
+- Autosave still writes a per-browser localStorage backup, but **Save draft** now updates the
+  server DRAFT in place. The server is authoritative after a save and the local backup is cleared.
 - The in-app unsaved-changes guard intercepts ordinary same-origin link clicks; programmatic
   router navigation is not intercepted.
 - Moving a node does not mark the draft dirty because positions are not persisted in the
