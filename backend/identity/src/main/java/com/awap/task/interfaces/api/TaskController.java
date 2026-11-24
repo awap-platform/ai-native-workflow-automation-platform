@@ -3,8 +3,14 @@ package com.awap.task.interfaces.api;
 import com.awap.common.api.AwapException;
 import com.awap.common.api.ErrorCode;
 import com.awap.identity.infrastructure.security.TenantContext;
+import com.awap.task.application.TaskCollaborationService;
 import com.awap.task.application.TaskService;
+import com.awap.task.interfaces.dto.TaskActivityResponse;
 import com.awap.task.interfaces.dto.TaskAssignRequest;
+import com.awap.task.interfaces.dto.TaskAttachmentRequest;
+import com.awap.task.interfaces.dto.TaskAttachmentResponse;
+import com.awap.task.interfaces.dto.TaskCommentRequest;
+import com.awap.task.interfaces.dto.TaskCommentResponse;
 import com.awap.task.interfaces.dto.TaskDecisionRequest;
 import com.awap.task.interfaces.dto.TaskRequest;
 import com.awap.task.interfaces.dto.TaskResponse;
@@ -27,9 +33,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class TaskController {
 
   private final TaskService taskService;
+  private final TaskCollaborationService collaborationService;
 
-  public TaskController(TaskService taskService) {
+  public TaskController(TaskService taskService, TaskCollaborationService collaborationService) {
     this.taskService = taskService;
+    this.collaborationService = collaborationService;
   }
 
   @PostMapping
@@ -49,6 +57,43 @@ public class TaskController {
   @PreAuthorize("hasAuthority('TASK_MANAGE')")
   public ResponseEntity<List<TaskResponse>> listMine() {
     return ResponseEntity.ok(taskService.listMine(currentTenantId(), currentUserId()));
+  }
+
+  @GetMapping("/{id}/comments")
+  @PreAuthorize("hasAuthority('TASK_MANAGE')")
+  public ResponseEntity<List<TaskCommentResponse>> comments(@PathVariable UUID id) {
+    return ResponseEntity.ok(collaborationService.comments(currentTenantId(), id));
+  }
+
+  @PostMapping("/{id}/comments")
+  @PreAuthorize("hasAuthority('TASK_MANAGE')")
+  public ResponseEntity<TaskCommentResponse> addComment(
+      @PathVariable UUID id, @Valid @RequestBody TaskCommentRequest request) {
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(
+            collaborationService.addComment(
+                currentTenantId(), id, currentUserId(), request.body()));
+  }
+
+  @GetMapping("/{id}/attachments")
+  @PreAuthorize("hasAuthority('TASK_MANAGE')")
+  public ResponseEntity<List<TaskAttachmentResponse>> attachments(@PathVariable UUID id) {
+    return ResponseEntity.ok(collaborationService.attachments(currentTenantId(), id));
+  }
+
+  @PostMapping("/{id}/attachments")
+  @PreAuthorize("hasAuthority('TASK_MANAGE')")
+  public ResponseEntity<TaskAttachmentResponse> attach(
+      @PathVariable UUID id, @Valid @RequestBody TaskAttachmentRequest request) {
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(
+            collaborationService.attach(currentTenantId(), id, request.fileId(), currentUserId()));
+  }
+
+  @GetMapping("/{id}/activity")
+  @PreAuthorize("hasAuthority('TASK_MANAGE')")
+  public ResponseEntity<List<TaskActivityResponse>> activity(@PathVariable UUID id) {
+    return ResponseEntity.ok(collaborationService.activity(currentTenantId(), id));
   }
 
   @PostMapping("/{id}/assign")

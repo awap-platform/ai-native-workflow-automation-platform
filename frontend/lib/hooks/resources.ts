@@ -3,6 +3,7 @@ import {
   archiveDocumentVersion,
   archiveWorkflowVersion,
   approveTask,
+  attachTaskFile,
   createAdminInvitation,
   createDocumentUpload,
   createFormDefinition,
@@ -22,6 +23,9 @@ import {
   fetchFormDefinition,
   fetchInstanceLogs,
   fetchInstanceSaga,
+  fetchTaskActivity,
+  fetchTaskAttachments,
+  fetchTaskComments,
   fetchWorkflowDefinition,
   fetchWorkflowInstance,
   fetchWorkflowVersions,
@@ -42,6 +46,7 @@ import {
   publishWorkflowDefinition,
   registerTenant,
   rejectTask,
+  createTaskComment,
   replayDryRun,
   replayInstance,
   retryAdminDlq,
@@ -66,6 +71,52 @@ import { queryKeys } from "../queryKeys";
 /* ---------------------------------------------------------------- tasks */
 
 /** Tenant task list. */
+export function useTaskComments(taskId: string) {
+  return useQuery({
+    queryKey: queryKeys.tasks.comments(taskId || "none"),
+    queryFn: () => fetchTaskComments(taskId),
+    enabled: taskId !== "",
+  });
+}
+
+export function useTaskAttachments(taskId: string) {
+  return useQuery({
+    queryKey: queryKeys.tasks.attachments(taskId || "none"),
+    queryFn: () => fetchTaskAttachments(taskId),
+    enabled: taskId !== "",
+  });
+}
+
+export function useTaskActivity(taskId: string) {
+  return useQuery({
+    queryKey: queryKeys.tasks.activity(taskId || "none"),
+    queryFn: () => fetchTaskActivity(taskId),
+    enabled: taskId !== "",
+  });
+}
+
+export function useAddTaskComment(taskId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: string) => createTaskComment(taskId, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.comments(taskId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.activity(taskId) });
+    },
+  });
+}
+
+export function useAttachTaskFile(taskId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (fileId: string) => attachTaskFile(taskId, fileId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.attachments(taskId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.activity(taskId) });
+    },
+  });
+}
+
 export function useTasks() {
   return useQuery({ queryKey: queryKeys.tasks.list(), queryFn: listTasks });
 }
@@ -299,7 +350,9 @@ export function useImportWorkflowBpmn() {
 }
 
 export function useExportWorkflowBpmn() {
-  return useMutation({ mutationFn: (definitionJson: string) => exportWorkflowBpmn(definitionJson) });
+  return useMutation({
+    mutationFn: (definitionJson: string) => exportWorkflowBpmn(definitionJson),
+  });
 }
 
 /* ---------------------------------------------------------- documents */
@@ -402,15 +455,8 @@ export function useCreateFormDefinition() {
 export function useUpdateFormDefinition() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      id,
-      name,
-      schemaJson,
-    }: {
-      id: string;
-      name: string;
-      schemaJson: string;
-    }) => updateFormDefinition(id, name, schemaJson),
+    mutationFn: ({ id, name, schemaJson }: { id: string; name: string; schemaJson: string }) =>
+      updateFormDefinition(id, name, schemaJson),
     onSuccess: (updated) =>
       queryClient.invalidateQueries({ queryKey: queryKeys.forms.detail(updated.id) }),
   });
@@ -467,10 +513,7 @@ export function useRegisterTenant() {
 /* ------------------------------------------------ phase 8 analytics */
 
 /** Single analytics metric source for cards, chart and totals. */
-export function useAnalyticsOverview(
-  params: AnalyticsDashboardParams = {},
-  enabled = true,
-) {
+export function useAnalyticsOverview(params: AnalyticsDashboardParams = {}, enabled = true) {
   return useQuery({
     queryKey: queryKeys.analytics.overview(
       params.from,
@@ -485,10 +528,7 @@ export function useAnalyticsOverview(
 }
 
 /** One drill-down page behind a card or chart bucket. */
-export function useAnalyticsDrilldown(
-  params: AnalyticsDrilldownParams,
-  enabled = true,
-) {
+export function useAnalyticsDrilldown(params: AnalyticsDrilldownParams, enabled = true) {
   return useQuery({
     queryKey: queryKeys.analytics.drilldown(
       params.from,
@@ -520,11 +560,7 @@ export function useAdminOperate(tenantId: string | null, enabled = true) {
   });
 }
 
-export function useAdminAudit(
-  tenantId: string | null,
-  cursor: string | null,
-  enabled = true,
-) {
+export function useAdminAudit(tenantId: string | null, cursor: string | null, enabled = true) {
   return useQuery({
     queryKey: queryKeys.admin.audit(tenantId, cursor),
     queryFn: () => fetchAdminAudit(tenantId ?? undefined, cursor ?? undefined),

@@ -67,6 +67,10 @@ new line in the exception file, and an inventory entry in this document. A stale
 entry, a class outside the list and an expired review date all fail the
 `JpaDomainExceptionTest`.
 
+Issue #371 added `com.awap.task.domain.TaskComment` and
+`com.awap.task.domain.TaskAttachment`, the durable collaboration records behind
+the task activity stream and scan-gated attachment list.
+
 ## Enforcement
 
 | Gate | Location | Fails when |

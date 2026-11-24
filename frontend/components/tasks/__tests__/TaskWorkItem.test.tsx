@@ -9,6 +9,10 @@ const reset = jest.fn();
 
 jest.mock("../../../lib/hooks/resources", () => ({
   useTaskAction: () => ({ mutateAsync, isPending: false, reset }),
+  useTaskActivity: () => ({ data: [], isLoading: false }),
+  useTaskAttachments: () => ({ data: [], isLoading: false }),
+  useAddTaskComment: () => ({ mutate: jest.fn(), isPending: false }),
+  useAttachTaskFile: () => ({ mutate: jest.fn(), isPending: false }),
 }));
 
 const NOW = Date.parse("2026-11-20T12:00:00Z");
