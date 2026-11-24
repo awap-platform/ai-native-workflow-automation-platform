@@ -1162,6 +1162,12 @@ jobs:
             --changed-files-file changed-files.txt
       - name: Release dry run (prints the next version and changelog entries)
         run: node scripts/release/dry-run.mjs --dry-run
+      - name: Canary and rollback drill evidence
+        # Issue #367: the committed drill record must follow the policy, keep
+        # RTO < 30 minutes, show zero cross-tenant responses and pass T1-T10/U1-U6.
+        run: |
+          node --test "scripts/test/canary-drill.test.mjs" "scripts/test/check-canary-evidence.test.mjs"
+          node scripts/check-canary-evidence.mjs
 
   cdc-deployment:
     name: CDC Checks

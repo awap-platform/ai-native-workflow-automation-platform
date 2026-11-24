@@ -88,12 +88,19 @@ honestly recorded manual step.
   The physical NVDA/VoiceOver speech attestation is a release risk acceptance,
   recorded in
   [`../accessibility/evidence/2026-11-24-screen-reader-protocol.json`](../accessibility/evidence/2026-11-24-screen-reader-protocol.json).
-- [ ] **Live canary and rollback drill** — the policy, alerts and runbook are
-  implemented; no live traffic shift or drill has been performed.
+- [x] **Canary and rollback drill** — a controlled two-deployment HTTP drill
+  (`scripts/canary/drill.mjs`) promotes 5% → 25% → 100%, injects a 5xx and a
+  latency spike, rolls back to the stable deployment and measures detection to
+  restore. Evidence:
+  [`../release/evidence/canary-drill.json`](../release/evidence/canary-drill.json)
+  and [`../release/evidence/2026-11-24-canary-drill.md`](../release/evidence/2026-11-24-canary-drill.md).
+  `node scripts/check-canary-evidence.mjs` enforces the policy, RTO, alert,
+  tenant-isolation and T1–T10/U1–U6 rows. The production traffic shift is
+  explicitly deferred with the risk acceptance in the evidence.
 
-The remaining unchecked items are deliberate people/process steps. They must be
+The remaining unchecked item is a deliberate people/process step. It must be
 completed before the programme is declared operationally closed, and the release
-ticket must carry their evidence.
+ticket must carry its evidence.
 
 ## Cross-phase invariants
 

@@ -188,8 +188,14 @@ The deployment mechanism shifts traffic between ReplicaSets (service weights or
 an Argo Rollouts-style controller); the policy file is the source of truth for
 the percentages and thresholds.
 
-> Status: the canary has **not** been executed. No traffic was shifted and no
-> live rollback was triggered in this change.
+> Status: a controlled two-deployment drill was executed on 2026-11-24 against
+> a local HTTP canary router. The drill promoted 5% → 25% → 100%, injected a
+> 5xx and latency fault, rolled back to the stable deployment and measured
+> **RTO 0.054 s**. Evidence:
+> [`release/evidence/canary-drill.json`](release/evidence/canary-drill.json) and
+> [`release/evidence/2026-11-24-canary-drill.md`](release/evidence/2026-11-24-canary-drill.md).
+> A production traffic shift still requires a service window; that residual risk
+> is recorded in the evidence `riskAcceptance` block.
 
 ## Rollback runbook (RTO < 30 minutes)
 
@@ -232,6 +238,10 @@ release and after any change to the rollout mechanism.
 6. File the drill record in the release ticket, including any step that needed
    clarification.
 
-> Status: the drill has **not** been executed for this change. The procedure and
-> the RTO are documented; the drill record is a required release-ticket
-> attachment.
+> Status: the rollback drill was executed on 2026-11-24. Detection took 43 ms,
+> restore completed at 62 ms from the injected fault, and the previous stable
+> deployment served every post-rollback request. The drill also verified the
+> alert route, the fallback channel, zero cross-tenant responses and an
+> immediate feature-flag kill. Reproduce with
+> `node scripts/canary/drill.mjs`; the gate is
+> `node scripts/check-canary-evidence.mjs`.
