@@ -864,6 +864,48 @@ paths:
                 $ref: "#/components/schemas/WorkflowDefinitionResponse"
         "404":
           $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateWorkflowDefinitionDraft
+      summary: Update an existing draft in place
+      description: >-
+        Updates the latest DRAFT version and the definition metadata. The
+        expectedUpdatedAt token is the optimistic-concurrency check; a mismatch
+        returns 409 with the current token. PUBLISHED and ARCHIVED definitions are
+        immutable and must be saved as a new definition.
+      tags: [Workflow Definitions]
+      parameters:
+        - $ref: "#/components/parameters/WorkflowDefinitionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, definitionJson, expectedUpdatedAt]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                  nullable: true
+                definitionJson:
+                  type: string
+                expectedUpdatedAt:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Updated draft.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowDefinitionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
   /api/v1/workflow-definitions/{id}/publish:
     post:
@@ -1868,6 +1910,36 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FormDefinitionResponse"
+
+  /api/v1/forms/{id}/versions/{version}:
+    get:
+      operationId: getFormDefinitionVersion
+      summary: Get an immutable historical schema snapshot
+      description: >-
+        Returns the schema snapshot recorded when the form version was created.
+        A submission binds to its `formVersion`; this endpoint is the only
+        server-resolved way to render a historical answer set against the
+        schema the respondent actually saw.
+      tags: [Forms]
+      parameters:
+        - $ref: "#/components/parameters/FormId"
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Immutable form schema snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormSchemaVersionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /api/v1/forms/{id}/submissions:
     get:
@@ -5203,6 +5275,26 @@ components:
           type: string
           format: date-time
           nullable: true
+
+    FormSchemaVersionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        formId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        schemaJson:
+          type: string
+        schemaHash:
+          type: string
+          description: SHA-256 of the immutable schema JSON.
+        createdAt:
+          type: string
+          format: date-time
 
     FormDefinitionResponse:
       type: object

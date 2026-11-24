@@ -31,11 +31,13 @@ const previousDefinition = JSON.stringify({
 
 interface MockOptions {
   publishStatus?: number;
+  updateStatus?: number;
   bpmnImport?: (body: { bpmnXml?: string }) => { status: number; body: unknown };
 }
 
 interface MockState {
   creates: string[];
+  updates: string[];
   exports: string[];
   imports: string[];
   rollbacks: number[];
@@ -79,6 +81,7 @@ async function connectFirstTwo(page: Page): Promise<void> {
 async function mockApi(page: Page, options: MockOptions = {}): Promise<MockState> {
   const state: MockState = {
     creates: [],
+    updates: [],
     exports: [],
     imports: [],
     rollbacks: [],
@@ -118,7 +121,9 @@ async function mockApi(page: Page, options: MockOptions = {}): Promise<MockState
       return;
     }
     if (url.pathname.endsWith("/bpmn/export") && method === "POST") {
-      state.exports.push(String((request.postDataJSON() as { definitionJson?: string }).definitionJson));
+      state.exports.push(
+        String((request.postDataJSON() as { definitionJson?: string }).definitionJson),
+      );
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -201,6 +206,35 @@ async function mockApi(page: Page, options: MockOptions = {}): Promise<MockState
       });
       return;
     }
+    if (url.pathname === `${API}/${DEFINITION_ID}` && method === "PATCH") {
+      state.updates.push(String(request.postData()));
+      if (options.updateStatus === 409) {
+        await route.fulfill({
+          status: 409,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            title: "Conflict",
+            status: 409,
+            detail: "The draft was changed by another request.",
+          }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: DEFINITION_ID,
+          tenantId: "tenant-a",
+          name: "Phase 5 flow",
+          description: null,
+          status: "DRAFT",
+          currentVersion: 1,
+          updatedAt: "2026-11-24T09:00:01Z",
+        }),
+      });
+      return;
+    }
     if (url.pathname === API && method === "POST") {
       state.creates.push(String(request.postData()));
       await route.fulfill({
@@ -213,6 +247,7 @@ async function mockApi(page: Page, options: MockOptions = {}): Promise<MockState
           description: null,
           status: "DRAFT",
           currentVersion: 1,
+          updatedAt: "2026-11-24T09:00:00Z",
         }),
       });
       return;
@@ -229,6 +264,7 @@ async function mockApi(page: Page, options: MockOptions = {}): Promise<MockState
           description: null,
           status: "PUBLISHED",
           currentVersion: 2,
+          updatedAt: "2026-11-24T09:00:00Z",
         }),
       });
       return;
@@ -261,7 +297,9 @@ test("groups the palette, searches it and inserts with the keyboard", async ({ p
   await expect(page.getByRole("status").filter({ hasText: "END node added" })).toBeVisible();
 });
 
-test("edits every node through the properties panel and escapes hostile labels", async ({ page }) => {
+test("edits every node through the properties panel and escapes hostile labels", async ({
+  page,
+}) => {
   await mockApi(page);
   await openDesigner(page);
 
@@ -276,9 +314,9 @@ test("edits every node through the properties panel and escapes hostile labels",
   await expect(node).toContainText(hostile);
   await expect(node.locator("img")).toHaveCount(0);
   expect(await page.evaluate(() => (window as { __xss?: number }).__xss)).toBeUndefined();
-  const truncated = await node.locator(".awap-designer__node-card .awap-designer__truncate").evaluate(
-    (element) => element.scrollWidth > element.clientWidth,
-  );
+  const truncated = await node
+    .locator(".awap-designer__node-card .awap-designer__truncate")
+    .evaluate((element) => element.scrollWidth > element.clientWidth);
   expect(truncated).toBe(true);
 
   await page.getByRole("button", { name: "FORM", exact: true }).click();
@@ -358,9 +396,7 @@ test("validation blocks a missing START, warns for END and focuses a disconnecte
   await page.getByRole("button", { name: "START", exact: true }).click();
   await page.getByRole("button", { name: "TASK", exact: true }).click();
   await expect(panel).toContainText("Every node must be reachable from START.");
-  await panel
-    .getByRole("button", { name: /Every node must be reachable from START/ })
-    .click();
+  await panel.getByRole("button", { name: /Every node must be reachable from START/ }).click();
   await expect(page.locator(".react-flow__node.selected")).toHaveCount(1);
 });
 
@@ -383,6 +419,56 @@ test("autosaves the draft and restores it after a reload", async ({ page }) => {
   await expect(page.getByLabel("Workflow name")).toHaveValue("Autosaved flow");
 });
 
+test("saves an existing draft in place instead of creating a second definition", async ({
+  page,
+}) => {
+  const state = await mockApi(page);
+  await openDesigner(page);
+
+  await page.getByRole("button", { name: "START", exact: true }).click();
+  await page.getByRole("button", { name: "END", exact: true }).click();
+  await connectFirstTwo(page);
+  await page.getByLabel("Workflow name").fill("In-place draft");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Draft saved" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Draft updated" })).toBeVisible();
+
+  expect(state.creates).toHaveLength(1);
+  expect(state.updates).toHaveLength(1);
+  const body = JSON.parse(state.updates[0] as string) as {
+    expectedUpdatedAt?: string;
+    definitionJson?: string;
+  };
+  expect(body.expectedUpdatedAt).toBe("2026-11-24T09:00:00Z");
+  expect(body.definitionJson).toContain("START");
+});
+
+test("a stale concurrency token opens the conflict dialog and can save as new", async ({
+  page,
+}) => {
+  const state = await mockApi(page, { updateStatus: 409 });
+  await openDesigner(page);
+
+  await page.getByRole("button", { name: "START", exact: true }).click();
+  await page.getByRole("button", { name: "END", exact: true }).click();
+  await connectFirstTwo(page);
+  await page.getByLabel("Workflow name").fill("Conflict draft");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Draft saved" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Save draft" }).click();
+  const conflict = page.getByTestId("designer-conflict");
+  await expect(conflict).toBeVisible();
+  await expect(conflict).toHaveAttribute("role", "alertdialog");
+
+  await page.getByRole("button", { name: "Keep mine and save as new" }).click();
+  await expect(conflict).toBeHidden();
+  await expect(page.getByRole("status").filter({ hasText: "Draft saved" })).toBeVisible();
+  expect(state.creates).toHaveLength(2);
+});
+
 test("publishes the saved draft and shows the post-publish summary", async ({ page }) => {
   const state = await mockApi(page);
   await openDesigner(page);
@@ -396,7 +482,9 @@ test("publishes the saved draft and shows the post-publish summary", async ({ pa
 
   await page.getByRole("button", { name: "Publish" }).click();
   await expect(page.getByRole("heading", { name: "Published" })).toBeVisible();
-  await expect(page.getByText(/Version 2 is published and is now the current version/)).toBeVisible();
+  await expect(
+    page.getByText(/Version 2 is published and is now the current version/),
+  ).toBeVisible();
   await expect(page.getByRole("link", { name: "View instances for this workflow" })).toBeVisible();
   expect(state.publishes).toBe(1);
   expect(state.creates).toHaveLength(1);
@@ -426,7 +514,9 @@ test("compares versions, rolls back and archives", async ({ page }) => {
   await expect(page.locator(".react-flow__node", { hasText: "Second start" })).toBeVisible();
 
   await page.getByRole("button", { name: "Rollback to version 1" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Rolled back to version 1" })).toBeVisible();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Rolled back to version 1" }),
+  ).toBeVisible();
   await expect(page.locator(".react-flow__node", { hasText: "First start" })).toBeVisible();
   expect(state.rollbacks).toEqual([1]);
 
@@ -442,7 +532,11 @@ test("imports BPMN, exports the current canvas and reports a line-referenced err
       body.bpmnXml?.includes("INVALID")
         ? {
             status: 400,
-            body: { title: "Bad Request", status: 400, detail: "Invalid BPMN at line 3: no process" },
+            body: {
+              title: "Bad Request",
+              status: 400,
+              detail: "Invalid BPMN at line 3: no process",
+            },
           }
         : {
             status: 200,
@@ -452,9 +546,7 @@ test("imports BPMN, exports the current canvas and reports a line-referenced err
                   { id: "imported-start", type: "START", name: "Imported start" },
                   { id: "imported-end", type: "END", name: "Imported end" },
                 ],
-                transitions: [
-                  { id: "imported-edge", from: "imported-start", to: "imported-end" },
-                ],
+                transitions: [{ id: "imported-edge", from: "imported-start", to: "imported-end" }],
               }),
               warnings: [],
             },
@@ -489,7 +581,11 @@ test("reports an oversized BPMN payload from the backend", async ({ page }) => {
   await mockApi(page, {
     bpmnImport: () => ({
       status: 413,
-      body: { title: "Payload Too Large", status: 413, detail: "BPMN XML exceeds the maximum size." },
+      body: {
+        title: "Payload Too Large",
+        status: 413,
+        detail: "BPMN XML exceeds the maximum size.",
+      },
     }),
   });
   await openDesigner(page);
@@ -517,8 +613,16 @@ test("creates nodes and an edge with the keyboard and guards unsaved navigation"
   await search.press("ArrowDown");
   await search.press("Enter");
 
-  const source = await page.getByLabel("Transition source").locator("option").nth(1).getAttribute("value");
-  const target = await page.getByLabel("Transition target").locator("option").nth(2).getAttribute("value");
+  const source = await page
+    .getByLabel("Transition source")
+    .locator("option")
+    .nth(1)
+    .getAttribute("value");
+  const target = await page
+    .getByLabel("Transition target")
+    .locator("option")
+    .nth(2)
+    .getAttribute("value");
   await page.getByLabel("Transition source").selectOption(source as string);
   await page.getByLabel("Transition target").selectOption(target as string);
   await page.getByRole("button", { name: "Add transition" }).focus();

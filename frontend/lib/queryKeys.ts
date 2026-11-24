@@ -39,6 +39,7 @@ export const queryKeys = {
     all: ["forms"] as const,
     list: () => ["forms"] as const,
     detail: (id: string) => ["forms", "detail", id] as const,
+    version: (id: string, version: number) => ["forms", "version", id, version] as const,
   },
   analytics: {
     all: ["analytics-summary"] as const,

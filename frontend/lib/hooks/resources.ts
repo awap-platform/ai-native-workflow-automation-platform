@@ -21,6 +21,7 @@ import {
   fetchAnalyticsSummary,
   fetchBreakGlassLog,
   fetchFormDefinition,
+  fetchFormSchemaVersion,
   fetchInstanceLogs,
   fetchInstanceSaga,
   fetchTaskActivity,
@@ -59,10 +60,12 @@ import {
   submitForm,
   updateAdminUserRole,
   updateFormDefinition,
+  updateWorkflowDefinition,
   validateWorkflowExpression,
   type AnalyticsDashboardParams,
   type AnalyticsDrilldownParams,
   type CreateWorkflowPayload,
+  type UpdateWorkflowPayload,
   type RegisterTenantPayload,
   type SubmitFormPayload,
   type TaskActionInput,
@@ -294,6 +297,24 @@ export function useCreateWorkflowDefinition() {
   });
 }
 
+/** Updates an existing draft in place and refreshes the list/version panels. */
+export function useUpdateWorkflowDefinition() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateWorkflowPayload }) =>
+      updateWorkflowDefinition(id, payload),
+    onSuccess: (_result, variables) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.all });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.workflowDefinitions.detail(variables.id),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.workflowDefinitions.versions(variables.id),
+      });
+    },
+  });
+}
+
 /** Validates one condition expression; a designer-side dry run, no cache to invalidate. */
 export function useValidateWorkflowExpression() {
   return useMutation({
@@ -436,6 +457,14 @@ export function useFormDefinitions() {
 }
 
 /** One form definition with its schema, loaded only when an id is selected. */
+export function useFormSchemaVersion(formId: string, version: number | null) {
+  return useQuery({
+    queryKey: queryKeys.forms.version(formId || "none", version ?? 0),
+    queryFn: () => fetchFormSchemaVersion(formId, version as number),
+    enabled: formId !== "" && version !== null && version > 0,
+  });
+}
+
 export function useFormDefinition(formId: string) {
   return useQuery({
     queryKey: queryKeys.forms.detail(formId),

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -50,6 +51,7 @@ class FormServicePhase6Test {
         new FormService(
             definitionRepository,
             submissionRepository,
+            mock(com.awap.form.infrastructure.FormSchemaSnapshotRepository.class),
             new ObjectMapper(),
             outboxEventPublisher,
             new FormMapperImpl(),
