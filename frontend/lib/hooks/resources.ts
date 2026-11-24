@@ -53,10 +53,12 @@ import {
   submitForm,
   updateAdminUserRole,
   updateFormDefinition,
+  updateWorkflowDefinition,
   validateWorkflowExpression,
   type AnalyticsDashboardParams,
   type AnalyticsDrilldownParams,
   type CreateWorkflowPayload,
+  type UpdateWorkflowPayload,
   type RegisterTenantPayload,
   type SubmitFormPayload,
   type TaskActionInput,
@@ -231,6 +233,24 @@ export function useCreateWorkflowDefinition() {
   });
 }
 
+/** Updates an existing draft in place and refreshes the list/version panels. */
+export function useUpdateWorkflowDefinition() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateWorkflowPayload }) =>
+      updateWorkflowDefinition(id, payload),
+    onSuccess: (_result, variables) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.all });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.workflowDefinitions.detail(variables.id),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.workflowDefinitions.versions(variables.id),
+      });
+    },
+  });
+}
+
 /** Validates one condition expression; a designer-side dry run, no cache to invalidate. */
 export function useValidateWorkflowExpression() {
   return useMutation({
@@ -299,7 +319,9 @@ export function useImportWorkflowBpmn() {
 }
 
 export function useExportWorkflowBpmn() {
-  return useMutation({ mutationFn: (definitionJson: string) => exportWorkflowBpmn(definitionJson) });
+  return useMutation({
+    mutationFn: (definitionJson: string) => exportWorkflowBpmn(definitionJson),
+  });
 }
 
 /* ---------------------------------------------------------- documents */
@@ -402,15 +424,8 @@ export function useCreateFormDefinition() {
 export function useUpdateFormDefinition() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      id,
-      name,
-      schemaJson,
-    }: {
-      id: string;
-      name: string;
-      schemaJson: string;
-    }) => updateFormDefinition(id, name, schemaJson),
+    mutationFn: ({ id, name, schemaJson }: { id: string; name: string; schemaJson: string }) =>
+      updateFormDefinition(id, name, schemaJson),
     onSuccess: (updated) =>
       queryClient.invalidateQueries({ queryKey: queryKeys.forms.detail(updated.id) }),
   });
@@ -467,10 +482,7 @@ export function useRegisterTenant() {
 /* ------------------------------------------------ phase 8 analytics */
 
 /** Single analytics metric source for cards, chart and totals. */
-export function useAnalyticsOverview(
-  params: AnalyticsDashboardParams = {},
-  enabled = true,
-) {
+export function useAnalyticsOverview(params: AnalyticsDashboardParams = {}, enabled = true) {
   return useQuery({
     queryKey: queryKeys.analytics.overview(
       params.from,
@@ -485,10 +497,7 @@ export function useAnalyticsOverview(
 }
 
 /** One drill-down page behind a card or chart bucket. */
-export function useAnalyticsDrilldown(
-  params: AnalyticsDrilldownParams,
-  enabled = true,
-) {
+export function useAnalyticsDrilldown(params: AnalyticsDrilldownParams, enabled = true) {
   return useQuery({
     queryKey: queryKeys.analytics.drilldown(
       params.from,
@@ -520,11 +529,7 @@ export function useAdminOperate(tenantId: string | null, enabled = true) {
   });
 }
 
-export function useAdminAudit(
-  tenantId: string | null,
-  cursor: string | null,
-  enabled = true,
-) {
+export function useAdminAudit(tenantId: string | null, cursor: string | null, enabled = true) {
   return useQuery({
     queryKey: queryKeys.admin.audit(tenantId, cursor),
     queryFn: () => fetchAdminAudit(tenantId ?? undefined, cursor ?? undefined),

@@ -12,6 +12,9 @@ public interface NodeDefinitionRepository extends JpaRepository<NodeDefinition, 
 
   List<NodeDefinition> findByWorkflowVersionIdOrderByOrderIndexAsc(UUID workflowVersionId);
 
+  /** Replaces the persisted graph when a draft is updated in place (issue #369). */
+  void deleteByWorkflowVersionId(UUID workflowVersionId);
+
   Optional<NodeDefinition> findByWorkflowVersionIdAndNodeId(UUID workflowVersionId, String nodeId);
 
   Optional<NodeDefinition> findFirstByWorkflowVersionIdAndNodeType(
