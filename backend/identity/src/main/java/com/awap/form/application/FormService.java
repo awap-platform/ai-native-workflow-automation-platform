@@ -8,12 +8,15 @@ import com.awap.file.application.FileService;
 import com.awap.file.application.FileService.SubmissionFile;
 import com.awap.form.domain.FormDefinition;
 import com.awap.form.domain.FormFieldType;
+import com.awap.form.domain.FormSchemaSnapshot;
 import com.awap.form.domain.FormSubmission;
 import com.awap.form.infrastructure.FormDefinitionRepository;
+import com.awap.form.infrastructure.FormSchemaSnapshotRepository;
 import com.awap.form.infrastructure.FormSubmissionRepository;
 import com.awap.form.interfaces.dto.FormDefinitionRequest;
 import com.awap.form.interfaces.dto.FormDefinitionResponse;
 import com.awap.form.interfaces.dto.FormMapper;
+import com.awap.form.interfaces.dto.FormSchemaVersionResponse;
 import com.awap.form.interfaces.dto.FormSubmissionFileResponse;
 import com.awap.form.interfaces.dto.FormSubmissionRequest;
 import com.awap.form.interfaces.dto.FormSubmissionResponse;
@@ -21,10 +24,14 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.MissingNode;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +63,7 @@ public class FormService {
 
   private final FormDefinitionRepository definitionRepository;
   private final FormSubmissionRepository submissionRepository;
+  private final FormSchemaSnapshotRepository snapshotRepository;
   private final ObjectMapper objectMapper;
   private final OutboxEventPublisher outboxEventPublisher;
   private final FormMapper formMapper;
@@ -64,12 +72,14 @@ public class FormService {
   public FormService(
       FormDefinitionRepository definitionRepository,
       FormSubmissionRepository submissionRepository,
+      FormSchemaSnapshotRepository snapshotRepository,
       ObjectMapper objectMapper,
       OutboxEventPublisher outboxEventPublisher,
       FormMapper formMapper,
       FileService fileService) {
     this.definitionRepository = definitionRepository;
     this.submissionRepository = submissionRepository;
+    this.snapshotRepository = snapshotRepository;
     this.objectMapper = objectMapper;
     this.outboxEventPublisher = outboxEventPublisher;
     this.formMapper = formMapper;
@@ -81,6 +91,7 @@ public class FormService {
     validateSchema(request.schemaJson());
     FormDefinition definition = new FormDefinition(tenantId, request.name(), request.schemaJson());
     definitionRepository.save(definition);
+    persistSnapshot(tenantId, definition);
     return formMapper.toResponse(definition);
   }
 
@@ -89,7 +100,52 @@ public class FormService {
     validateSchema(request.schemaJson());
     FormDefinition definition = find(tenantId, id);
     definition.updateSchema(request.name(), request.schemaJson());
+    persistSnapshot(tenantId, definition);
     return formMapper.toResponse(definition);
+  }
+
+  /** Reads the immutable schema snapshot recorded for a historical version (issue #370). */
+  public FormSchemaVersionResponse getVersion(UUID tenantId, UUID id, int version) {
+    if (version <= 0) {
+      throw new AwapException(
+          ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Form version must be positive.");
+    }
+    find(tenantId, id);
+    FormSchemaSnapshot snapshot =
+        snapshotRepository
+            .findByFormIdAndVersionAndTenantId(id, version, tenantId)
+            .orElseThrow(
+                () ->
+                    new AwapException(
+                        ErrorCode.RESOURCE_NOT_FOUND,
+                        HttpStatus.NOT_FOUND,
+                        "Form version " + version + " has no schema snapshot."));
+    return new FormSchemaVersionResponse(
+        snapshot.getId(),
+        snapshot.getFormId(),
+        snapshot.getVersion(),
+        snapshot.getSchemaJson(),
+        snapshot.getSchemaHash(),
+        snapshot.getCreatedAt());
+  }
+
+  private void persistSnapshot(UUID tenantId, FormDefinition definition) {
+    snapshotRepository.save(
+        new FormSchemaSnapshot(
+            tenantId,
+            definition.getId(),
+            definition.getVersion(),
+            definition.getSchemaJson(),
+            sha256(definition.getSchemaJson())));
+  }
+
+  private String sha256(String value) {
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+      return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+    } catch (NoSuchAlgorithmException ex) {
+      throw new IllegalStateException("SHA-256 is unavailable.", ex);
+    }
   }
 
   public List<FormDefinitionResponse> list(UUID tenantId) {

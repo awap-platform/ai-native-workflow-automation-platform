@@ -67,6 +67,10 @@ new line in the exception file, and an inventory entry in this document. A stale
 entry, a class outside the list and an expired review date all fail the
 `JpaDomainExceptionTest`.
 
+Issue #370 added `com.awap.form.domain.FormSchemaSnapshot`, an immutable
+per-version schema row. It is part of the reviewed exception because the
+submission history must read the schema the respondent actually answered.
+
 ## Enforcement
 
 | Gate | Location | Fails when |

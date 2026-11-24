@@ -325,11 +325,7 @@ export async function login(
       );
     }
     if (response.status === 401 || response.status === 403 || response.status === 404) {
-      throw new ApiError(
-        response.status,
-        "Email or password is incorrect.",
-        correlationId,
-      );
+      throw new ApiError(response.status, "Email or password is incorrect.", correlationId);
     }
     throw new ApiError(
       response.status,
@@ -357,12 +353,7 @@ export class ApiError extends Error {
   /** Seconds until a rate-limited request may be retried. */
   readonly retryAfterSeconds: number | undefined;
 
-  constructor(
-    status: number,
-    message: string,
-    correlationId?: string,
-    retryAfterSeconds?: number,
-  ) {
+  constructor(status: number, message: string, correlationId?: string, retryAfterSeconds?: number) {
     super(message);
     this.name = "ApiError";
     this.status = status;
@@ -621,13 +612,19 @@ export function fetchInstanceSaga(id: string): Promise<SagaDto> {
 export type InstanceAction = "retry" | "pause" | "resume" | "cancel" | "fail" | "recover";
 
 /** Operator action on one instance; the response is the authoritative new state. */
-export function runInstanceAction(id: string, action: InstanceAction): Promise<WorkflowInstanceDto> {
+export function runInstanceAction(
+  id: string,
+  action: InstanceAction,
+): Promise<WorkflowInstanceDto> {
   return authPost<WorkflowInstanceDto>(`/api/v1/workflow-instances/${id}/${action}`, undefined);
 }
 
 /** Deterministic replay projection; writes only the audit row. */
 export function replayDryRun(id: string): Promise<ReplayReportDto> {
-  return authPost<ReplayReportDto>(`/api/v1/workflow-instances/${id}/replay?dryRun=true`, undefined);
+  return authPost<ReplayReportDto>(
+    `/api/v1/workflow-instances/${id}/replay?dryRun=true`,
+    undefined,
+  );
 }
 
 /** Applies the reference replay after a matching projection. */
@@ -640,7 +637,10 @@ export function compensateSaga(id: string): Promise<SagaDto> {
 }
 
 export function retrySagaStep(id: string, stepId: string): Promise<SagaDto> {
-  return authPost<SagaDto>(`/api/v1/workflow-instances/${id}/saga/steps/${stepId}/retry`, undefined);
+  return authPost<SagaDto>(
+    `/api/v1/workflow-instances/${id}/saga/steps/${stepId}/retry`,
+    undefined,
+  );
 }
 
 export function createWorkflowDefinition(
@@ -780,7 +780,12 @@ export interface TaskActionInput {
 }
 
 /** Single seam for every work item action so bulk execution reuses the same behaviour. */
-export function runTaskAction({ id, action, comment, assigneeId }: TaskActionInput): Promise<TaskDto> {
+export function runTaskAction({
+  id,
+  action,
+  comment,
+  assigneeId,
+}: TaskActionInput): Promise<TaskDto> {
   switch (action) {
     case "approve":
       return approveTask(id, comment);
@@ -795,9 +800,7 @@ export function runTaskAction({ id, action, comment, assigneeId }: TaskActionInp
       if (!assigneeId) {
         return Promise.reject(new ApiError(400, "Choose an assignee first."));
       }
-      return action === "assign"
-        ? assignTask(id, assigneeId)
-        : escalateTask(id, assigneeId);
+      return action === "assign" ? assignTask(id, assigneeId) : escalateTask(id, assigneeId);
   }
 }
 
@@ -855,6 +858,22 @@ export function fetchFormDefinitions(): Promise<FormDefinitionDto[]> {
 
 export function fetchFormDefinition(id: string): Promise<FormDefinitionDetailDto> {
   return authFetch<FormDefinitionDetailDto>(`/api/v1/forms/${id}`);
+}
+
+/** Immutable schema snapshot for the version a historical submission answered (#370). */
+export interface FormSchemaVersionDto {
+  id: string;
+  formId: string;
+  version: number;
+  schemaJson: string;
+  schemaHash: string;
+  createdAt: string;
+}
+
+export function fetchFormSchemaVersion(id: string, version: number): Promise<FormSchemaVersionDto> {
+  return authFetch<FormSchemaVersionDto>(
+    `/api/v1/forms/${encodeURIComponent(id)}/versions/${version}`,
+  );
 }
 
 export interface SubmitFormPayload {
@@ -1568,10 +1587,10 @@ export function createAdminInvitation(
   email: string,
   role: string,
 ): Promise<AdminInvitationCreatedDto> {
-  return authPost<AdminInvitationCreatedDto>(
-    `/api/v1/admin/invitations${tenantQuery(tenantId)}`,
-    { email, role },
-  );
+  return authPost<AdminInvitationCreatedDto>(`/api/v1/admin/invitations${tenantQuery(tenantId)}`, {
+    email,
+    role,
+  });
 }
 
 export function fetchAdminDlq(tenantId?: string): Promise<AdminDlqDeliveryDto[]> {
@@ -1679,9 +1698,7 @@ export function fetchAnalyticsOverview(
   params: AnalyticsDashboardParams = {},
 ): Promise<AnalyticsOverviewDto> {
   const query = analyticsQuery(params);
-  return authFetch<AnalyticsOverviewDto>(
-    `/api/v1/analytics/overview${query ? `?${query}` : ""}`,
-  );
+  return authFetch<AnalyticsOverviewDto>(`/api/v1/analytics/overview${query ? `?${query}` : ""}`);
 }
 
 export function fetchAnalyticsDrilldown(
@@ -1698,9 +1715,7 @@ export function fetchAnalyticsDrilldown(
     search.set("size", String(params.size));
   }
   const query = search.toString();
-  return authFetch<AnalyticsDrilldownDto>(
-    `/api/v1/analytics/drilldown${query ? `?${query}` : ""}`,
-  );
+  return authFetch<AnalyticsDrilldownDto>(`/api/v1/analytics/drilldown${query ? `?${query}` : ""}`);
 }
 
 export function analyticsExportUrl(params: AnalyticsDashboardParams = {}): string {

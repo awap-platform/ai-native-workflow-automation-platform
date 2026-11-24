@@ -32,6 +32,7 @@ class FormServiceNegativeTest {
         new FormService(
             definitionRepository,
             mock(FormSubmissionRepository.class),
+            mock(com.awap.form.infrastructure.FormSchemaSnapshotRepository.class),
             new ObjectMapper(),
             mock(OutboxEventPublisher.class),
             mock(FormMapper.class),

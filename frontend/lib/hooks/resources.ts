@@ -20,6 +20,7 @@ import {
   fetchAnalyticsSummary,
   fetchBreakGlassLog,
   fetchFormDefinition,
+  fetchFormSchemaVersion,
   fetchInstanceLogs,
   fetchInstanceSaga,
   fetchWorkflowDefinition,
@@ -299,7 +300,9 @@ export function useImportWorkflowBpmn() {
 }
 
 export function useExportWorkflowBpmn() {
-  return useMutation({ mutationFn: (definitionJson: string) => exportWorkflowBpmn(definitionJson) });
+  return useMutation({
+    mutationFn: (definitionJson: string) => exportWorkflowBpmn(definitionJson),
+  });
 }
 
 /* ---------------------------------------------------------- documents */
@@ -371,6 +374,14 @@ export function useFormDefinitions() {
 }
 
 /** One form definition with its schema, loaded only when an id is selected. */
+export function useFormSchemaVersion(formId: string, version: number | null) {
+  return useQuery({
+    queryKey: queryKeys.forms.version(formId || "none", version ?? 0),
+    queryFn: () => fetchFormSchemaVersion(formId, version as number),
+    enabled: formId !== "" && version !== null && version > 0,
+  });
+}
+
 export function useFormDefinition(formId: string) {
   return useQuery({
     queryKey: queryKeys.forms.detail(formId),
@@ -402,15 +413,8 @@ export function useCreateFormDefinition() {
 export function useUpdateFormDefinition() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      id,
-      name,
-      schemaJson,
-    }: {
-      id: string;
-      name: string;
-      schemaJson: string;
-    }) => updateFormDefinition(id, name, schemaJson),
+    mutationFn: ({ id, name, schemaJson }: { id: string; name: string; schemaJson: string }) =>
+      updateFormDefinition(id, name, schemaJson),
     onSuccess: (updated) =>
       queryClient.invalidateQueries({ queryKey: queryKeys.forms.detail(updated.id) }),
   });
@@ -467,10 +471,7 @@ export function useRegisterTenant() {
 /* ------------------------------------------------ phase 8 analytics */
 
 /** Single analytics metric source for cards, chart and totals. */
-export function useAnalyticsOverview(
-  params: AnalyticsDashboardParams = {},
-  enabled = true,
-) {
+export function useAnalyticsOverview(params: AnalyticsDashboardParams = {}, enabled = true) {
   return useQuery({
     queryKey: queryKeys.analytics.overview(
       params.from,
@@ -485,10 +486,7 @@ export function useAnalyticsOverview(
 }
 
 /** One drill-down page behind a card or chart bucket. */
-export function useAnalyticsDrilldown(
-  params: AnalyticsDrilldownParams,
-  enabled = true,
-) {
+export function useAnalyticsDrilldown(params: AnalyticsDrilldownParams, enabled = true) {
   return useQuery({
     queryKey: queryKeys.analytics.drilldown(
       params.from,
@@ -520,11 +518,7 @@ export function useAdminOperate(tenantId: string | null, enabled = true) {
   });
 }
 
-export function useAdminAudit(
-  tenantId: string | null,
-  cursor: string | null,
-  enabled = true,
-) {
+export function useAdminAudit(tenantId: string | null, cursor: string | null, enabled = true) {
   return useQuery({
     queryKey: queryKeys.admin.audit(tenantId, cursor),
     queryFn: () => fetchAdminAudit(tenantId ?? undefined, cursor ?? undefined),

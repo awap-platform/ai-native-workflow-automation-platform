@@ -5,12 +5,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import FormAttachment from "../../../../components/forms/FormAttachment";
 import FormRenderer from "../../../../components/forms/FormRenderer";
 import { ErrorState, LoadingState } from "../../../../components/ui/QueryState";
-import { errorStatus, type DocumentVersionDto, type FormSubmissionFileDto } from "../../../../lib/api";
 import {
-  clearFillValues,
-  loadFillValues,
-  saveFillValues,
-} from "../../../../lib/forms/draft";
+  errorStatus,
+  type DocumentVersionDto,
+  type FormSubmissionFileDto,
+} from "../../../../lib/api";
+import { clearFillValues, loadFillValues, saveFillValues } from "../../../../lib/forms/draft";
 import {
   parseFormSchema,
   toSubmissionData,
@@ -21,6 +21,7 @@ import {
 import {
   useFormDefinition,
   useFormDefinitions,
+  useFormSchemaVersion,
   useSubmitForm,
   useWorkflowInstances,
 } from "../../../../lib/hooks/resources";
@@ -72,6 +73,7 @@ export default function FillFormPage() {
   const forms = formsQuery.data ?? [];
   const instances = instancesQuery.data ?? [];
   const [formId, setFormId] = useState("");
+  const [requestedVersion, setRequestedVersion] = useState<number | null>(null);
   const [instanceId, setInstanceId] = useState("");
   const [values, setValues] = useState<FormValues>({});
   const [errors, setErrors] = useState<FieldIssue[]>([]);
@@ -82,12 +84,12 @@ export default function FillFormPage() {
   const initialized = useRef(false);
 
   const formQuery = useFormDefinition(formId);
+  const versionQuery = useFormSchemaVersion(formId, requestedVersion);
   const submit = useSubmitForm(formId);
+  const effectiveReadOnly = readOnlyView || requestedVersion !== null;
 
-  const parsed = useMemo(
-    () => parseFormSchema(formQuery.data?.schemaJson),
-    [formQuery.data?.schemaJson],
-  );
+  const schemaJson = versionQuery.data?.schemaJson ?? formQuery.data?.schemaJson;
+  const parsed = useMemo(() => parseFormSchema(schemaJson), [schemaJson]);
   const schema = parsed.schema;
 
   /* Deep link support: /forms/fill?formId=…&readonly=1 */
@@ -98,12 +100,17 @@ export default function FillFormPage() {
     initialized.current = true;
     const params = new URLSearchParams(window.location.search);
     const deepLink = params.get("formId");
-    if (deepLink || params.get("readonly") === "1") {
+    const version = Number.parseInt(params.get("version") ?? "", 10);
+    if (deepLink || params.get("readonly") === "1" || Number.isFinite(version)) {
       queueMicrotask(() => {
         if (deepLink) {
           setFormId(deepLink);
         }
         if (params.get("readonly") === "1") {
+          setReadOnlyView(true);
+        }
+        if (Number.isFinite(version) && version > 0) {
+          setRequestedVersion(version);
           setReadOnlyView(true);
         }
       });
@@ -148,7 +155,9 @@ export default function FillFormPage() {
     setFocusRequests((count) => count + 1);
     if (issues.length > 0) {
       setMessage(
-        issues.length === 1 ? "1 field needs attention." : `${issues.length} fields need attention.`,
+        issues.length === 1
+          ? "1 field needs attention."
+          : `${issues.length} fields need attention.`,
       );
       return;
     }
@@ -180,6 +189,12 @@ export default function FillFormPage() {
   return (
     <div className="awap-form__fill">
       <h1 className="awap-form__heading">Fill Form</h1>
+      {requestedVersion !== null && formQuery.data ? (
+        <p role="status" className="awap-alert awap-alert-warning">
+          Answered against version {requestedVersion}; current version {formQuery.data.version}.
+          This is a read-only historical view.
+        </p>
+      ) : null}
 
       <div className="awap-form__toolbar">
         <label className="awap-form__field-label" htmlFor="fill-form">
@@ -255,13 +270,14 @@ export default function FillFormPage() {
             schema={schema}
             values={values}
             errors={errors}
-            readOnly={readOnlyView}
+            readOnly={effectiveReadOnly}
             idPrefix="fill"
             focusRequests={focusRequests}
             onChange={setValue}
             documents={toDocuments(submittedFiles)}
+            formVersion={requestedVersion ?? formQuery.data?.version}
           />
-          {!readOnlyView ? (
+          {!effectiveReadOnly ? (
             <button
               type="button"
               className="awap-form__button awap-form__button--primary"
