@@ -54,10 +54,12 @@ import {
   submitForm,
   updateAdminUserRole,
   updateFormDefinition,
+  updateWorkflowDefinition,
   validateWorkflowExpression,
   type AnalyticsDashboardParams,
   type AnalyticsDrilldownParams,
   type CreateWorkflowPayload,
+  type UpdateWorkflowPayload,
   type RegisterTenantPayload,
   type SubmitFormPayload,
   type TaskActionInput,
@@ -229,6 +231,24 @@ export function useCreateWorkflowDefinition() {
   return useMutation({
     mutationFn: (payload: CreateWorkflowPayload) => createWorkflowDefinition(payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.all }),
+  });
+}
+
+/** Updates an existing draft in place and refreshes the list/version panels. */
+export function useUpdateWorkflowDefinition() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateWorkflowPayload }) =>
+      updateWorkflowDefinition(id, payload),
+    onSuccess: (_result, variables) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.all });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.workflowDefinitions.detail(variables.id),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.workflowDefinitions.versions(variables.id),
+      });
+    },
   });
 }
 

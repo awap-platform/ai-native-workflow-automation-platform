@@ -20,6 +20,7 @@ import com.awap.workflow.infrastructure.WorkflowVariableRepository;
 import com.awap.workflow.infrastructure.WorkflowVersionRepository;
 import com.awap.workflow.interfaces.dto.WorkflowDefinitionRequest;
 import com.awap.workflow.interfaces.dto.WorkflowDefinitionResponse;
+import com.awap.workflow.interfaces.dto.WorkflowDefinitionUpdateRequest;
 import com.awap.workflow.interfaces.dto.WorkflowMapper;
 import com.awap.workflow.interfaces.dto.WorkflowVersionResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -81,6 +82,57 @@ public class WorkflowDefinitionService {
             tenantId, definition.getId(), 1, request.definitionJson(), WorkflowStatus.DRAFT);
     versionRepository.save(version);
     persistGraph(tenantId, version.getId(), request.definitionJson());
+    return workflowMapper.toResponse(definition);
+  }
+
+  /**
+   * Updates an existing draft in place. Published and archived definitions are immutable; a stale
+   * {@code expectedUpdatedAt} token is a 409 so two tabs cannot silently overwrite each other.
+   */
+  @Transactional
+  public WorkflowDefinitionResponse updateDraft(
+      UUID tenantId, UUID id, WorkflowDefinitionUpdateRequest request) {
+    WorkflowDefinition definition = find(tenantId, id);
+    if (definition.getStatus() != WorkflowStatus.DRAFT) {
+      throw new AwapException(
+          ErrorCode.WORKFLOW_STATE_CONFLICT,
+          HttpStatus.CONFLICT,
+          "Workflow definition '"
+              + id
+              + "' is "
+              + definition.getStatus()
+              + " and cannot be updated in place. Save it as a new definition.");
+    }
+    if (request.expectedUpdatedAt() == null
+        || request.expectedUpdatedAt().toEpochMilli() != definition.getUpdatedAt().toEpochMilli()) {
+      throw new AwapException(
+          ErrorCode.RESOURCE_CONFLICT,
+          HttpStatus.CONFLICT,
+          "The draft was changed by another request. Reload the current draft (updatedAt="
+              + definition.getUpdatedAt()
+              + ") and retry.");
+    }
+    validateDefinition(request.definitionJson());
+    WorkflowVersion draft =
+        versionRepository
+            .findTopByWorkflowIdOrderByVersionDesc(id)
+            .orElseThrow(
+                () ->
+                    new AwapException(
+                        ErrorCode.RESOURCE_NOT_FOUND,
+                        HttpStatus.NOT_FOUND,
+                        "Workflow draft version not found."));
+    if (draft.getStatus() != WorkflowStatus.DRAFT) {
+      throw new AwapException(
+          ErrorCode.WORKFLOW_STATE_CONFLICT,
+          HttpStatus.CONFLICT,
+          "Workflow version " + draft.getVersion() + " is immutable.");
+    }
+    draft.updateDefinitionJson(request.definitionJson());
+    definition.updateDraft(request.name(), request.description());
+    nodeDefinitionRepository.deleteByWorkflowVersionId(draft.getId());
+    transitionDefinitionRepository.deleteByWorkflowVersionId(draft.getId());
+    persistGraph(tenantId, draft.getId(), request.definitionJson());
     return workflowMapper.toResponse(definition);
   }
 

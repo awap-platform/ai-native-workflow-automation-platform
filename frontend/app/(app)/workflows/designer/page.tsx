@@ -31,6 +31,7 @@ import {
   useCreateWorkflowDefinition,
   usePublishWorkflowDefinition,
   useRollbackWorkflowDefinition,
+  useUpdateWorkflowDefinition,
   useValidateWorkflowExpression,
   useWorkflowDefinition,
   useWorkflowVersions,
@@ -131,6 +132,7 @@ export default function DesignerPage() {
 
 function DesignerCanvas() {
   const createWorkflow = useCreateWorkflowDefinition();
+  const updateWorkflow = useUpdateWorkflowDefinition();
   const validateExpressionApi = useValidateWorkflowExpression();
   const publishWorkflow = usePublishWorkflowDefinition();
   const rollbackWorkflow = useRollbackWorkflowDefinition();
@@ -145,6 +147,8 @@ function DesignerCanvas() {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [clipboard, setClipboard] = useState<GraphClipboard | null>(null);
   const [createdDefinitionId, setCreatedDefinitionId] = useState<string | null>(null);
+  const [definitionRevision, setDefinitionRevision] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<{ currentUpdatedAt: string } | null>(null);
   const [definitionLoaded, setDefinitionLoaded] = useState(false);
   const [savedSignature, setSavedSignature] = useState(() => signatureOf("", [], []));
   const [error, setError] = useState("");
@@ -259,6 +263,7 @@ function DesignerCanvas() {
         setNodes(parsed.nodes);
         setEdges(parsed.edges);
         setName(loadedName);
+        setDefinitionRevision(definitionQuery.data?.updatedAt ?? null);
         setSavedSignature(signatureOf(loadedName, parsed.nodes, parsed.edges));
         setNotice(`Loaded version ${snapshot.version}.`);
       } catch {
@@ -331,10 +336,7 @@ function DesignerCanvas() {
       }),
       selected: true,
     };
-    commit(
-      [...nodes.map((candidate) => ({ ...candidate, selected: false })), node],
-      edges,
-    );
+    commit([...nodes.map((candidate) => ({ ...candidate, selected: false })), node], edges);
     setValidationTouched(true);
     setSelectedNodeIds([node.id]);
     setSelectedEdgeId(null);
@@ -561,9 +563,7 @@ function DesignerCanvas() {
   function focusNode(nodeId: string) {
     setSelectedNodeIds([nodeId]);
     setSelectedEdgeId(null);
-    setNodes((current) =>
-      current.map((node) => ({ ...node, selected: node.id === nodeId })),
-    );
+    setNodes((current) => current.map((node) => ({ ...node, selected: node.id === nodeId })));
     void fitView({ nodes: [{ id: nodeId }], duration: 300, padding: 0.6 });
   }
 
@@ -587,7 +587,7 @@ function DesignerCanvas() {
     setNotice(issue.message);
   }
 
-  async function save(): Promise<string | null> {
+  async function save(forceNew = false): Promise<string | null> {
     setError("");
     setNotice("");
     setValidationTouched(true);
@@ -627,27 +627,73 @@ function DesignerCanvas() {
         setError(invalid.errors[0]?.message ?? "A condition is invalid.");
         return null;
       }
+      const definitionJson = toDefinitionJson(nodes, edges);
+      const revision = definitionRevision ?? definitionQuery.data?.updatedAt ?? null;
+      if (definitionId && !forceNew && revision === null) {
+        setError("This draft has not loaded yet. Reload the page and try again.");
+        return null;
+      }
       try {
-        const created = await createWorkflow.mutateAsync({
-          name,
-          definitionJson: toDefinitionJson(nodes, edges),
-        });
-        setCreatedDefinitionId(created.id);
+        const saved =
+          definitionId && !forceNew && revision !== null
+            ? await updateWorkflow.mutateAsync({
+                id: definitionId,
+                payload: { name, definitionJson, expectedUpdatedAt: revision },
+              })
+            : await createWorkflow.mutateAsync({ name, definitionJson });
+        setCreatedDefinitionId(saved.id);
+        setDefinitionRevision(saved.updatedAt ?? null);
         setSavedSignature(signature);
         setPublishedVersion(null);
         if (tenant) {
           clearDraft(window.localStorage, draftKey(tenant));
         }
         setAutosavedAt(null);
-        setNotice("Draft saved");
-        return created.id;
-      } catch {
-        setError("Save failed. Your draft is still autosaved in this browser.");
+        setConflict(null);
+        setNotice(definitionId && !forceNew ? "Draft updated" : "Draft saved");
+        return saved.id;
+      } catch (cause) {
+        if (errorStatus(cause) === 409) {
+          setConflict({
+            currentUpdatedAt: definitionQuery.data?.updatedAt ?? revision ?? "unknown",
+          });
+          setError(
+            "Another save changed this draft. Reload the server draft or keep your version as a new definition.",
+          );
+        } else {
+          setError("Save failed. Your draft is still autosaved in this browser.");
+        }
         return null;
       }
     } finally {
       setSaving(false);
     }
+  }
+
+  async function reloadServerDraft() {
+    const [definitionResult, versionsResult] = await Promise.all([
+      definitionQuery.refetch(),
+      versionsQuery.refetch(),
+    ]);
+    const snapshot =
+      (versionsResult.data ?? []).find((version) => version.current) ?? versionsResult.data?.[0];
+    if (snapshot) {
+      try {
+        const parsed = parseDefinitionJson(snapshot.definitionJson);
+        const loadedName = definitionResult.data?.name ?? name;
+        setNodes(parsed.nodes);
+        setEdges(parsed.edges);
+        setName(loadedName);
+        setSavedSignature(signatureOf(loadedName, parsed.nodes, parsed.edges));
+      } catch {
+        setError("The server draft could not be loaded.");
+        return;
+      }
+    }
+    setDefinitionRevision(definitionResult.data?.updatedAt ?? null);
+    setConflict(null);
+    setError("");
+    setNotice("Reloaded the server draft.");
   }
 
   async function publish() {
@@ -714,7 +760,9 @@ function DesignerCanvas() {
       const parsed = parseDefinitionJson(json);
       commit(parsed.nodes, parsed.edges);
       setValidationTouched(true);
-      setNotice(`BPMN imported: ${parsed.nodes.length} node(s), ${parsed.edges.length} transition(s).`);
+      setNotice(
+        `BPMN imported: ${parsed.nodes.length} node(s), ${parsed.edges.length} transition(s).`,
+      );
     } catch {
       setError("The imported BPMN produced an invalid definition.");
     }
@@ -737,6 +785,13 @@ function DesignerCanvas() {
           disabled={invalidEdges.length > 0 || saving}
         >
           Save draft
+        </button>
+        <button
+          type="button"
+          onClick={() => void save(true)}
+          disabled={invalidEdges.length > 0 || saving}
+        >
+          Save as new
         </button>
         <button
           type="button"
@@ -769,7 +824,11 @@ function DesignerCanvas() {
         >
           Redo
         </button>
-        <button type="button" onClick={copyCurrent} disabled={selectedNodeIds.length === 0 && selectedEdgeId === null}>
+        <button
+          type="button"
+          onClick={copyCurrent}
+          disabled={selectedNodeIds.length === 0 && selectedEdgeId === null}
+        >
           Copy
         </button>
         <button type="button" onClick={pasteCurrent} disabled={clipboard === null}>
@@ -790,6 +849,39 @@ function DesignerCanvas() {
           Delete
         </button>
       </div>
+
+      {conflict ? (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="designer-conflict-title"
+          className="awap-alert awap-alert-warning"
+          data-testid="designer-conflict"
+        >
+          <h2 id="designer-conflict-title">Draft changed on the server</h2>
+          <p>
+            Another tab saved this draft first (server token {conflict.currentUpdatedAt}). Reload
+            the server draft, or keep your version as a new definition.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => void reloadServerDraft()}>
+              Reload server draft
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setConflict(null);
+                void save(true);
+              }}
+            >
+              Keep mine and save as new
+            </button>
+            <button type="button" onClick={() => setConflict(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {selectedNodeIds.length > 1 ? (
         <div className="awap-designer__row" role="group" aria-label="Align selected nodes">
@@ -978,11 +1070,7 @@ function DesignerCanvas() {
               const label = `Edit condition from ${nodeLabel(edge.source)} to ${nodeLabel(edge.target)}`;
               return (
                 <li key={edge.id}>
-                  <button
-                    type="button"
-                    aria-label={label}
-                    onClick={() => selectEdge(edge.id)}
-                  >
+                  <button type="button" aria-label={label} onClick={() => selectEdge(edge.id)}>
                     {nodeLabel(edge.source)} → {nodeLabel(edge.target)}{" "}
                     {condition.trim() === "" ? "(unconditional)" : `(IF: ${condition})`}
                   </button>
@@ -1003,7 +1091,10 @@ function DesignerCanvas() {
           />
         </div>
         <div className="awap-designer__side">
-          <BpmnPanel definitionJson={toDefinitionJson(nodes, edges)} onImported={importDefinition} />
+          <BpmnPanel
+            definitionJson={toDefinitionJson(nodes, edges)}
+            onImported={importDefinition}
+          />
         </div>
       </div>
 

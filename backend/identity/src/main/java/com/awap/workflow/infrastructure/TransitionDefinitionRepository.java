@@ -12,4 +12,7 @@ public interface TransitionDefinitionRepository extends JpaRepository<Transition
       UUID workflowVersionId, String fromNodeId);
 
   List<TransitionDefinition> findByWorkflowVersionId(UUID workflowVersionId);
+
+  /** Replaces the persisted graph when a draft is updated in place (issue #369). */
+  void deleteByWorkflowVersionId(UUID workflowVersionId);
 }

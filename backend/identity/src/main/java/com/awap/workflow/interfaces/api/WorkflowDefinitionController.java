@@ -10,6 +10,7 @@ import com.awap.workflow.interfaces.dto.ExpressionValidationRequest;
 import com.awap.workflow.interfaces.dto.ExpressionValidationResponse;
 import com.awap.workflow.interfaces.dto.WorkflowDefinitionRequest;
 import com.awap.workflow.interfaces.dto.WorkflowDefinitionResponse;
+import com.awap.workflow.interfaces.dto.WorkflowDefinitionUpdateRequest;
 import com.awap.workflow.interfaces.dto.WorkflowVersionResponse;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -18,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -45,6 +47,17 @@ public class WorkflowDefinitionController {
       @Valid @RequestBody WorkflowDefinitionRequest request) {
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(service.create(currentTenantId(), request));
+  }
+
+  /**
+   * Updates the existing DRAFT in place. The expectedUpdatedAt token is the optimistic-concurrency
+   * check; a mismatch returns 409 and the client must reload or save as a new definition.
+   */
+  @PatchMapping("/{id}")
+  @PreAuthorize("hasAuthority('WORKFLOW_CREATE')")
+  public ResponseEntity<WorkflowDefinitionResponse> update(
+      @PathVariable UUID id, @Valid @RequestBody WorkflowDefinitionUpdateRequest request) {
+    return ResponseEntity.ok(service.updateDraft(currentTenantId(), id, request));
   }
 
   /**

@@ -130,6 +130,11 @@ export interface CreateWorkflowPayload {
   definitionJson: string;
 }
 
+/** Update payload with the updatedAt token loaded by the designer. */
+export interface UpdateWorkflowPayload extends CreateWorkflowPayload {
+  expectedUpdatedAt: string;
+}
+
 export interface CompanyDto {
   id: string;
   name: string;
@@ -494,7 +499,8 @@ async function apiRequest<T>(
 }
 
 const authFetch = <T>(path: string): Promise<T> => apiRequest<T>("GET", path);
-const authPatch = <T>(path: string): Promise<T> => apiRequest<T>("PATCH", path);
+const authPatch = <T>(path: string, body?: unknown): Promise<T> =>
+  apiRequest<T>("PATCH", path, body);
 const authPut = <T>(path: string, body: unknown): Promise<T> => apiRequest<T>("PUT", path, body);
 const authPost = <T>(path: string, body: unknown): Promise<T> => apiRequest<T>("POST", path, body);
 const authDelete = <T>(path: string): Promise<T> => apiRequest<T>("DELETE", path);
@@ -647,6 +653,17 @@ export function createWorkflowDefinition(
   payload: CreateWorkflowPayload,
 ): Promise<WorkflowDefinitionDto> {
   return authPost<WorkflowDefinitionDto>("/api/v1/workflow-definitions", payload);
+}
+
+/** Updates an existing draft in place; a stale expectedUpdatedAt returns 409. */
+export function updateWorkflowDefinition(
+  id: string,
+  payload: UpdateWorkflowPayload,
+): Promise<WorkflowDefinitionDto> {
+  return authPatch<WorkflowDefinitionDto>(
+    `/api/v1/workflow-definitions/${encodeURIComponent(id)}`,
+    payload,
+  );
 }
 
 export function fetchWorkflowDefinition(id: string): Promise<WorkflowDefinitionDto> {
