@@ -114,4 +114,18 @@ class AiCopilotClientStreamTest {
     assertThat(Thread.currentThread().isInterrupted()).isTrue();
     Thread.interrupted();
   }
+
+  @Test
+  void streamRequiresAnAuthenticatedContext() throws Exception {
+    TenantContext.clear();
+
+    assertThatThrownBy(
+            () ->
+                client.stream(
+                    "/api/v1/copilot/chat/stream",
+                    objectMapper.readTree("{\"message\":\"hi\"}"),
+                    null))
+        .isInstanceOf(AwapException.class)
+        .hasMessageContaining("Authentication is required");
+  }
 }

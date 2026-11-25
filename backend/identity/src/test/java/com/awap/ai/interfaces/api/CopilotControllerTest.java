@@ -202,4 +202,28 @@ class CopilotControllerTest {
         .contains("\"type\":\"token\"");
     verify(client).stream(eq("/api/v1/copilot/chat/stream"), any(), eq("intent-1"));
   }
+
+  @Test
+  void chatStreamEndsQuietlyWhenTheClientDisconnects() throws Exception {
+    java.io.InputStream broken =
+        new java.io.InputStream() {
+          @Override
+          public int read() throws java.io.IOException {
+            throw new java.io.IOException("client went away");
+          }
+        };
+    @SuppressWarnings("unchecked")
+    java.net.http.HttpResponse<java.io.InputStream> upstream =
+        mock(java.net.http.HttpResponse.class);
+    when(upstream.body()).thenReturn(broken);
+    when(client.stream(anyString(), any(), any())).thenReturn(upstream);
+
+    ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody>
+        response = controller.chatStream(objectMapper.readTree("{\"message\":\"hi\"}"), null);
+    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+
+    response.getBody().writeTo(out);
+
+    assertThat(out.size()).isZero();
+  }
 }
