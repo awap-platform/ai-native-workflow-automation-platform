@@ -9,15 +9,18 @@ import { rumExposition } from "../../../../lib/rumMetrics";
  * the Prometheus text format. Labels are allowlisted upstream (`route`, `metric`, `release`,
  * `device`), so the series count is bounded, and no tenant or user identifier ever appears here.
  *
- * With the `rum_vitals` flag off the endpoint answers 204: the scrape target stays healthy and no
- * empty series are invented.
+ * With the `rum_vitals` flag off the body is a comment: the scrape target stays healthy (a 204 would
+ * also be rejected by the Fetch response contract at build time) and no empty series are invented.
  */
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: Request): Promise<NextResponse> {
+  // Touching the request keeps the handler dynamic: the exposition is per-process state and must be
+  // rendered per scrape, never prerendered at build time.
+  void request.url;
   const flags = resolveFeatureFlags(process.env);
-  if (!flags.rum_vitals) {
-    return new NextResponse(null, { status: 204, headers: { "Cache-Control": "no-store" } });
-  }
-  return new NextResponse(rumExposition(), {
+  const body = flags.rum_vitals
+    ? rumExposition()
+    : "# rum_vitals is disabled; no real-user series are collected in this deployment.\n";
+  return new NextResponse(body, {
     status: 200,
     headers: {
       "Content-Type": "text/plain; version=0.0.4; charset=utf-8",
