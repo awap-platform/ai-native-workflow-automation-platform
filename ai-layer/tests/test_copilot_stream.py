@@ -16,7 +16,6 @@ from app.copilot.streaming import (
 )
 from app.main import app as fastapi_app
 
-
 RESPONSE = {
     "answer": "The leave policy allows 20 days per year.",
     "action": "answer",

@@ -20,7 +20,8 @@ the answer itself in parity between the streaming and the fallback path.
 from __future__ import annotations
 
 import json
-from typing import Any, Iterable, Iterator
+from collections.abc import Iterable, Iterator
+from typing import Any
 
 STREAM_SCHEMA_VERSION = 1
 DEFAULT_DELTA_CHARS = 48
@@ -43,7 +44,10 @@ def chunk_answer(answer: str, size: int = DEFAULT_DELTA_CHARS) -> list[str]:
 
 
 def encode_event(event: dict[str, Any]) -> str:
-    """Formats one SSE frame; the JSON never contains a raw newline, so the frame stays single-line."""
+    """Formats one SSE frame.
+
+    The JSON never contains a raw newline, so a frame always stays single-line.
+    """
     payload = dict(event)
     payload.setdefault("v", STREAM_SCHEMA_VERSION)
     return f"data: {json.dumps(payload, separators=(',', ':'), ensure_ascii=False)}\n\n"
@@ -56,8 +60,10 @@ def stream_events(
 ) -> Iterator[str]:
     """Yields the whole stream for one answer: deltas, metadata, then the authoritative `done`."""
     seq = 0
-    fragments: Iterable[str] = deltas if deltas is not None else chunk_answer(
-        str(response.get("answer") or ""), delta_size
+    fragments: Iterable[str] = (
+        deltas
+        if deltas is not None
+        else chunk_answer(str(response.get("answer") or ""), delta_size)
     )
     try:
         for fragment in fragments:
