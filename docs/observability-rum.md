@@ -84,3 +84,39 @@ claim about live user percentiles is made.
 - Reporting failures are swallowed; they never affect the page.
 - Sampling, retention and the external collector (`RUM_COLLECTOR_URL`) are
   deployment configuration, not code.
+
+## Metric contract, dashboards, alerts and the release gate (issue #375)
+
+Before this change the beacons only produced a log line, so a real-user regression was invisible
+while every lab budget stayed green. The ingest route now records a bounded Prometheus histogram and
+the series is what the dashboard, the alerts and the release gate read.
+
+| Metric | Type | Labels | Meaning |
+| --- | --- | --- | --- |
+| `awap_rum_vital_milliseconds` | histogram (ms) | `metric`, `route`, `release`, `device` | LCP, INP, FCP and TTFB |
+| `awap_rum_cls` | histogram (unitless) | `route`, `release`, `device` | Cumulative layout shift |
+| `awap_rum_vital_samples_total` | counter | `metric`, `route`, `release`, `device` | Beacons accepted (coverage) |
+| `awap_rum_ingest_dropped_total` | counter | `reason` | Beacons rejected at ingest |
+
+**Cardinality is bounded by construction.** The metric name is an allowlist (`LCP`, `INP`, `FCP`,
+`TTFB`, `CLS`), the route is normalised and mapped to `other` outside a ten-entry allowlist,
+identifier segments collapse to `:id`, the device is one of `desktop|mobile|tablet|other`, the
+release is a semantic version or `unknown`, and a hard cap of 400 series drops anything beyond it.
+No tenant, user or session identifier is ever a label.
+
+`GET /api/rum/metrics` renders the exposition and answers `204` while `rum_vitals` is off, so the
+Prometheus target stays healthy either way. Prometheus scrapes it through the `awap-frontend-rum` job.
+
+- **Dashboard:** three panels in `awap.json` — LCP p75 by route and release, INP and CLS p75 by route,
+  and sample coverage with ingest drops.
+- **Alerts** (`rum-alert-rules.yml`): LCP p75 warning at 2.5 s and critical at 4 s, INP p75 at 200 ms,
+  CLS p75 at 0.1, a missing-sample alert that only fires while traffic continues, and an ingest-drop
+  alert. Every threshold rule requires more than 50 samples in the window, so one slow session cannot
+  page anyone.
+- **Release gate:** `node scripts/release/rum-gate.mjs --stable … --canary …` compares the p75 of the
+  same window and fails when a metric regresses more than 10%. A cohort below the sample floor passes
+  with an explicit warning (missing evidence cannot prove a regression), while a non-semantic release
+  label fails, because comparing two unknown releases would be meaningless.
+
+The committed evidence is [`release/evidence/rum-gate.md`](release/evidence/rum-gate.md) with the two
+cohort snapshots next to it.

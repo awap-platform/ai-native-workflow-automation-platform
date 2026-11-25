@@ -499,11 +499,137 @@
       ],
       "title": "Async Copilot job queue wait p95",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.75, sum by (le, route, release) (rate(awap_rum_vital_milliseconds_bucket{metric=\"LCP\"}[30m]))) / 1000",
+          "legendFormat": "{{route}} {{release}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Real-user LCP p75 by route and release",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.75, sum by (le, route) (rate(awap_rum_vital_milliseconds_bucket{metric=\"INP\"}[30m])))",
+          "legendFormat": "INP p75 {{route}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.75, sum by (le, route) (rate(awap_rum_cls_bucket[30m])))",
+          "legendFormat": "CLS p75 {{route}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Real-user INP and CLS p75 by route",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 56
+      },
+      "id": 15,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (route) (increase(awap_rum_vital_samples_total[1h]))",
+          "legendFormat": "samples {{route}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (reason) (increase(awap_rum_ingest_dropped_total[1h]))",
+          "legendFormat": "dropped {{reason}}",
+          "refId": "B"
+        }
+      ],
+      "title": "RUM sample coverage and ingest drops",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",
   "schemaVersion": 39,
-  "tags": ["awap", "workflow", "notification", "outbox"],
+  "tags": [
+    "awap",
+    "workflow",
+    "notification",
+    "outbox"
+  ],
   "templating": {
     "list": [
       {
