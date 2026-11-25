@@ -25,8 +25,11 @@ class BreakGlassLogServiceTest {
     var response = service.read();
 
     assertThat(response.available()).isTrue();
-    assertThat(response.log().get("incident").asInt()).isEqualTo(257);
+    assertThat(response.log().get("incident").asInt()).isEqualTo(389);
     assertThat(response.log().get("merges").isArray()).isTrue();
+    assertThat(response.log().get("merges")).hasSize(11);
+    // The closed #257 window stays readable so the console history is not silently dropped.
+    assertThat(response.log().get("history").get(0).get("incident").asInt()).isEqualTo(257);
   }
 
   @Test

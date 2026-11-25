@@ -1,13 +1,70 @@
-# Break-glass log — incident #257
+# Break-glass log
 
-Incident [#257](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/257)
-authorised the single-maintainer break-glass merges for the sequential issues #197–#205.
-This page is the committed audit trail required by runbook
-[O22](operations-runbook.md#o22--branch-protection-drift-and-break-glass-issue-178).
-The machine-readable source is [`settings/break-glass-log.json`](../settings/break-glass-log.json);
-the tests fail when this table and the JSON diverge.
+Single-maintainer break-glass windows, newest first. The machine-readable source is
+[`settings/break-glass-log.json`](../settings/break-glass-log.json); the tests fail when this table
+and the JSON diverge. The JSON keeps the active incident at the top level and every earlier window
+under `history`, so the Phase 8 audit console always renders the current exception.
 
-## Incident scope
+## Incident #389 — issues #366, #367, #368, #369, #370, #371, #372, #373, #374, #375 and #284
+
+Incident [#389](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/389)
+authorised the single-maintainer break-glass merges for the sequential issues #366–#375 and the
+re-verification of #284.
+
+### Incident scope
+
+| Field | Value |
+|-------|-------|
+| Incident | #389 |
+| Owner approving the exception | `@koraysrn` |
+| Reason | Single maintainer; GitHub never counts a self-approval against required_approving_review_count=1. |
+| Expiry | `2026-11-25T23:59:59Z` |
+| Scope | Only required_approving_review_count is lowered to 0 for the duration of a single merge. enforce_admins, required status checks, force-push/deletion blocks and the drift workflow stay unchanged. |
+| Unchanged | `enforce_admins=true`, required status checks, force-push/deletion blocks, drift workflow |
+| Restore | `scripts/apply-branch-protection.sh --apply` then `--verify` immediately after every merge |
+
+### Merged PRs
+
+Every row had all required status checks green **before** the approval count was lowered. The
+approval count was restored to 1 and verified with `--verify` immediately after each merge.
+
+| Issue | PR | Merge commit | Merged at (UTC) | Checks green | Restore `--apply` | Restore `--verify` |
+|-------|----|--------------|-----------------|--------------|-------------------|--------------------|
+| #366 | #388 | `936a7c8786842814f04364f4be9bd77a9b66995f` | 2026-11-24T15:17:37Z | yes | updated | matches |
+| #367 | #390 | `e00d5b489262873781f61f0d9ff84906470c7d7b` | 2026-11-24T15:54:28Z | yes | updated | matches |
+| #368 | #391 | `d84c1a8c0201eaf506df2d3fdeb027fe55ed1745` | 2026-11-24T17:16:54Z | yes | updated | matches |
+| #369 | #392 | `45e97660689bcc59a35f0a04b2629fd8eb79a3fc` | 2026-11-24T18:53:32Z | yes | updated | matches |
+| #370 | #393 | `bc15c7e39fd7a568914e514fef46831015a2e132` | 2026-11-24T20:19:22Z | yes | updated | matches |
+| #371 | #394 | `055fd041216f6725d739f4282b080691b44fc22b` | 2026-11-24T21:58:42Z | yes | updated | matches |
+| #372 | #395 | `72da2da4fe586e5d0118d2274d69b64a35a0c013` | 2026-11-25T12:15:48Z | yes | updated | matches |
+| #373 | #396 | `f24e05f0a9a6b6814e784c60941ba3538bc46cb4` | 2026-11-25T14:18:08Z | yes | updated | matches |
+| #374 | #397 | `1f0d1f0f3a5d443db60d7a50c306a62df578ecd9` | 2026-11-25T18:06:14Z | yes | updated | matches |
+| #375 | #398 | `81ee10d418b5789abc15f7cd3e632c0bb14b89ab` | 2026-11-25T19:32:11Z | yes | updated | matches |
+| #284 | #386 | `9404740eb04db183f79cdbf36b375c61f3081a0f` | 2026-11-23T21:34:17Z | yes | updated | matches |
+
+PR #386 (#284) merged before this window opened; it is listed because the final `main` run
+re-executed its Copilot journey spec with the code from this window in place.
+
+### Post-incident proof
+
+| Check | Value |
+|-------|-------|
+| Live approval count | `1` |
+| `enforce_admins` | `true` |
+| Drift failure observed during the exception | none — an early `required_approving_review_count` drift during the #398 retries was converged with `--apply` before the next merge |
+| Final drift run (green) | run `45686163037` (green, `81ee10d`) |
+| Green `main` CI run | run `45686163172` (green, `81ee10d`) |
+| Green `main` CI commit | `81ee10d418b5789abc15f7cd3e632c0bb14b89ab` |
+
+### Closure
+
+Incident #389 is closed by the governance PR that recorded this evidence. It cannot authorise any
+further merge: the next single-maintainer exception needs its own incident, its own expiry and its own
+rows in both this table and the JSON log.
+
+## Incident #257 (closed, kept as history)
+
+### Incident scope
 
 | Field | Value |
 |-------|-------|
@@ -19,7 +76,7 @@ the tests fail when this table and the JSON diverge.
 | Unchanged | `enforce_admins=true`, required status checks, force-push/deletion blocks, drift workflow |
 | Restore | `scripts/apply-branch-protection.sh --apply` then `--verify` immediately after every merge |
 
-## Merged PRs
+### Merged PRs
 
 Every row required all required status checks to be green **before** the approval count was
 lowered. Restore was executed immediately after the merge.
@@ -40,7 +97,7 @@ lowered. Restore was executed immediately after the merge.
 PR #258 (CI image build fix) carried no issue of its own but was part of the same sequential
 pipeline; it is recorded here for completeness.
 
-## Post-incident proof
+### Post-incident proof
 
 | Check | Value |
 |-------|-------|
@@ -55,7 +112,7 @@ pipeline; it is recorded here for completeness.
 The previous incident [#243](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/243)
 covered issues #189–#196 and remains closed; its record is superseded by this one in the JSON log.
 
-## Closure rule
+### Closure rule
 
 Incident #257 is closed by the governance PR that introduced this log. It cannot authorise any
 further merge. Every future single-maintainer break-glass must:

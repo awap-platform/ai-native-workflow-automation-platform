@@ -146,18 +146,18 @@ const auditPage: api.AdminAuditPageDto = {
 const breakGlass: api.BreakGlassLogDto = {
   available: true,
   log: {
-    incident: 257,
+    incident: 389,
     owner: "koraysrn",
-    opened_at: "2026-11-11T15:00:00Z",
-    expiry: "2026-11-13T23:59:59Z",
+    opened_at: "2026-11-24T15:17:20Z",
+    expiry: "2026-11-25T23:59:59Z",
     reason: "Single maintainer.",
     scope: "Only the approval count was lowered.",
     merges: [
       {
-        issue: 197,
-        pr: 256,
-        merge_sha: "d8560f5dc8dc4d7a3fa8b87f91086b0e12f3846c",
-        merged_at: "2026-11-11T16:35:03Z",
+        issue: 366,
+        pr: 388,
+        merge_sha: "936a7c8786842814f04364f4be9bd77a9b66995f",
+        merged_at: "2026-11-24T15:17:37Z",
         checks_green: true,
         restore_apply: "updated",
         restore_verify: "matches",
@@ -351,9 +351,9 @@ describe("audit console", () => {
     renderPage(<AuditPage />);
 
     expect(await screen.findByTestId("audit-table")).toHaveTextContent("ROLE_CHANGED");
-    expect(screen.getByTestId("break-glass-summary")).toHaveTextContent("257");
+    expect(screen.getByTestId("break-glass-summary")).toHaveTextContent("389");
     expect(screen.getByTestId("break-glass-merges")).toHaveTextContent(
-      "d8560f5dc8dc4d7a3fa8b87f91086b0e12f3846c",
+      "936a7c8786842814f04364f4be9bd77a9b66995f",
     );
   });
 

@@ -542,31 +542,35 @@ test("CI runs bash -n, shellcheck, the coverage suite and a dry run", async () =
   assert.match(workflow, /scripts\/apply-branch-protection\.sh --dry-run --repo "\$GITHUB_REPOSITORY"/);
 });
 
-test("break-glass log fully records incident #257 and its restores", async () => {
+test("break-glass log records the active incident #389 and keeps #257 as history", async () => {
   const log = JSON.parse(await readFile(BREAK_GLASS_JSON, "utf8"));
-  assert.equal(log.incident, 257);
+
+  // The active window is what the Phase 8 audit console renders, so it stays at the top level.
+  assert.equal(log.incident, 389);
   assert.equal(log.owner, "koraysrn");
-  assert.equal(log.expiry, "2026-11-13T23:59:59Z");
+  assert.equal(log.expiry, "2026-11-25T23:59:59Z");
   assert.equal(log.restore.approval_count_after, 1);
   assert.equal(log.restore.enforce_admins_after, true);
   assert.equal(log.post_incident.approval_count, 1);
   assert.equal(log.post_incident.enforce_admins, true);
   assert.match(log.post_incident.main_ci_sha, /^[0-9a-f]{40}$/);
   assert.equal(typeof log.post_incident.final_drift_success_run, "number");
+  assert.equal(typeof log.post_incident.main_ci_run, "number");
   assert.match(log.scope, /only required_approving_review_count/i);
 
-  // Issue #257 covers the sequential pipeline #197-#205 plus the CI fix PR #258.
+  // Issue #389 covers the sequential pipeline #366-#375 plus the #284 re-verification row.
   const expected = [
-    [null, 258],
-    [197, 256],
-    [198, 260],
-    [199, 261],
-    [200, 262],
-    [201, 263],
-    [202, 264],
-    [203, 265],
-    [204, 266],
-    [205, 267],
+    [366, 388],
+    [367, 390],
+    [368, 391],
+    [369, 392],
+    [370, 393],
+    [371, 394],
+    [372, 395],
+    [373, 396],
+    [374, 397],
+    [375, 398],
+    [284, 386],
   ];
   assert.deepEqual(
     log.merges.map((merge) => [merge.issue, merge.pr]),
@@ -580,13 +584,26 @@ test("break-glass log fully records incident #257 and its restores", async () =>
     assert.equal(merge.restore_verify, "matches");
   }
 
+  // The closed #257 window is preserved verbatim so the console history stays auditable.
+  const history = log.history.find((entry) => entry.incident === 257);
+  assert.ok(history, "incident #257 must stay in history");
+  assert.equal(history.expiry, "2026-11-13T23:59:59Z");
+  assert.equal(history.merges.length, 10);
+  for (const merge of history.merges) {
+    assert.equal(merge.restore_verify, "matches");
+  }
+
   const doc = await readFile(BREAK_GLASS_DOC, "utf8");
   for (const merge of log.merges) {
     assert.match(doc, new RegExp(`#${merge.pr}`));
     assert.ok(doc.includes(merge.merge_sha), `missing ${merge.merge_sha} in break-glass doc`);
   }
-  assert.match(doc, /Incident #257 is closed/);
+  for (const merge of history.merges) {
+    assert.ok(doc.includes(merge.merge_sha), `missing historical ${merge.merge_sha}`);
+  }
+  assert.match(doc, /Incident #389 is closed/);
   assert.match(doc, /cannot authorise any\s+further merge/);
+  assert.match(doc, /Incident #257 \(closed, kept as history\)/);
   assert.match(doc, new RegExp(String(log.post_incident.final_drift_success_run)));
   assert.ok(doc.includes(log.post_incident.main_ci_sha));
 
