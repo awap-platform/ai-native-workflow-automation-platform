@@ -46,7 +46,11 @@ public enum ErrorCode {
   FILE_EMPTY("AWAP-FILE-0005", "The file must not be empty."),
   FILE_SCAN_PENDING("AWAP-FILE-0006", "The file is still being scanned and cannot be downloaded."),
   FILE_SCAN_FAILED("AWAP-FILE-0007", "The antivirus scan failed; the file is not available."),
-  FILE_STATE_CONFLICT("AWAP-FILE-0008", "The file is not in a state that allows this operation.");
+  FILE_STATE_CONFLICT("AWAP-FILE-0008", "The file is not in a state that allows this operation."),
+  FILE_CHECKSUM_MISMATCH(
+      "AWAP-FILE-0009", "The uploaded bytes do not match the declared SHA-256 checksum."),
+  FILE_UPLOAD_INCOMPLETE(
+      "AWAP-FILE-0010", "The multipart upload is missing one or more acknowledged parts.");
 
   private final String code;
   private final String defaultTitle;

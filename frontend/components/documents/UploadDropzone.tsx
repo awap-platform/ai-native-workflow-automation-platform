@@ -84,7 +84,7 @@ export default function UploadDropzone({ onUploaded }: UploadDropzoneProps) {
         />
       </div>
 
-      {upload.phase === "uploading" ? (
+      {upload.phase === "uploading" || upload.phase === "paused" ? (
         <div className="awap-stack">
           <progress
             className="awap-progress"
@@ -95,8 +95,30 @@ export default function UploadDropzone({ onUploaded }: UploadDropzoneProps) {
           />
           <div className="awap-inline">
             <span role="status" aria-live="polite" data-testid="upload-progress-text">
-              Uploading {upload.fileName} — {upload.percent}%
+              {upload.phase === "paused" ? "Paused" : "Uploading"} {upload.fileName} —{" "}
+              {upload.percent}%
             </span>
+            {upload.phase === "uploading" ? (
+              <button
+                type="button"
+                className="awap-button"
+                onClick={upload.pause}
+                aria-label="Pause upload"
+                data-testid="upload-pause"
+              >
+                Pause
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="awap-button"
+                onClick={upload.resume}
+                aria-label="Resume upload"
+                data-testid="upload-resume"
+              >
+                Resume
+              </button>
+            )}
             <button
               type="button"
               className="awap-button awap-button-danger"
@@ -106,20 +128,30 @@ export default function UploadDropzone({ onUploaded }: UploadDropzoneProps) {
               Cancel upload
             </button>
           </div>
+          {upload.phase === "paused" ? (
+            <p role="status" className="m-0 awap-muted">
+              {upload.message}
+            </p>
+          ) : null}
         </div>
       ) : null}
 
       {upload.phase === "complete" ? (
         <p role="status" aria-live="polite" className="m-0">
           {upload.message}
-          {upload.result ? (
-            <span className="awap-muted"> Pending version {upload.result.version.version}.</span>
+          {upload.result?.versionNumber ? (
+            <span className="awap-muted"> Pending version {upload.result.versionNumber}.</span>
           ) : null}
         </p>
       ) : null}
 
       {upload.phase === "cancelled" ? (
-        <p role="status" aria-live="polite" className="awap-warning-text m-0" data-testid="upload-cleanup">
+        <p
+          role="status"
+          aria-live="polite"
+          className="awap-warning-text m-0"
+          data-testid="upload-cleanup"
+        >
           {upload.message}
         </p>
       ) : null}

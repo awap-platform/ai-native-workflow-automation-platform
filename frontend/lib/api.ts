@@ -1137,6 +1137,100 @@ export function getDocumentDownloadUrl(fileId: string): Promise<{ downloadUrl: s
   return authFetch<{ downloadUrl: string }>(`/api/v1/documents/${fileId}/download`);
 }
 
+export interface MultipartPartUrlDto {
+  uploadId: string;
+  partNumber: number;
+  url: string;
+  expiresInSeconds: number;
+}
+
+export interface MultipartInitiatedDto {
+  uploadId: string;
+  fileId: string;
+  partSize: number;
+  partCount: number;
+  expiresAt: string;
+  parts: MultipartPartUrlDto[];
+}
+
+export interface MultipartUploadStatusDto {
+  uploadId: string;
+  status: "IN_PROGRESS" | "COMPLETED" | "ABORTED";
+  partSize: number;
+  partCount: number;
+  acknowledgedParts: number[];
+  size: number;
+  expiresAt: string;
+}
+
+export interface MultipartCompletedDto {
+  fileId: string;
+  name: string;
+  status: string;
+  expiresAt: string;
+  scanned: boolean;
+  versionId: string;
+  version: number;
+}
+
+/** Starts a resumable upload and receives the part plan plus one presigned URL per part. */
+export function initiateMultipartUpload(
+  name: string,
+  contentType: string,
+  size: number,
+  sha256: string,
+): Promise<MultipartInitiatedDto> {
+  return authPost<MultipartInitiatedDto>("/api/v1/documents/multipart", {
+    name,
+    contentType,
+    size,
+    sha256,
+  });
+}
+
+/** Resume view: which parts are already durable. */
+export function fetchMultipartUploadStatus(uploadId: string): Promise<MultipartUploadStatusDto> {
+  return authFetch<MultipartUploadStatusDto>(
+    `/api/v1/documents/multipart/${encodeURIComponent(uploadId)}`,
+  );
+}
+
+/** Fresh presigned slot for one part, used when the original URL expired. */
+export function presignMultipartPart(
+  uploadId: string,
+  partNumber: number,
+): Promise<MultipartPartUrlDto> {
+  return authPost<MultipartPartUrlDto>(
+    `/api/v1/documents/multipart/${encodeURIComponent(uploadId)}/parts/${partNumber}/url`,
+    {},
+  );
+}
+
+export function acknowledgeMultipartPart(
+  uploadId: string,
+  partNumber: number,
+): Promise<MultipartUploadStatusDto> {
+  return authPost<MultipartUploadStatusDto>(
+    `/api/v1/documents/multipart/${encodeURIComponent(uploadId)}/parts/${partNumber}`,
+    {},
+  );
+}
+
+/** Assembles the parts after the server verified every acked byte count. */
+export function completeMultipartUpload(
+  uploadId: string,
+  sha256: string,
+): Promise<MultipartCompletedDto> {
+  return authPost<MultipartCompletedDto>(
+    `/api/v1/documents/multipart/${encodeURIComponent(uploadId)}/complete`,
+    { sha256 },
+  );
+}
+
+export function abortMultipartUpload(uploadId: string): Promise<void> {
+  return authDelete<void>(`/api/v1/documents/multipart/${encodeURIComponent(uploadId)}`);
+}
+
 /** Version history of one document, oldest first. */
 export function listDocumentVersions(fileId: string): Promise<DocumentVersionDto[]> {
   return authFetch<DocumentVersionDto[]>(

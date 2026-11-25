@@ -75,3 +75,32 @@ copy is used end to end.
   but this phase does not add a full revision browser or restore action.
 - Polling fallback runs every five seconds. It is deliberately slower than SSE and does not attempt
   to replay missed events.
+
+## Resumable document uploads (issue #372)
+
+Files at or above 8 MiB no longer travel as a single PUT. The uploader hashes the file in the
+browser, asks the server for a part plan, and sends each part to its own short-lived presigned URL
+in the quarantine bucket.
+
+| Step | Endpoint | What it guarantees |
+| --- | --- | --- |
+| Initiate | `POST /api/v1/documents/multipart` | Server-generated staging keys, 8 MiB parts, SHA-256 captured up front |
+| Resume view | `GET /api/v1/documents/multipart/{uploadId}` | Which parts are already durable, and when the upload expires |
+| Part URL | `POST /api/v1/documents/multipart/{uploadId}/parts/{n}/url` | A fresh single-part slot when the first one expired |
+| Acknowledge | `POST /api/v1/documents/multipart/{uploadId}/parts/{n}` | The staged part exists with exactly the planned byte count |
+| Complete | `POST /api/v1/documents/multipart/{uploadId}/complete` | Parts composed, size and SHA-256 verified, file queued for scanning |
+| Abort | `DELETE /api/v1/documents/multipart/{uploadId}` | Staged parts deleted; repeating the call is idempotent |
+
+- The client retries each part three times with exponential backoff and jitter. A drop at 60% only
+  re-sends the unfinished parts, so the bytes on the wire stay below 1.5x the file size.
+- The uploadId and the checksum live in `localStorage` under `awap.upload.<name>:<size>:<modified>`,
+  which is what makes "pause, reload, resume" work. Pausing aborts only the in-flight request;
+  cancelling aborts the upload server-side and clears the state.
+- Checksum mismatches delete the assembled object and answer `422 AWAP-FILE-0009`, so a corrupted
+  transfer never reaches the antivirus scanner or the promoted bucket.
+- `MultipartUploadAbortJob` reaps uploads older than 24 hours once, flipping the row to `ABORTED`
+  before deleting staged parts. Counters live under `awap.document.multipart.*`.
+
+Limitations: parts travel through presigned URLs to the object store, so a browser must be allowed to
+PUT to the MinIO origin (CORS). The single-PUT path stays available for small files and can be forced
+for every file with `enableMultipart: false`.

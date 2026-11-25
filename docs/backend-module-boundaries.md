@@ -71,6 +71,10 @@ Issue #370 added `com.awap.form.domain.FormSchemaSnapshot`, an immutable
 per-version schema row. It is part of the reviewed exception because the
 submission history must read the schema the respondent actually answered.
 
+Issue #372 added `com.awap.document.domain.MultipartUpload`, the resume token of a chunked
+upload. It is part of the reviewed exception because the abort job and the completion path must
+read the plan and the acknowledged parts back without a second lookup table.
+
 Issue #371 added `com.awap.task.domain.TaskComment` and
 `com.awap.task.domain.TaskAttachment`, the durable collaboration records behind
 the task activity stream and scan-gated attachment list.

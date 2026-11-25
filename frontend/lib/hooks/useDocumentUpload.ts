@@ -2,20 +2,23 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CreateDocumentResponseDto } from "../api";
+import { uploadDocument, UploadCancelledError, UploadValidationError } from "../documentUpload";
 import {
-  uploadDocument,
-  UploadCancelledError,
-  UploadValidationError,
-} from "../documentUpload";
+  MULTIPART_THRESHOLD_BYTES,
+  cancelResumable,
+  createMultipartApi,
+  uploadResumable,
+} from "../multipartUpload";
 import { queryKeys } from "../queryKeys";
 
 export type DocumentUploadPhase =
-  | "idle"
-  | "uploading"
-  | "complete"
-  | "cancelled"
-  | "error";
+  "idle" | "uploading" | "paused" | "complete" | "cancelled" | "error";
+
+export interface DocumentUploadResult {
+  fileId: string;
+  /** Null when the server did not return a version number. */
+  versionNumber: number | null;
+}
 
 export interface DocumentUploadState {
   phase: DocumentUploadPhase;
@@ -23,7 +26,7 @@ export interface DocumentUploadState {
   fileName: string;
   message: string;
   error: string;
-  result: CreateDocumentResponseDto | null;
+  result: DocumentUploadResult | null;
 }
 
 const INITIAL: DocumentUploadState = {
@@ -35,46 +38,86 @@ const INITIAL: DocumentUploadState = {
   result: null,
 };
 
+export interface UseDocumentUploadOptions {
+  /** Files at or above this size use the resumable protocol (issue #372). */
+  multipartThresholdBytes?: number;
+  /** Kill switch that keeps every file on the single-PUT path. */
+  enableMultipart?: boolean;
+}
+
 /**
- * Dropzone controller: XHR progress, abort, and an interrupted-upload cleanup.
+ * Dropzone controller.
  *
- * <p>Aborting is two-sided. The in-flight PUT is terminated, and the pending version row created
- * before the PUT is soft-deleted. The hook reports whether that cleanup succeeded instead of always
- * claiming success, because a failed delete leaves a ghost row the user must see.
+ * <p>Small files keep the single presigned PUT. Larger files use the resumable protocol: the bytes
+ * are sent in parts with a per-part retry, the uploadId is persisted so a reload can continue where
+ * it stopped, and pausing keeps that state while cancel aborts the upload server-side.
  */
-export function useDocumentUpload() {
+export function useDocumentUpload(options: UseDocumentUploadOptions = {}) {
   const queryClient = useQueryClient();
+  const threshold = options.multipartThresholdBytes ?? MULTIPART_THRESHOLD_BYTES;
+  const multipartEnabled = options.enableMultipart ?? true;
   const [state, setState] = useState<DocumentUploadState>(INITIAL);
   const controller = useRef<AbortController | null>(null);
+  const lastFile = useRef<File | null>(null);
+  const paused = useRef(false);
   const mounted = useRef(true);
 
   useEffect(
     () => () => {
       mounted.current = false;
-      // Leaving the page mid-transfer terminates the PUT and removes the pending version.
+      // Leaving the page terminates the transfer; the resume state stays for the next visit.
       controller.current?.abort();
     },
     [],
   );
 
-  const upload = useCallback(
-    (file: File) => {
+  const runSinglePut = useCallback(
+    (file: File, signal: AbortSignal) =>
+      uploadDocument(
+        file,
+        (percent) => {
+          if (mounted.current) {
+            setState((current) => ({ ...current, percent }));
+          }
+        },
+        signal,
+      ).then((response) => ({
+        fileId: response.fileId,
+        versionNumber: response.version?.version ?? null,
+      })),
+    [],
+  );
+
+  const runMultipart = useCallback(
+    (file: File, signal: AbortSignal) =>
+      uploadResumable(file, createMultipartApi(), {
+        signal,
+        onProgress: (percent) => {
+          if (mounted.current) {
+            setState((current) => ({ ...current, percent }));
+          }
+        },
+      }).then((outcome) => ({ fileId: outcome.fileId, versionNumber: null })),
+    [],
+  );
+
+  const start = useCallback(
+    (file: File, resumePercent = 0) => {
       controller.current?.abort();
       const abort = new AbortController();
       controller.current = abort;
+      lastFile.current = file;
       setState({
         phase: "uploading",
-        percent: 0,
+        percent: resumePercent,
         fileName: file.name,
         message: "",
         error: "",
         result: null,
       });
-      void uploadDocument(file, (percent) => {
-        if (mounted.current) {
-          setState((current) => ({ ...current, percent }));
-        }
-      }, abort.signal)
+      const chunked = multipartEnabled && file.size >= threshold;
+      const work = chunked ? runMultipart(file, abort.signal) : runSinglePut(file, abort.signal);
+      void work
         .then((result) => {
           if (!mounted.current) {
             return;
@@ -83,7 +126,9 @@ export function useDocumentUpload() {
             phase: "complete",
             percent: 100,
             fileName: file.name,
-            message: "Uploaded. Scan status updates live as soon as the antivirus run completes.",
+            message: chunked
+              ? "Uploaded in verified parts. Scan status updates live as soon as the antivirus run completes."
+              : "Uploaded. Scan status updates live as soon as the antivirus run completes.",
             error: "",
             result,
           });
@@ -94,6 +139,15 @@ export function useDocumentUpload() {
             return;
           }
           if (error instanceof UploadCancelledError) {
+            if (paused.current) {
+              setState((current) => ({
+                ...current,
+                phase: "paused",
+                message: "Upload paused. Resume continues from the last acknowledged part.",
+                error: "",
+              }));
+              return;
+            }
             setState({
               phase: "cancelled",
               percent: 0,
@@ -122,14 +176,50 @@ export function useDocumentUpload() {
           });
         });
     },
-    [queryClient],
+    [multipartEnabled, queryClient, runMultipart, runSinglePut, threshold],
   );
 
-  const cancel = useCallback(() => {
+  const upload = useCallback(
+    (file: File) => {
+      paused.current = false;
+      start(file);
+    },
+    [start],
+  );
+
+  /** Stops the in-flight request but keeps the uploadId so a resume can continue it. */
+  const pause = useCallback(() => {
+    paused.current = true;
     controller.current?.abort();
+  }, []);
+
+  const resume = useCallback(() => {
+    const file = lastFile.current;
+    if (!file) {
+      return;
+    }
+    paused.current = false;
+    start(file, state.percent);
+  }, [start, state.percent]);
+
+  const cancel = useCallback(() => {
+    paused.current = false;
+    controller.current?.abort();
+    const file = lastFile.current;
+    if (file) {
+      void cancelResumable(file, createMultipartApi()).catch(() => undefined);
+    }
+    setState({
+      phase: "cancelled",
+      percent: 0,
+      fileName: file?.name ?? "",
+      message: "Upload cancelled. Any staged parts were removed.",
+      error: "",
+      result: null,
+    });
   }, []);
 
   const reset = useCallback(() => setState(INITIAL), []);
 
-  return { ...state, upload, cancel, reset };
+  return { ...state, upload, pause, resume, cancel, reset };
 }

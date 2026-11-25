@@ -3,6 +3,8 @@ package com.awap.file.infrastructure;
 import com.awap.file.application.FileObjectStore;
 import com.awap.file.domain.FileStorageException;
 import io.minio.BucketExistsArgs;
+import io.minio.ComposeObjectArgs;
+import io.minio.ComposeSource;
 import io.minio.CopyObjectArgs;
 import io.minio.CopySource;
 import io.minio.GetObjectArgs;
@@ -13,6 +15,7 @@ import io.minio.RemoveObjectArgs;
 import io.minio.SetBucketLifecycleArgs;
 import io.minio.SetBucketVersioningArgs;
 import io.minio.SetObjectLockConfigurationArgs;
+import io.minio.StatObjectArgs;
 import io.minio.http.Method;
 import io.minio.messages.AbortIncompleteMultipartUpload;
 import io.minio.messages.Expiration;
@@ -165,6 +168,39 @@ public class MinioFileObjectStore implements FileObjectStore {
   @Override
   public String presignedPut(String bucket, String objectKey, Duration ttl) {
     return presign(bucket, objectKey, ttl, Method.PUT);
+  }
+
+  @Override
+  public long statSize(String bucket, String objectKey) {
+    try {
+      return minioClient
+          .statObject(StatObjectArgs.builder().bucket(bucket).object(objectKey).build())
+          .size();
+    } catch (Exception ex) {
+      throw new FileStorageException("Could not stat object " + bucket + "/" + objectKey, ex);
+    }
+  }
+
+  @Override
+  public void compose(String bucket, String targetObjectKey, List<String> sourceObjectKeys) {
+    if (sourceObjectKeys.isEmpty()) {
+      throw new FileStorageException("Cannot compose an empty object list");
+    }
+    List<ComposeSource> sources =
+        sourceObjectKeys.stream()
+            .map(key -> ComposeSource.builder().bucket(bucket).object(key).build())
+            .toList();
+    try {
+      minioClient.composeObject(
+          ComposeObjectArgs.builder()
+              .bucket(bucket)
+              .object(targetObjectKey)
+              .sources(sources)
+              .build());
+    } catch (Exception ex) {
+      throw new FileStorageException(
+          "Could not compose " + sourceObjectKeys.size() + " parts into " + targetObjectKey, ex);
+    }
   }
 
   @Override

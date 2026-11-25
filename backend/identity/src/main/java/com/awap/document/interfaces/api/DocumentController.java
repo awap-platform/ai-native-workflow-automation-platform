@@ -4,7 +4,10 @@ import com.awap.common.api.AwapException;
 import com.awap.common.api.ErrorCode;
 import com.awap.document.application.DocumentScanSseService;
 import com.awap.document.application.DocumentService;
+import com.awap.document.application.MultipartUploadService;
 import com.awap.document.domain.DocumentVersion;
+import com.awap.document.interfaces.dto.InitiateMultipartRequest;
+import com.awap.document.interfaces.dto.MultipartUploadResponses;
 import com.awap.file.application.FileScanStatusEvent;
 import com.awap.file.application.FileService;
 import com.awap.file.application.FileService.FileScanInfo;
@@ -31,6 +34,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -49,14 +53,17 @@ public class DocumentController {
   private final DocumentService documentService;
   private final FileService fileService;
   private final DocumentScanSseService scanSseService;
+  private final MultipartUploadService multipartUploadService;
 
   public DocumentController(
       DocumentService documentService,
       FileService fileService,
-      DocumentScanSseService scanSseService) {
+      DocumentScanSseService scanSseService,
+      MultipartUploadService multipartUploadService) {
     this.documentService = documentService;
     this.fileService = fileService;
     this.scanSseService = scanSseService;
+    this.multipartUploadService = multipartUploadService;
   }
 
   @PostMapping
@@ -73,6 +80,79 @@ public class DocumentController {
                 slot.fileId(),
                 slot.uploadUrl(),
                 toResponse(version, fileService.scanInfo(tenantId, slot.fileId()))));
+  }
+
+  /**
+   * Starts a resumable upload (issue #372): the response fixes the part plan, one short-lived
+   * presigned URL per part, and the checksum the client promised. Nothing reaches the scan pipeline
+   * until every part is acknowledged and the assembled bytes hash to that checksum.
+   */
+  @PostMapping("/multipart")
+  @PreAuthorize("hasAuthority('FILE_UPLOAD')")
+  public ResponseEntity<MultipartUploadResponses.Initiated> initiateMultipart(
+      @Valid @RequestBody InitiateMultipartRequest request) {
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(
+            MultipartUploadResponses.Initiated.of(
+                multipartUploadService.initiate(
+                    currentTenantId(),
+                    request.name(),
+                    request.contentType(),
+                    request.size(),
+                    request.sha256())));
+  }
+
+  /** Resume view so a reload knows which parts are already durable. */
+  @GetMapping("/multipart/{uploadId}")
+  @PreAuthorize("hasAuthority('FILE_UPLOAD')")
+  public ResponseEntity<MultipartUploadResponses.Status> multipartStatus(
+      @PathVariable UUID uploadId) {
+    return ResponseEntity.ok(
+        MultipartUploadResponses.Status.of(
+            multipartUploadService.status(currentTenantId(), uploadId)));
+  }
+
+  /** Issues a fresh, single-part presigned URL when the previous one expired. */
+  @PostMapping("/multipart/{uploadId}/parts/{partNumber}/url")
+  @PreAuthorize("hasAuthority('FILE_UPLOAD')")
+  public ResponseEntity<MultipartUploadResponses.PartUrl> multipartPartUrl(
+      @PathVariable UUID uploadId, @PathVariable int partNumber) {
+    return ResponseEntity.ok(
+        MultipartUploadResponses.PartUrl.of(
+            uploadId, multipartUploadService.presignPart(currentTenantId(), uploadId, partNumber)));
+  }
+
+  /** Confirms that the server observed the exact planned byte count for one part. */
+  @PostMapping("/multipart/{uploadId}/parts/{partNumber}")
+  @PreAuthorize("hasAuthority('FILE_UPLOAD')")
+  public ResponseEntity<MultipartUploadResponses.Status> multipartPartAcknowledged(
+      @PathVariable UUID uploadId, @PathVariable int partNumber) {
+    return ResponseEntity.ok(
+        MultipartUploadResponses.Status.of(
+            multipartUploadService.acknowledgePart(currentTenantId(), uploadId, partNumber)));
+  }
+
+  /** Assembles the parts, verifies the SHA-256 and only then queues the file for scanning. */
+  @PostMapping("/multipart/{uploadId}/complete")
+  @PreAuthorize("hasAuthority('FILE_UPLOAD')")
+  public ResponseEntity<MultipartUploadResponses.Completed> multipartComplete(
+      @PathVariable UUID uploadId, @Valid @RequestBody MultipartUploadResponses.Complete request) {
+    UUID tenantId = currentTenantId();
+    MultipartUploadService.CompletedUpload completed =
+        multipartUploadService.complete(tenantId, uploadId, request.sha256());
+    DocumentVersion version = documentService.registerPending(tenantId, completed.fileId());
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(
+            MultipartUploadResponses.Completed.of(
+                completed, version.getId(), version.getVersion()));
+  }
+
+  /** Cancels an upload and deletes its staged parts. Repeating the call is idempotent. */
+  @DeleteMapping("/multipart/{uploadId}")
+  @PreAuthorize("hasAuthority('FILE_UPLOAD')")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void multipartAbort(@PathVariable UUID uploadId) {
+    multipartUploadService.abort(currentTenantId(), uploadId);
   }
 
   @GetMapping

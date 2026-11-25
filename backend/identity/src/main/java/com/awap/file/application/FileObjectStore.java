@@ -3,6 +3,7 @@ package com.awap.file.application;
 import com.awap.file.domain.FileStorageException;
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.List;
 
 /**
  * Port for the object store used by the file module. Quarantine uploads, scan streaming,
@@ -30,4 +31,13 @@ public interface FileObjectStore {
   String presignedPut(String bucket, String objectKey, Duration ttl);
 
   String presignedGet(String bucket, String objectKey, Duration ttl);
+
+  /** Byte length of an object, used to verify that an uploaded part has the planned size. */
+  long statSize(String bucket, String objectKey);
+
+  /**
+   * Concatenates source objects into one target object server-side, so resumable parts never have
+   * to be streamed through the JVM.
+   */
+  void compose(String bucket, String targetObjectKey, List<String> sourceObjectKeys);
 }
