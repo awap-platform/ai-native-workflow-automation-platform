@@ -174,4 +174,56 @@ class CopilotControllerTest {
         .hasMessageContaining("not enabled")
         .satisfies(ex -> assertThat(((AwapException) ex).status().value()).isEqualTo(501));
   }
+
+  @Test
+  void chatStreamRelaysTheUpstreamFramesAndDisablesBuffering() throws Exception {
+    byte[] frames =
+        "data: {\"v\":1,\"type\":\"token\",\"seq\":1,\"delta\":\"hi\"}\n\n"
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    @SuppressWarnings("unchecked")
+    java.net.http.HttpResponse<java.io.InputStream> upstream =
+        mock(java.net.http.HttpResponse.class);
+    when(upstream.body()).thenReturn(new java.io.ByteArrayInputStream(frames));
+    when(client.stream(eq("/api/v1/copilot/chat/stream"), any(), eq("intent-1")))
+        .thenReturn(upstream);
+    JsonNode body = objectMapper.readTree("{\"message\":\"hi\"}");
+
+    ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody>
+        response = controller.chatStream(body, "intent-1");
+
+    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+    response.getBody().writeTo(out);
+
+    assertThat(response.getHeaders().getContentType())
+        .isEqualTo(org.springframework.http.MediaType.TEXT_EVENT_STREAM);
+    assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-cache");
+    assertThat(response.getHeaders().getFirst("X-Accel-Buffering")).isEqualTo("no");
+    assertThat(out.toString(java.nio.charset.StandardCharsets.UTF_8))
+        .contains("\"type\":\"token\"");
+    verify(client).stream(eq("/api/v1/copilot/chat/stream"), any(), eq("intent-1"));
+  }
+
+  @Test
+  void chatStreamEndsQuietlyWhenTheClientDisconnects() throws Exception {
+    java.io.InputStream broken =
+        new java.io.InputStream() {
+          @Override
+          public int read() throws java.io.IOException {
+            throw new java.io.IOException("client went away");
+          }
+        };
+    @SuppressWarnings("unchecked")
+    java.net.http.HttpResponse<java.io.InputStream> upstream =
+        mock(java.net.http.HttpResponse.class);
+    when(upstream.body()).thenReturn(broken);
+    when(client.stream(anyString(), any(), any())).thenReturn(upstream);
+
+    ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody>
+        response = controller.chatStream(objectMapper.readTree("{\"message\":\"hi\"}"), null);
+    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+
+    response.getBody().writeTo(out);
+
+    assertThat(out.size()).isZero();
+  }
 }

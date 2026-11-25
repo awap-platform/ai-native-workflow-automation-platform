@@ -1690,6 +1690,35 @@ export function archiveCopilotSession(sessionId: string): Promise<void> {
   return authDelete<void>(`/api/v1/copilot/sessions/${encodeURIComponent(sessionId)}`);
 }
 
+/**
+ * Opens the streamed Copilot answer (issue #374). The body is a versioned SSE stream; the caller
+ * reads it with {@link readCopilotStream} and falls back to {@link copilotChat} when this throws.
+ */
+export async function openCopilotStream(
+  payload: CopilotChatPayload,
+  signal?: AbortSignal,
+): Promise<ReadableStream<Uint8Array>> {
+  const response = await fetch("/api/v1/copilot/chat/stream", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+      ...(await csrfHeaders()),
+    },
+    body: JSON.stringify(payload),
+    signal: signal ?? null,
+  });
+  if (!response.ok || !response.body) {
+    throw new ApiError(
+      response.status,
+      await readErrorDetail(response, "The Copilot stream could not be started."),
+      correlationHeader(response),
+    );
+  }
+  return response.body;
+}
+
 export interface AdminUserDto {
   id: string;
   email: string;

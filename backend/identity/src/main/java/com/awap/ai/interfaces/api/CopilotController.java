@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 /**
  * Authenticated SPA-facing Copilot proxy. The {@code Idempotency-Key} header is forwarded to the AI
@@ -27,6 +30,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/copilot")
 public class CopilotController {
+
+  private static final Logger log = LoggerFactory.getLogger(CopilotController.class);
 
   private final ObjectProvider<AiCopilotClient> clientProvider;
 
@@ -45,6 +50,41 @@ public class CopilotController {
         client()
             .forward(
                 "/api/v1/copilot/chat", withIdempotencyKey(body, idempotencyKey), idempotencyKey));
+  }
+
+  /**
+   * Relays the versioned SSE answer stream (issue #374). Frames are flushed as they arrive, proxies
+   * are told not to buffer, and a client disconnect closes the upstream body, which cancels the
+   * provider request instead of billing a turn nobody reads.
+   */
+  @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+  public ResponseEntity<StreamingResponseBody> chatStream(
+      @RequestBody JsonNode body,
+      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+    java.net.http.HttpResponse<java.io.InputStream> upstream =
+        client().stream(
+            "/api/v1/copilot/chat/stream",
+            withIdempotencyKey(body, idempotencyKey),
+            idempotencyKey);
+    StreamingResponseBody relay =
+        output -> {
+          try (java.io.InputStream input = upstream.body()) {
+            byte[] buffer = new byte[4096];
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+              output.write(buffer, 0, read);
+              output.flush();
+            }
+          } catch (java.io.IOException ex) {
+            // The browser went away: the try-with-resources close is the cancellation signal.
+            log.debug("Copilot stream closed by the client: {}", ex.getMessage());
+          }
+        };
+    return ResponseEntity.ok()
+        .contentType(MediaType.TEXT_EVENT_STREAM)
+        .header("Cache-Control", "no-cache")
+        .header("X-Accel-Buffering", "no")
+        .body(relay);
   }
 
   @GetMapping(value = "/tasks", produces = MediaType.APPLICATION_JSON_VALUE)

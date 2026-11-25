@@ -113,3 +113,14 @@ node --test "load-test/test/*.test.mjs"
 | `AI_JOB_TTL_SECONDS` | `3600` | Retention window for completed/abandoned jobs. |
 | `AI_RESPONSE_CACHE_TTL_SECONDS` | `30` | Read-only answer cache TTL; `0` disables. |
 | `awap.ai.copilot.timeout-ms` (backend) | `10000` | Hard bound for synchronous Copilot calls. |
+
+## Streamed answers and true time-to-first-token (issue #374)
+
+`POST /api/v1/copilot/chat/stream` emits the answer as versioned SSE frames (`v`, `type`, `seq`).
+The client records `firstTokenMs` when the first `token` frame arrives, not when an animation tick
+fires, so the latency signal now reflects transport plus provider time instead of a fixed reveal
+delay. `seq` is monotonic; an out-of-order frame is ignored rather than reordered, and the final
+`done` frame carries the same payload as the buffered `/chat` response so accounting and audit stay
+identical on both paths. A mid-stream `error` frame ends the turn as incomplete — the client never
+treats partial text as a success — and a client disconnect closes the upstream body, which aborts the
+provider request.

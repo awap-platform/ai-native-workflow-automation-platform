@@ -7,6 +7,7 @@ import {
   appendCopilotTurn,
   copilotApprovalAssistance,
   copilotChat,
+  openCopilotStream,
   createCopilotSession,
   fetchCopilotSession,
   listCopilotSessions,
@@ -35,6 +36,7 @@ import {
   type CopilotSession,
 } from "../copilot";
 import { mergeSessions, toLocalSession } from "../copilotServerSync";
+import { readCopilotStream } from "../copilotStream";
 import { newIdempotencyKey } from "../copilotIdempotency";
 import { queryKeys } from "../queryKeys";
 import { useActiveTenant } from "./useActiveTenant";
@@ -97,6 +99,8 @@ export interface UseCopilotConversationOptions {
   storage?: Pick<Storage, "getItem" | "setItem"> | null;
   revealIntervalMs?: number;
   revealChunkSize?: number;
+  /** Read the answer from the SSE stream; a failure falls back to the buffered call. */
+  streaming?: boolean;
 }
 
 export interface UseCopilotConversationResult {
@@ -163,6 +167,7 @@ export function useCopilotConversation(
   const userId = options.userId ?? null;
   const revealIntervalMs = options.revealIntervalMs ?? 18;
   const revealChunkSize = options.revealChunkSize ?? 48;
+  const streamingEnabled = options.streaming ?? true;
   const storage = useMemo(() => {
     if (options.storage !== undefined) {
       return options.storage;
@@ -399,6 +404,28 @@ export function useCopilotConversation(
     [reveal, updateTurn],
   );
 
+  const completeStreamed = useCallback(
+    (
+      sessionId: string,
+      turnId: string,
+      response: CopilotResponseDto,
+      pending: PendingHitl | null,
+      requestId: string,
+      text: string,
+    ) => {
+      setBudget(response.budget ?? null);
+      setPendingHitl(pending);
+      updateTurn(sessionId, turnId, {
+        text: text || response.answer,
+        status: "complete",
+        response,
+        requestId,
+      });
+      setStatus("idle");
+    },
+    [updateTurn],
+  );
+
   const execute = useCallback(
     async (
       request: CopilotChatPayload,
@@ -410,6 +437,66 @@ export function useCopilotConversation(
       setError(null);
       setFirstTokenMs(null);
       lastRequestRef.current = { request, sessionId, turnId };
+      if (streamingEnabled) {
+        const streamController = new AbortController();
+        abortRef.current = streamController;
+        const started = performance.now();
+        let sawDelta = false;
+        try {
+          const body = await openCopilotStream(request, streamController.signal);
+          updateTurn(sessionId, turnId, { text: "", status: "streaming" });
+          setStatus("streaming");
+          const result = await readCopilotStream(body, {
+            signal: streamController.signal,
+            onFirstDelta: () => {
+              sawDelta = true;
+              // True time-to-first-token: measured when the first provider delta arrived.
+              setFirstTokenMs(Math.max(0, Math.round(performance.now() - started)));
+            },
+            onText: (text) => updateTurn(sessionId, turnId, { text }),
+          });
+          if (streamController.signal.aborted) {
+            updateTurn(sessionId, turnId, { status: "cancelled" });
+            setStatus("idle");
+            return;
+          }
+          if (result.response) {
+            completeStreamed(
+              sessionId,
+              turnId,
+              result.response,
+              hitlFor(result.response, request),
+              requestId,
+              result.text,
+            );
+            return;
+          }
+          if (sawDelta || result.error) {
+            const info = classifyCopilotError(new Error(result.error ?? "stream incomplete"));
+            setError(info);
+            updateTurn(sessionId, turnId, {
+              text: result.text,
+              status: "error",
+              error: result.error ?? "The answer stream ended before it was complete.",
+              requestId,
+            });
+            setStatus("idle");
+            return;
+          }
+          // Nothing usable arrived: fall back to the buffered call below.
+        } catch (failure) {
+          if (streamController.signal.aborted) {
+            updateTurn(sessionId, turnId, { status: "cancelled" });
+            setStatus("idle");
+            return;
+          }
+          // Streaming is an optimisation; the buffered path is the parity fallback.
+        } finally {
+          if (abortRef.current === streamController) {
+            abortRef.current = null;
+          }
+        }
+      }
       // One automatic retry for a timeout. The request key is unchanged, so a replay cannot run the
       // action twice even when the first attempt reached the backend before the timeout.
       for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -462,7 +549,7 @@ export function useCopilotConversation(
         }
       }
     },
-    [finishResponse, updateTurn],
+    [completeStreamed, finishResponse, streamingEnabled, updateTurn],
   );
 
   const ensureSession = useCallback((): string => {
