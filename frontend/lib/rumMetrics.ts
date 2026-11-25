@@ -57,11 +57,17 @@ const NUMBER_PATTERN = /^\d+$/;
  * user-supplied identifiers.
  */
 export function normalizeRoute(pathname: string): string {
-  const withoutQuery =
-    String(pathname ?? "")
-      .split("?")[0]
-      ?.split("#")[0] ?? "";
-  const trimmed = withoutQuery.replace(/\/+$/, "") || "/";
+  const raw = String(pathname ?? "").slice(0, MAX_LABEL_INPUT);
+  const withoutQuery = raw.split("?")[0]?.split("#")[0] ?? "";
+  // A loop instead of a trailing-slash regex: a hostile string of slashes cannot backtrack, and the
+  // input is already capped, so the whole normalisation stays linear.
+  let trimmed = withoutQuery;
+  while (trimmed.endsWith("/")) {
+    trimmed = trimmed.slice(0, -1);
+  }
+  if (trimmed === "") {
+    trimmed = "/";
+  }
   const segments = trimmed.split("/").filter((segment) => segment !== "");
   if (segments.length === 0) {
     return OTHER_ROUTE;
@@ -117,7 +123,8 @@ export function normalizeRelease(value: string | null | undefined): string {
 export function normalizeMetric(value: string | null | undefined): RumMetric | null {
   const candidate = String(value ?? "")
     .trim()
-    .toUpperCase();
+    .toUpperCase()
+    .slice(0, 16);
   if (candidate === RUM_CLS_METRIC) {
     return RUM_CLS_METRIC;
   }
