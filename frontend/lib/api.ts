@@ -1581,6 +1581,115 @@ export function copilotKnowledgeSearch(query: string): Promise<CopilotResponseDt
 
 /* ------------------------------------------------------- phase 8 admin */
 
+export interface CopilotSessionDto {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  archived: boolean;
+}
+
+export interface CopilotTurnDto {
+  id: string;
+  sequence: number;
+  role: "user" | "assistant";
+  content: string;
+  contentHash: string;
+  previousHash: string | null;
+  toolCallsJson: string | null;
+  citationsJson: string | null;
+  budgetJson: string | null;
+  approvalJson: string | null;
+  idempotencyKey: string | null;
+  createdAt: string;
+}
+
+export interface CopilotHitlDto {
+  id: string;
+  sessionId: string;
+  turnId: string | null;
+  state: "PENDING" | "APPROVED" | "REJECTED";
+  summary: string;
+  proposalJson: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+}
+
+export interface CopilotSessionThreadDto extends CopilotSessionDto {
+  expiresAt: string;
+  turns: CopilotTurnDto[];
+  hitl: CopilotHitlDto[];
+}
+
+export interface CopilotSessionPageDto {
+  items: CopilotSessionDto[];
+  page: number;
+  size: number;
+  total: number;
+}
+
+/** Lists the persisted Copilot conversations, newest first (issue #373). */
+export function listCopilotSessions(page = 0, size = 20): Promise<CopilotSessionPageDto> {
+  return authFetch<CopilotSessionPageDto>(`/api/v1/copilot/sessions?page=${page}&size=${size}`);
+}
+
+export function fetchCopilotSession(id: string): Promise<CopilotSessionThreadDto> {
+  return authFetch<CopilotSessionThreadDto>(`/api/v1/copilot/sessions/${encodeURIComponent(id)}`);
+}
+
+export function createCopilotSession(title: string): Promise<CopilotSessionDto> {
+  return authPost<CopilotSessionDto>("/api/v1/copilot/sessions", { title });
+}
+
+export function appendCopilotTurn(
+  sessionId: string,
+  payload: {
+    role: "user" | "assistant";
+    content: string;
+    toolCallsJson?: string | undefined;
+    citationsJson?: string | undefined;
+    budgetJson?: string | undefined;
+    approvalJson?: string | undefined;
+  },
+  idempotencyKey?: string,
+): Promise<CopilotTurnDto> {
+  return authPostWithHeaders<CopilotTurnDto>(
+    `/api/v1/copilot/sessions/${encodeURIComponent(sessionId)}/turns`,
+    payload,
+    idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+  );
+}
+
+export function openCopilotHitl(
+  sessionId: string,
+  payload: { turnId?: string; summary: string; proposalJson?: string },
+): Promise<CopilotHitlDto> {
+  return authPost<CopilotHitlDto>(
+    `/api/v1/copilot/sessions/${encodeURIComponent(sessionId)}/hitl`,
+    payload,
+  );
+}
+
+export function decideCopilotHitl(
+  sessionId: string,
+  hitlId: string,
+  decision: "APPROVED" | "REJECTED",
+): Promise<CopilotHitlDto> {
+  return authPost<CopilotHitlDto>(
+    `/api/v1/copilot/sessions/${encodeURIComponent(sessionId)}/hitl/${encodeURIComponent(hitlId)}/decision`,
+    { decision },
+  );
+}
+
+export function exportCopilotSession(sessionId: string): Promise<unknown> {
+  return authFetch<unknown>(`/api/v1/copilot/sessions/${encodeURIComponent(sessionId)}/export`);
+}
+
+export function archiveCopilotSession(sessionId: string): Promise<void> {
+  return authDelete<void>(`/api/v1/copilot/sessions/${encodeURIComponent(sessionId)}`);
+}
+
 export interface AdminUserDto {
   id: string;
   email: string;
