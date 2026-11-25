@@ -240,4 +240,29 @@ class CopilotSessionControllerWebMvcTest {
 
     verify(service).archive(TENANT, id);
   }
+
+  @Test
+  void listWithoutAuthenticationReturns401() throws Exception {
+    TenantContext.clear();
+
+    mockMvc
+        .perform(
+            get("/api/v1/copilot/sessions")
+                .with(user("manager").authorities(new SimpleGrantedAuthority("INSTANCE_READ"))))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void createWithoutAuthenticationReturns401() throws Exception {
+    TenantContext.clear();
+
+    mockMvc
+        .perform(
+            post("/api/v1/copilot/sessions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"Review\"}")
+                .with(csrf())
+                .with(user("manager").authorities(new SimpleGrantedAuthority("INSTANCE_READ"))))
+        .andExpect(status().isUnauthorized());
+  }
 }

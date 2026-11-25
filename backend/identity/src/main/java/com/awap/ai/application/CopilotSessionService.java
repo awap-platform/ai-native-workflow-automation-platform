@@ -11,14 +11,12 @@ import com.awap.ai.infrastructure.CopilotTurnRepository;
 import com.awap.common.api.AwapException;
 import com.awap.common.api.ErrorCode;
 import com.awap.engine.application.OutboxEventPublisher;
+import com.google.common.hash.Hashing;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -361,15 +359,9 @@ public class CopilotSessionService {
   }
 
   private static String hash(String previousHash, int sequence, String role, String content) {
-    try {
-      MessageDigest digest = MessageDigest.getInstance("SHA-256");
-      String material =
-          (previousHash == null ? "" : previousHash) + "|" + sequence + "|" + role + "|" + content;
-      digest.update(material.getBytes(StandardCharsets.UTF_8));
-      return HexFormat.of().formatHex(digest.digest());
-    } catch (NoSuchAlgorithmException ex) {
-      throw new IllegalStateException("SHA-256 is not available", ex);
-    }
+    String material =
+        (previousHash == null ? "" : previousHash) + "|" + sequence + "|" + role + "|" + content;
+    return Hashing.sha256().hashString(material, StandardCharsets.UTF_8).toString();
   }
 
   private static String truncate(String value, int max) {

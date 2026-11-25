@@ -325,4 +325,24 @@ class CopilotSessionServiceTest {
 
     verify(sessions).findByExpiresAtBefore(any());
   }
+
+  @Test
+  void decideHitlAcceptsARejection() {
+    CopilotHitl record = new CopilotHitl(TENANT, UUID.randomUUID(), null, "Review", "{}");
+    when(hitl.findByIdAndTenantId(record.getId(), TENANT)).thenReturn(Optional.of(record));
+
+    assertThat(service.decideHitl(TENANT, record.getId(), "REJECT", USER).state())
+        .isEqualTo("REJECTED");
+  }
+
+  @Test
+  void theRetentionJobLogsWhenItRemovedSessions() {
+    CopilotSession session =
+        new CopilotSession(TENANT, USER, "Old", Instant.now().minusSeconds(60));
+    when(sessions.findByExpiresAtBefore(any())).thenReturn(List.of(session));
+
+    new CopilotRetentionJob(service).purgeExpiredSessions();
+
+    verify(sessions).deleteByIdIn(List.of(session.getId()));
+  }
 }

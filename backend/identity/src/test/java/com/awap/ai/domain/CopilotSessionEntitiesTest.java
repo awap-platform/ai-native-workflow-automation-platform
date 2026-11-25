@@ -101,4 +101,24 @@ class CopilotSessionEntitiesTest {
     assertThat(CopilotRedaction.redact(null)).isNull();
     assertThat(CopilotRedaction.redact("   ")).isEqualTo("   ");
   }
+
+  @Test
+  void theJpaNoArgConstructorsAreRetained() throws Exception {
+    CopilotSession session = CopilotSession.class.getDeclaredConstructor().newInstance();
+    CopilotTurn turn = CopilotTurn.class.getDeclaredConstructor().newInstance();
+    CopilotHitl record = CopilotHitl.class.getDeclaredConstructor().newInstance();
+
+    assertThat(session.getId()).isNull();
+    assertThat(turn.getId()).isNull();
+    assertThat(record.getId()).isNull();
+  }
+
+  @Test
+  void theHitlAccessorsExposeTheOwnerAndTimestamps() {
+    UUID tenantId = UUID.randomUUID();
+    CopilotHitl record = new CopilotHitl(tenantId, UUID.randomUUID(), null, "Review", "{}");
+
+    assertThat(record.getTenantId()).isEqualTo(tenantId);
+    assertThat(record.getUpdatedAt()).isEqualTo(record.getCreatedAt());
+  }
 }

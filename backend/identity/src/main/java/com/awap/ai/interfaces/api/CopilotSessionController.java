@@ -107,9 +107,8 @@ public class CopilotSessionController {
     service.archive(currentTenantId(), id);
   }
 
-  private UUID currentTenantId() {
+  private TenantContext.Context context() {
     return TenantContext.current()
-        .map(TenantContext.Context::tenantId)
         .orElseThrow(
             () ->
                 new AwapException(
@@ -118,15 +117,12 @@ public class CopilotSessionController {
                     "Authentication is required."));
   }
 
+  private UUID currentTenantId() {
+    return context().tenantId();
+  }
+
   private UUID currentUserId() {
-    return TenantContext.current()
-        .map(TenantContext.Context::userId)
-        .orElseThrow(
-            () ->
-                new AwapException(
-                    ErrorCode.UNAUTHORIZED,
-                    HttpStatus.UNAUTHORIZED,
-                    "Authentication is required."));
+    return context().userId();
   }
 
   /** Request to open a conversation. */
