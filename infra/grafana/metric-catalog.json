@@ -264,6 +264,26 @@
     {
       "name": "up",
       "source": "Prometheus scrape health"
+    },
+    {
+      "name": "awap_rum_vital_milliseconds",
+      "source": "frontend/app/api/rum (histogram of LCP/INP/FCP/TTFB, labels route/metric/release/device)"
+    },
+    {
+      "name": "awap_rum_cls",
+      "source": "frontend/app/api/rum (histogram of cumulative layout shift)"
+    },
+    {
+      "name": "awap_rum_vital_samples_total",
+      "source": "frontend/app/api/rum (accepted beacons counter)"
+    },
+    {
+      "name": "awap_rum_ingest_dropped_total",
+      "source": "frontend/app/api/rum (rejected beacons counter, label reason)"
+    },
+    {
+      "name": "awap_http_requests_total",
+      "source": "frontend reverse proxy / ingress (request counter used by the RUM coverage alert)"
     }
   ]
 }

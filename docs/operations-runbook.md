@@ -1390,3 +1390,30 @@ on-call contract. The full procedure, including the drill, lives in
 [`release-runbook.md`](release-runbook.md#rollback-runbook-rto--30-minutes).
 
 > Status: no live canary or rollback drill has been executed for this change.
+
+## RUM vitals alerts
+
+Trigger: `AwapRumLcpP75Slow`, `AwapRumLcpP75Critical`, `AwapRumInpP75Slow`, `AwapRumClsP75High`,
+`AwapRumSamplesMissing` or `AwapRumIngestDropping` (issue #375).
+
+1. Open the "Real-user LCP p75 by route and release" and "Real-user INP and CLS p75 by route" panels
+   and note the `release` label of the offending series. Compare it with the previous release over the
+   same window; a step change at a release boundary is a release regression, not organic drift.
+2. Confirm the sample count. Every threshold rule already requires more than 50 samples, so a firing
+   alert has a usable population, but a sharp drop in `awap_rum_vital_samples_total` means the
+   population changed rather than the performance.
+3. Run the release gate locally against the two cohort snapshots:
+   `node scripts/release/rum-gate.mjs --stable docs/release/evidence/rum-stable.json --canary <snapshot> --report /tmp/rum-gate.md`.
+4. For an LCP regression check the usual suspects first: an unoptimised hero image, a new
+   render-blocking script, a font swap, or a route that stopped being statically rendered.
+5. For INP, look at long tasks added to the interaction path (a large synchronous filter or a chart
+   re-render) and confirm the route still uses the shared virtualised list.
+6. For CLS, look for late banners, images without dimensions and cookie/consent overlays that mount
+   after the first paint.
+7. `AwapRumSamplesMissing` means the pipeline, not the browser: check the `rum_vitals` flag, the
+   `/api/rum/metrics` scrape target and whether a proxy started stripping `text/plain` responses.
+8. `AwapRumIngestDropping` names the reason in the label: `unknown_metric` means a new vital name
+   needs an allowlist entry, `invalid_value` a client bug, `cardinality` a route that needs adding to
+   the allowlist (or a real cardinality leak worth a postmortem).
+9. Roll back with the normal release procedure when the flag persists for two windows; record the
+   canary-versus-stable numbers in the incident.

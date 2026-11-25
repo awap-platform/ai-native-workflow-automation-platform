@@ -17,6 +17,9 @@
     "Outbox backlog, relay rate and DLQ": "series",
     "AI request latency p50/p95/p99": "series",
     "AI error ratio": "series",
-    "Async Copilot job queue wait p95": "series"
+    "Async Copilot job queue wait p95": "series",
+    "Real-user LCP p75 by route and release": "series",
+    "Real-user INP and CLS p75 by route": "series",
+    "RUM sample coverage and ingest drops": "series"
   }
 }

@@ -1132,6 +1132,15 @@ jobs:
         env:
           RELEASE_TESTS_REQUIRE_COMMITLINT: "1"
         run: node --test "scripts/test/release-*.test.mjs"
+      # Issue #375: real-user vitals are the only signal that can catch a performance regression the
+      # lab budgets miss, so a canary that regresses the p75 beyond the tolerance fails the release.
+      - name: Real-user release gate
+        run: |
+          node --test scripts/test/rum-gate.test.mjs
+          node scripts/release/rum-gate.mjs \
+            --stable docs/release/evidence/rum-stable.json \
+            --canary docs/release/evidence/rum-canary.json \
+            --report docs/release/evidence/rum-gate.md
       - name: Conventional Commit lint for every commit entering main
         if: github.event_name != 'schedule'
         env:

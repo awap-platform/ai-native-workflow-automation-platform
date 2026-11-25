@@ -33,6 +33,14 @@ const BACKEND_COUNTERS = [
   ["awap_dlq_messages_total", { topic: "awap.dlq" }, 0.01],
   ["http_server_requests_seconds_count", { status: "200", uri: "/api" }, 5],
   ["http_server_requests_seconds_count", { status: "500", uri: "/api" }, 0.1],
+  // Panel "RUM sample coverage and ingest drops" and the AwapRumSamplesMissing alert (issue #375).
+  [
+    "awap_rum_vital_samples_total",
+    { metric: "LCP", route: "/dashboard", release: "v1.8.0", device: "desktop" },
+    1,
+  ],
+  ["awap_rum_ingest_dropped_total", { reason: "unknown_metric" }, 0],
+  ["awap_http_requests_total", { job: "frontend" }, 100],
 ];
 
 const BACKEND_GAUGES = [
@@ -55,6 +63,23 @@ const BACKEND_HISTOGRAMS = [
   ["awap_ai_request_duration_seconds", { outcome: "ERROR" }, [0.05, 0.1, 0.5, 1, 5]],
   // Panel "Async Copilot job queue wait p95".
   ["awap_ai_job_queue_wait_seconds", {}, [0.05, 0.5, 1, 5]],
+  // Panels "Real-user LCP p75 by route and release" and "Real-user INP and CLS p75 by route"
+  // (issue #375). The labels mirror the allowlist the ingest route enforces.
+  [
+    "awap_rum_vital_milliseconds",
+    { metric: "LCP", route: "/dashboard", release: "v1.8.0", device: "desktop" },
+    [1000, 2500, 4000, 8000],
+  ],
+  [
+    "awap_rum_vital_milliseconds",
+    { metric: "INP", route: "/dashboard", release: "v1.8.0", device: "desktop" },
+    [100, 250, 500, 1000],
+  ],
+  [
+    "awap_rum_cls",
+    { route: "/dashboard", release: "v1.8.0", device: "desktop" },
+    [0.05, 0.1, 0.25, 0.5],
+  ],
 ];
 
 // Series used by `infra/prometheus/cdc-alert-rules.yml`.

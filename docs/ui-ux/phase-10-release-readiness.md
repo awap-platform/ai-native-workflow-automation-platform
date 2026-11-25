@@ -260,3 +260,19 @@ make coverage-baseline
 - The JavaScript-disabled and older-browser notices are informational; the
   application is a client-rendered React app and cannot provide a full
   server-only fallback journey.
+
+## Real-user performance evidence (issue #375)
+
+The performance evidence in this phase is no longer lab-only. Web Vitals measured in the browser are
+turned into a bounded Prometheus histogram by the ingest route and surfaced by:
+
+- the three RUM panels in [`awap.json`](../../infra/grafana/provisioning/dashboards/awap.json)
+  (LCP p75 by route and release, INP and CLS p75 by route, sample coverage and ingest drops);
+- the sample-guarded rules in
+  [`rum-alert-rules.yml`](../../infra/prometheus/rum-alert-rules.yml);
+- the canary-versus-stable gate in
+  [`rum-gate.mjs`](../../scripts/release/rum-gate.mjs), whose latest run is recorded in
+  [`rum-gate.md`](../release/evidence/rum-gate.md) next to the two cohort snapshots.
+
+The gate runs in the Release Checks job, so a release that regresses a real-user p75 by more than 10%
+cannot be promoted even when every lab budget is green.

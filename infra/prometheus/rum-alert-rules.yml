@@ -1,0 +1,90 @@
+# Real-user performance alerts (issue #375).
+#
+# Every rule is sample-guarded: a route with fewer than 50 samples in the window stays quiet, so a
+# single slow session cannot page anyone. Thresholds follow the Google web-vitals guidance:
+# LCP good <= 2.5 s / poor > 4 s, INP good <= 200 ms, CLS good <= 0.1.
+groups:
+  - name: awap-rum
+    rules:
+      - alert: AwapRumLcpP75Slow
+        expr: >-
+          histogram_quantile(
+            0.75,
+            sum by (le, route, release) (rate(awap_rum_vital_milliseconds_bucket{metric="LCP"}[30m]))
+          ) / 1000 > 2.5 and
+          sum by (route, release) (increase(awap_rum_vital_samples_total{metric="LCP"}[30m])) > 50
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Real-user LCP p75 is above 2.5 s on {{ $labels.route }}"
+          description: "The p75 LCP for {{ $labels.route }} at release {{ $labels.release }} is {{ $value | humanize }}s over the last 30 minutes with more than 50 samples. Check the dashboard panel 'Real-user LCP p75 by route and release'."
+          runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#rum-vitals-alerts"
+
+      - alert: AwapRumLcpP75Critical
+        expr: >-
+          histogram_quantile(
+            0.75,
+            sum by (le, route, release) (rate(awap_rum_vital_milliseconds_bucket{metric="LCP"}[30m]))
+          ) / 1000 > 4 and
+          sum by (route, release) (increase(awap_rum_vital_samples_total{metric="LCP"}[30m])) > 50
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Real-user LCP p75 is in the poor band on {{ $labels.route }}"
+          description: "The p75 LCP for {{ $labels.route }} at release {{ $labels.release }} exceeds 4 s over the last 30 minutes, which is the poor band. Compare the release against the previous one before promoting it."
+          runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#rum-vitals-alerts"
+
+      - alert: AwapRumInpP75Slow
+        expr: >-
+          histogram_quantile(
+            0.75,
+            sum by (le, route, release) (rate(awap_rum_vital_milliseconds_bucket{metric="INP"}[30m]))
+          ) > 200 and
+          sum by (route, release) (increase(awap_rum_vital_samples_total{metric="INP"}[30m])) > 50
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Real-user INP p75 is above 200 ms on {{ $labels.route }}"
+          description: "Interaction to Next Paint for {{ $labels.route }} at release {{ $labels.release }} spends the 30 minute window above the good threshold with a usable sample size."
+          runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#rum-vitals-alerts"
+
+      - alert: AwapRumClsP75High
+        expr: >-
+          histogram_quantile(
+            0.75,
+            sum by (le, route, release) (rate(awap_rum_cls_bucket[30m]))
+          ) > 0.1 and
+          sum by (route, release) (increase(awap_rum_vital_samples_total{metric="CLS"}[30m])) > 50
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Real-user CLS p75 is above 0.1 on {{ $labels.route }}"
+          description: "Cumulative layout shift for {{ $labels.route }} at release {{ $labels.release }} is above the good threshold; check for late-loading banners, fonts or images."
+          runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#rum-vitals-alerts"
+
+      - alert: AwapRumSamplesMissing
+        expr: >-
+          sum(rate(awap_rum_vital_samples_total[30m])) == 0
+          and on() sum(rate(awap_http_requests_total[30m])) > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No real-user vitals are arriving while traffic continues"
+          description: "The ingest route is up but no samples reached Prometheus for 30 minutes. Check the rum_vitals flag, an ad-blocker driven coverage drop, and the scrape target /api/rum/metrics."
+          runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#rum-vitals-alerts"
+
+      - alert: AwapRumIngestDropping
+        expr: >-
+          sum(rate(awap_rum_ingest_dropped_total[15m])) > 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The RUM ingest route is dropping beacons"
+          description: "Beacons are being rejected ({{ $labels.reason }}). The usual causes are an unknown metric name, a non-semantic release label or the cardinality cap."
+          runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#rum-vitals-alerts"

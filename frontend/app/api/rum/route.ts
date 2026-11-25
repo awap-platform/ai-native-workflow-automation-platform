@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveFeatureFlags } from "../../../lib/featureFlags";
 import { isRumVitalEvent } from "../../../lib/monitoring";
+import { recordRumVital } from "../../../lib/rumMetrics";
 
 /**
  * Real-user Web Vitals ingest (UI/UX phase 10).
@@ -32,6 +33,13 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   console.info("rum-vital", JSON.stringify(payload));
+
+  // Issue #375: the beacon also feeds a bounded Prometheus histogram, which is what the dashboard,
+  // the alert rules and the release gate read. A dropped sample is counted, never thrown.
+  const recorded = recordRumVital(payload, request.headers.get("user-agent"));
+  if (!recorded.recorded) {
+    console.info("rum-vital-dropped", JSON.stringify({ reason: recorded.reason }));
+  }
 
   const collector = process.env.RUM_COLLECTOR_URL;
   if (collector) {
