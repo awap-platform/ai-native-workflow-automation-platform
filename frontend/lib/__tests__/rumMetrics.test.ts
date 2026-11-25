@@ -50,6 +50,15 @@ describe("normalizeRoute", () => {
     expect(normalizeRoute("/admin/deadbeefcafe")).toBe("/admin");
   });
 
+  it("stays linear on a hostile path with thousands of slashes", () => {
+    const hostile = `/${"/".repeat(20_000)}dashboard`;
+    const started = Date.now();
+
+    // Repeated separators collapse to the same allowlisted route, and the call stays linear.
+    expect(normalizeRoute(hostile)).toBe("/dashboard");
+    expect(Date.now() - started).toBeLessThan(500);
+  });
+
   it("buckets an unknown route as other instead of creating a series", () => {
     expect(normalizeRoute("/some/private/tenant/acme")).toBe("other");
     expect(normalizeRoute("/")).toBe("other");

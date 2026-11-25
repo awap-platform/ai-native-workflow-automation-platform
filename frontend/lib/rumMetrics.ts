@@ -37,6 +37,12 @@ export type RumDeviceClass = (typeof RUM_DEVICE_CLASSES)[number];
 /** Hard cap on distinct series; beyond it new series are dropped and counted. */
 export const MAX_RUM_SERIES = 400;
 
+/**
+ * Hard cap on any label input. Besides keeping labels small, this is what makes the normalisation
+ * linear: no regular expression ever sees an unbounded user string.
+ */
+export const MAX_LABEL_INPUT = 512;
+
 const UNKNOWN_RELEASE = "unknown";
 const OTHER_ROUTE = "other";
 
@@ -79,7 +85,9 @@ export function normalizeRoute(pathname: string): string {
 
 /** Four-value device class derived from the user agent; anything unrecognised is `other`. */
 export function normalizeDeviceClass(userAgent: string | null | undefined): RumDeviceClass {
-  const value = String(userAgent ?? "").toLowerCase();
+  const value = String(userAgent ?? "")
+    .toLowerCase()
+    .slice(0, MAX_LABEL_INPUT);
   if (!value) {
     return "other";
   }
@@ -97,8 +105,12 @@ export function normalizeDeviceClass(userAgent: string | null | undefined): RumD
 
 /** Keeps a semantic version verbatim; anything else collapses to `unknown` (and is alerted on). */
 export function normalizeRelease(value: string | null | undefined): string {
-  const candidate = String(value ?? "").trim();
-  return /^v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(candidate) ? candidate : UNKNOWN_RELEASE;
+  const candidate = String(value ?? "")
+    .trim()
+    .slice(0, 64);
+  return /^v?\d{1,6}\.\d{1,6}\.\d{1,6}(?:[-+][0-9A-Za-z.-]{1,40})?$/.test(candidate)
+    ? candidate
+    : UNKNOWN_RELEASE;
 }
 
 /** Only allowlisted metric names become series; an unknown name is dropped and counted. */
