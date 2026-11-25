@@ -125,3 +125,28 @@ thread now lives on the server and the browser cache is only a draft buffer.
 Limitations: content is redacted, not encrypted with a per-tenant key; encryption at rest is the
 database's responsibility in this deployment, and the retention window is global rather than per
 tenant.
+
+## Provider streaming (issue #374)
+
+The Copilot used to reveal an already-complete answer with an interval loop, so `firstTokenMs` measured
+an animation tick and cancellation could not stop generation. The answer is now streamed.
+
+- **Contract:** `POST /api/v1/copilot/chat/stream` returns `text/event-stream` frames that are single
+  `data:` JSON objects with `v` (schema version, currently `1`), `type`, `seq` and a payload. Types are
+  `token` (`delta`), `tool` (`call`), `citation` (`citation`), `usage` (`model`, `budget`), `done`
+  (`response`) and `error` (`message`). A client that only understands buffered JSON can ignore every
+  frame except `done`, whose payload is identical to `POST /chat`, so streamed and buffered answers
+  keep parity and the audit trail is the same.
+- **Proxy:** the backend relays the upstream body with `StreamingResponseBody`, flushes each frame and
+  sends `Cache-Control: no-cache` plus `X-Accel-Buffering: no` so no proxy buffers the stream. A client
+  disconnect closes the upstream stream, which aborts the provider request instead of billing an unread
+  answer.
+- **Client:** `readCopilotStream` parses frames incrementally, drops a malformed frame instead of
+  failing the answer, ignores an out-of-order `seq`, and calls `onFirstDelta` exactly once — that is
+  where the real time-to-first-token is recorded. Deltas are rendered as text nodes, never HTML.
+- **Fallback:** if the stream cannot be opened (older AI layer, disabled feature, proxy rewriting), the
+  hook falls back to the buffered `/chat` call, so the screen keeps working with identical output.
+
+Limitations: the local heuristic provider has no token API, so its deltas are deterministic
+fragments of the finished answer; the frame contract, ordering, cancellation and TTFT measurement are
+the same either way, and a provider that streams natively only has to emit the same frames.

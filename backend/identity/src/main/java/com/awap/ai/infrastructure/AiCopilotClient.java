@@ -62,6 +62,71 @@ public class AiCopilotClient {
         grpcTransport.getIfAvailable());
   }
 
+  /**
+   * Opens the upstream streamed answer (issue #374). The caller owns the body and must close it; a
+   * client disconnect closes it through try-with-resources, which is what cancels generation.
+   */
+  public HttpResponse<java.io.InputStream> stream(
+      String path, JsonNode body, String idempotencyKey) {
+    TenantContext.Context context =
+        TenantContext.current()
+            .orElseThrow(
+                () ->
+                    new AwapException(
+                        ErrorCode.UNAUTHORIZED,
+                        HttpStatus.UNAUTHORIZED,
+                        "Authentication is required."));
+    Role role = parseRole(context.role());
+    String permissions =
+        role.permissions().stream().map(Enum::name).sorted().collect(Collectors.joining(","));
+    try {
+      HttpRequest.Builder builder =
+          HttpRequest.newBuilder(URI.create(baseUrl + path))
+              .timeout(timeout)
+              .header("Content-Type", "application/json")
+              .header("Accept", "text/event-stream")
+              .header("X-Tenant-Id", context.tenantId().toString())
+              .header("X-User-Id", context.userId().toString())
+              .header("X-User-Role", role.name())
+              .header("X-User-Permissions", permissions)
+              .header("X-Ai-Service-Token", serviceToken)
+              .header(CorrelationId.HEADER, CorrelationId.currentOrDefault());
+      if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+        builder.header("Idempotency-Key", idempotencyKey);
+      }
+      builder.POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)));
+      HttpResponse<java.io.InputStream> response =
+          httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofInputStream());
+      if (response.statusCode() / 100 != 2) {
+        try (java.io.InputStream ignored = response.body()) {
+          meterRegistry
+              .counter(
+                  "awap.ai.copilot.stream.failure",
+                  "status",
+                  Integer.toString(response.statusCode()))
+              .increment();
+        }
+        throw new AwapException(
+            ErrorCode.GENERIC_INTERNAL_ERROR,
+            HttpStatus.BAD_GATEWAY,
+            "The Copilot stream could not be opened.");
+      }
+      meterRegistry.counter("awap.ai.copilot.stream.opened").increment();
+      return response;
+    } catch (IOException ex) {
+      throw new AwapException(
+          ErrorCode.GENERIC_INTERNAL_ERROR,
+          HttpStatus.GATEWAY_TIMEOUT,
+          "The Copilot stream did not start in time.");
+    } catch (InterruptedException ex) {
+      Thread.currentThread().interrupt();
+      throw new AwapException(
+          ErrorCode.GENERIC_INTERNAL_ERROR,
+          HttpStatus.BAD_GATEWAY,
+          "The Copilot stream was interrupted.");
+    }
+  }
+
   public AiCopilotClient(
       HttpClient httpClient,
       ObjectMapper objectMapper,

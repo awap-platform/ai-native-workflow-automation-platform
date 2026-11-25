@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import StreamingResponse
 
 from app.copilot.agent import CopilotAgent
 from app.copilot.jobs import JobQueueFull, JobStatus, JobStore, job_response
@@ -24,6 +26,7 @@ from app.copilot.models import (
 )
 from app.copilot.prompts import PROMPT_VERSION, describe_prompts, prompt_hash
 from app.copilot.runner import JobRunner
+from app.copilot.streaming import stream_events
 
 router = APIRouter(prefix="/copilot", tags=["copilot"])
 
@@ -118,6 +121,31 @@ async def chat(
     security: SecurityContext = Depends(security_context),
 ) -> CopilotResponse:
     return await _run(agent, body, security)
+
+
+@router.post("/chat/stream")
+async def chat_stream(
+    body: CopilotRequest,
+    agent: CopilotAgent = Depends(get_agent),
+    security: SecurityContext = Depends(security_context),
+) -> StreamingResponse:
+    """Streams one answer as versioned SSE frames (issue #374).
+
+    The frames carry text deltas, tool calls, citations, usage and a final `done` payload that is
+    identical to the buffered `/chat` response, so the audit trail is the same on both paths. The
+    `X-Accel-Buffering` header stops proxies from buffering the frames and destroying the effect.
+    """
+    response = await _run(agent, body, security)
+    payload = jsonable_encoder(response)
+    return StreamingResponse(
+        stream_events(payload),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.post("/workflows/discover", response_model=CopilotResponse)
