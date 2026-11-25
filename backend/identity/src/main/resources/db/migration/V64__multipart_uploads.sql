@@ -9,7 +9,7 @@ CREATE TABLE multipart_uploads (
     name VARCHAR(255) NOT NULL,
     content_type VARCHAR(255),
     size BIGINT NOT NULL,
-    expected_sha256 CHAR(64) NOT NULL,
+    expected_sha256 VARCHAR(64) NOT NULL,
     part_size BIGINT NOT NULL,
     part_count INTEGER NOT NULL,
     staging_prefix VARCHAR(512) NOT NULL,
