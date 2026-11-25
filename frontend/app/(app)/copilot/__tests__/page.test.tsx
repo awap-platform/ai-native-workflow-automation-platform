@@ -1,10 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import type { CopilotResponseDto } from "../../../../lib/api";
-import type {
-  PendingHitl,
-  UseCopilotConversationResult,
-} from "../../../../lib/hooks/useCopilot";
+import type { PendingHitl, UseCopilotConversationResult } from "../../../../lib/hooks/useCopilot";
 import type { CopilotSession } from "../../../../lib/copilot";
 import CopilotPage from "../page";
 
@@ -91,7 +88,10 @@ function response(overrides: Partial<CopilotResponseDto> = {}): CopilotResponseD
   };
 }
 
-function sessionWith(turnResponse?: CopilotResponseDto, status: "complete" | "streaming" = "complete"): CopilotSession {
+function sessionWith(
+  turnResponse?: CopilotResponseDto,
+  status: "complete" | "streaming" = "complete",
+): CopilotSession {
   const turns = turnResponse
     ? [
         {
@@ -116,7 +116,9 @@ function sessionWith(turnResponse?: CopilotResponseDto, status: "complete" | "st
   return { id: "s1", title: "Leave policy", createdAt: 1, updatedAt: 2, turns };
 }
 
-function state(overrides: Partial<UseCopilotConversationResult> = {}): UseCopilotConversationResult {
+function state(
+  overrides: Partial<UseCopilotConversationResult> = {},
+): UseCopilotConversationResult {
   const session = sessionWith(response());
   return {
     sessions: [session],
@@ -127,6 +129,7 @@ function state(overrides: Partial<UseCopilotConversationResult> = {}): UseCopilo
     error: null,
     budget: response().budget ?? null,
     pendingHitl: null,
+    sync: "synced",
     send,
     cancel,
     retry,
@@ -241,9 +244,7 @@ describe("CopilotPage", () => {
     });
     render(<CopilotPage />);
 
-    expect(screen.getByTestId("copilot-missing-citations")).toHaveTextContent(
-      "no source citation",
-    );
+    expect(screen.getByTestId("copilot-missing-citations")).toHaveTextContent("no source citation");
   });
 
   it("shows low-confidence and guardrail warnings", () => {

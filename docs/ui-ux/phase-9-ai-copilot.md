@@ -96,3 +96,32 @@ explicitly says the deployment did not report one.
   [`copilot-live-provider.spec.ts`](../../frontend/e2e/copilot-live-provider.spec.ts) runs nightly
   against a configured provider via [`.github/workflows/copilot-nightly.yml`](../../.github/workflows/copilot-nightly.yml).
   See [`copilot-full-journey.md`](copilot-full-journey.md).
+
+## Server-persisted conversations (issue #373)
+
+The Copilot screen used to keep its threads in React state seeded from `localStorage`, so a reload,
+a second device or a crashed tab erased the history and could strand a pending HITL approval. The
+thread now lives on the server and the browser cache is only a draft buffer.
+
+| Concern | Decision |
+| --- | --- |
+| Storage | `copilot_sessions`, `copilot_turns`, `copilot_hitl` with a tenant foreign key and RLS |
+| Turns | Append-only, `sequence` unique per session, `content_hash` chained to `previous_hash` |
+| Honesty | `Idempotency-Key` per turn makes a retried send return the stored turn, not a duplicate |
+| HITL | Persisted with `PENDING`; the decision is recorded once and a replay answers 409 |
+| Secrets | `CopilotRedaction` masks bearer tokens, API keys, AWS ids and `password:`/`secret:` pairs before write |
+| Retention | Sessions expire after 30 days; `CopilotRetentionJob` deletes them (row, turns, approvals) once |
+| Export | `GET /sessions/{id}/export` returns every turn and publishes `COPILOT_SESSION_EXPORTED` |
+| Hydration | The client lists sessions, hydrates the five newest threads and merges by turn id |
+
+- Offline starts are supported: when the list call fails, the screen keeps the cached threads and
+  shows the existing offline banner instead of a blank page. A queued turn is pushed as soon as the
+  next successful load records the session on the server.
+- A deleted or foreign session answers 404 and the UI shows the cached copy read-only; a corrupt
+  stored turn is skipped with a warning so the rest of the thread still loads.
+- Counters: `awap.copilot.session.created`, `awap.copilot.turn.appended`,
+  `awap.copilot.hitl.decided`, `awap.copilot.session.purged`.
+
+Limitations: content is redacted, not encrypted with a per-tenant key; encryption at rest is the
+database's responsibility in this deployment, and the retention window is global rather than per
+tenant.

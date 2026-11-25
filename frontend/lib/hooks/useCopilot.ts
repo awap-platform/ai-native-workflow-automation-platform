@@ -4,8 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 
 import {
+  appendCopilotTurn,
   copilotApprovalAssistance,
   copilotChat,
+  createCopilotSession,
+  fetchCopilotSession,
+  listCopilotSessions,
   copilotKnowledgeSearch,
   copilotTaskDecision,
   type CopilotApprovalPayload,
@@ -30,6 +34,7 @@ import {
   type CopilotRequestSnapshot,
   type CopilotSession,
 } from "../copilot";
+import { mergeSessions, toLocalSession } from "../copilotServerSync";
 import { newIdempotencyKey } from "../copilotIdempotency";
 import { queryKeys } from "../queryKeys";
 import { useActiveTenant } from "./useActiveTenant";
@@ -103,6 +108,8 @@ export interface UseCopilotConversationResult {
   error: CopilotErrorInfo | null;
   budget: CopilotBudgetDto | null;
   pendingHitl: PendingHitl | null;
+  /** Whether the server copy of the history was reachable when the screen opened. */
+  sync: "idle" | "synced" | "offline";
   send: (message: string) => Promise<void>;
   cancel: () => void;
   retry: () => Promise<void>;
@@ -177,6 +184,10 @@ export function useCopilotConversation(
   const [error, setError] = useState<CopilotErrorInfo | null>(null);
   const [budget, setBudget] = useState<CopilotBudgetDto | null>(null);
   const [pendingHitl, setPendingHitl] = useState<PendingHitl | null>(null);
+  const [sync, setSync] = useState<"idle" | "synced" | "offline">("idle");
+  // Maps a local session id to its server id, and remembers which turns already reached the server.
+  const serverSessionIds = useRef<Map<string, string>>(new Map());
+  const persistedTurns = useRef<Set<string>>(new Set());
 
   const abortRef = useRef<AbortController | null>(null);
   const timersRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
@@ -196,6 +207,91 @@ export function useCopilotConversation(
     writeSessions(storage, key, sessions);
   }, [key, sessions, storage]);
 
+  const persistTurn = useCallback(
+    async (session: CopilotSession, turn: CopilotSession["turns"][number]) => {
+      let serverId = serverSessionIds.current.get(session.id);
+      if (!serverId) {
+        const created = await createCopilotSession(session.title);
+        serverId = created.id;
+        serverSessionIds.current.set(session.id, serverId);
+        serverSessionIds.current.set(created.id, created.id);
+      }
+      await appendCopilotTurn(
+        serverId,
+        {
+          role: turn.role,
+          content: turn.text,
+          approvalJson: turn.response
+            ? JSON.stringify({
+                action: turn.response.action,
+                requiresHumanApproval: turn.response.requires_human_approval,
+              })
+            : undefined,
+        },
+        turn.requestId,
+      );
+    },
+    [],
+  );
+
+  // Hydration: the server is the source of truth, the local cache only fills gaps.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (!tenantId) {
+        if (!cancelled) {
+          setSync("offline");
+        }
+        return;
+      }
+      try {
+        const page = await listCopilotSessions(0, 20);
+        const threads = await Promise.all(
+          page.items.slice(0, 5).map((item) =>
+            fetchCopilotSession(item.id)
+              .then(toLocalSession)
+              .catch(() => null),
+          ),
+        );
+        const remote = threads.filter((thread): thread is CopilotSession => thread !== null);
+        if (cancelled) {
+          return;
+        }
+        for (const session of remote) {
+          serverSessionIds.current.set(session.id, session.id);
+        }
+        if (remote.length > 0) {
+          setSessions((previous) => mergeSessions(previous, remote));
+        }
+        setSync("synced");
+      } catch {
+        // Offline or an older backend: keep the cached threads and say so once.
+        if (!cancelled) {
+          setSync("offline");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId]);
+
+  // Persistence: every completed turn is pushed once, keyed by its request id.
+  useEffect(() => {
+    if (!tenantId) {
+      return;
+    }
+    const pending = sessions.flatMap((session) =>
+      session.turns
+        .filter((turn) => turn.status === "complete" && !persistedTurns.current.has(turn.id))
+        .map((turn) => ({ session, turn })),
+    );
+    for (const entry of pending) {
+      persistedTurns.current.add(entry.turn.id);
+      void persistTurn(entry.session, entry.turn).catch(() => undefined);
+    }
+  }, [persistTurn, sessions, tenantId]);
+
   useEffect(() => {
     // Copy the ref value for the cleanup; the map identity is stable for the hook lifetime.
     const timers = timersRef.current;
@@ -208,11 +304,14 @@ export function useCopilotConversation(
     };
   }, []);
 
-  const updateSession = useCallback((sessionId: string, update: (session: CopilotSession) => CopilotSession) => {
-    setSessions((previous) =>
-      previous.map((session) => (session.id === sessionId ? update(session) : session)),
-    );
-  }, []);
+  const updateSession = useCallback(
+    (sessionId: string, update: (session: CopilotSession) => CopilotSession) => {
+      setSessions((previous) =>
+        previous.map((session) => (session.id === sessionId ? update(session) : session)),
+      );
+    },
+    [],
+  );
 
   const updateTurn = useCallback(
     (sessionId: string, turnId: string, update: Parameters<typeof replaceTurn>[2]) => {
@@ -419,12 +518,7 @@ export function useCopilotConversation(
       "streaming",
     );
     updateSession(last.sessionId, (session) => appendTurn(session, assistantTurn));
-    await execute(
-      last.request,
-      last.sessionId,
-      assistantTurn.id,
-      assistantTurn.requestId,
-    );
+    await execute(last.request, last.sessionId, assistantTurn.id, assistantTurn.requestId);
   }, [execute, updateSession]);
 
   const newSession = useCallback(() => {
@@ -622,6 +716,7 @@ export function useCopilotConversation(
     error,
     budget,
     pendingHitl,
+    sync,
     send,
     cancel,
     retry,

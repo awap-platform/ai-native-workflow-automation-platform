@@ -3224,6 +3224,278 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
 
+  /api/v1/copilot/sessions:
+    post:
+      operationId: createCopilotSession
+      summary: Open a persisted Copilot conversation
+      description: >-
+        Creates the server-side thread that survives a reload or a device switch. Sessions expire
+        after the retention window, and every lookup is tenant-scoped.
+      tags: [Copilot]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                  maxLength: 255
+      responses:
+        "201":
+          description: Session created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotSession"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    get:
+      operationId: listCopilotSessions
+      summary: List persisted Copilot conversations
+      description: Newest first, paginated so the sidebar never loads an unbounded history.
+      tags: [Copilot]
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: One page of sessions.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CopilotSession"
+                  page:
+                    type: integer
+                  size:
+                    type: integer
+                  total:
+                    type: integer
+                    format: int64
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/copilot/sessions/{id}:
+    get:
+      operationId: getCopilotSession
+      summary: Hydrate one conversation
+      description: >-
+        Returns the ordered turns, their hash chain and every persisted HITL approval, which is what
+        a reload uses to restore the thread and a pending approval panel.
+      tags: [Copilot]
+      parameters:
+        - $ref: "#/components/parameters/CopilotSessionId"
+      responses:
+        "200":
+          description: The thread.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotSessionThread"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: archiveCopilotSession
+      summary: Archive a conversation
+      description: Soft delete; the thread stays exportable for compliance but leaves the sidebar.
+      tags: [Copilot]
+      parameters:
+        - $ref: "#/components/parameters/CopilotSessionId"
+      responses:
+        "204":
+          description: Session archived.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/copilot/sessions/{id}/turns:
+    post:
+      operationId: appendCopilotTurn
+      summary: Append a turn
+      description: >-
+        Stores one turn with its tool calls, citations, budget usage and approval state. The content
+        is redacted before it is written, the hash chains to the previous turn, and a repeated
+        Idempotency-Key returns the stored turn instead of writing a duplicate.
+      tags: [Copilot]
+      parameters:
+        - $ref: "#/components/parameters/CopilotSessionId"
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role, content]
+              properties:
+                role:
+                  type: string
+                  enum: [user, assistant]
+                content:
+                  type: string
+                  maxLength: 32000
+                toolCallsJson:
+                  type: string
+                citationsJson:
+                  type: string
+                budgetJson:
+                  type: string
+                approvalJson:
+                  type: string
+      responses:
+        "201":
+          description: Turn stored.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotTurn"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          description: The turn exceeds the size limit or the conversation reached its turn cap.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /api/v1/copilot/sessions/{id}/hitl:
+    post:
+      operationId: openCopilotHitl
+      summary: Persist a pending approval
+      description: >-
+        Stores the approval that is waiting for a reviewer, so a crash or reload can recover the
+        panel instead of stalling the work.
+      tags: [Copilot]
+      parameters:
+        - $ref: "#/components/parameters/CopilotSessionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [summary]
+              properties:
+                turnId:
+                  type: string
+                  format: uuid
+                summary:
+                  type: string
+                proposalJson:
+                  type: string
+      responses:
+        "201":
+          description: Pending approval.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotHitl"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/copilot/sessions/{id}/hitl/{hitlId}/decision:
+    post:
+      operationId: decideCopilotHitl
+      summary: Record an approval decision
+      description: >-
+        Records the decision exactly once. A replay answers 409, so an approval cannot run twice.
+      tags: [Copilot]
+      parameters:
+        - $ref: "#/components/parameters/CopilotSessionId"
+        - name: hitlId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [APPROVED, REJECTED]
+      responses:
+        "200":
+          description: Decided approval.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotHitl"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/copilot/sessions/{id}/export:
+    get:
+      operationId: exportCopilotSession
+      summary: Export a conversation for compliance
+      description: >-
+        Returns every turn and approval of the thread and publishes a COPILOT_SESSION_EXPORTED
+        outbox event, so an export is always auditable.
+      tags: [Copilot]
+      parameters:
+        - $ref: "#/components/parameters/CopilotSessionId"
+      responses:
+        "200":
+          description: Export payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotSessionExport"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/v1/copilot/chat:
     post:
       operationId: copilotChat
@@ -4580,6 +4852,14 @@ components:
       schema:
         type: string
         format: uuid
+    CopilotSessionId:
+      name: id
+      in: path
+      required: true
+      description: Copilot session UUID.
+      schema:
+        type: string
+        format: uuid
     UsageFrom:
       name: from
       in: query
@@ -4671,6 +4951,145 @@ components:
             $ref: "#/components/schemas/ProblemDetails"
 
   schemas:
+    CopilotSession:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        archived:
+          type: boolean
+
+    CopilotTurn:
+      type: object
+      description: One immutable turn; contentHash chains to previousHash.
+      properties:
+        id:
+          type: string
+          format: uuid
+        sequence:
+          type: integer
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        contentHash:
+          type: string
+        previousHash:
+          type: string
+          nullable: true
+        toolCallsJson:
+          type: string
+          nullable: true
+        citationsJson:
+          type: string
+          nullable: true
+        budgetJson:
+          type: string
+          nullable: true
+        approvalJson:
+          type: string
+          nullable: true
+        idempotencyKey:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    CopilotHitl:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        sessionId:
+          type: string
+          format: uuid
+        turnId:
+          type: string
+          format: uuid
+          nullable: true
+        state:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED]
+        summary:
+          type: string
+        proposalJson:
+          type: string
+          nullable: true
+        decidedBy:
+          type: string
+          format: uuid
+          nullable: true
+        decidedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    CopilotSessionThread:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        archived:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+        turns:
+          type: array
+          items:
+            $ref: "#/components/schemas/CopilotTurn"
+        hitl:
+          type: array
+          items:
+            $ref: "#/components/schemas/CopilotHitl"
+
+    CopilotSessionExport:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        turns:
+          type: array
+          items:
+            $ref: "#/components/schemas/CopilotTurn"
+        hitl:
+          type: array
+          items:
+            $ref: "#/components/schemas/CopilotHitl"
+
     CopilotJobResponse:
       type: object
       description: Async Copilot job state; a result carries the prompt version and hash that produced it.
