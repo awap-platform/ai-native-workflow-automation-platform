@@ -264,8 +264,8 @@ test.describe("phase 8 admin and IDM console", () => {
     await page.goto(`/admin/audit?${RANGE}`);
 
     await expect(page.getByTestId("audit-table")).toContainText("ROLE_CHANGED");
-    await expect(page.getByTestId("break-glass-summary")).toContainText("389");
-    await expect(page.getByTestId("break-glass-merges")).toContainText("936a7c8");
+    await expect(page.getByTestId("break-glass-summary")).toContainText("257");
+    await expect(page.getByTestId("break-glass-merges")).toContainText("d8560f5");
 
     await page.getByRole("textbox", { name: "From", exact: true }).fill("2099-12-31");
     await expect(page.getByTestId("audit-range-error")).toHaveText(
