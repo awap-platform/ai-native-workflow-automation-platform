@@ -54,8 +54,9 @@ describe("normalizeRoute", () => {
     const hostile = `/${"/".repeat(20_000)}dashboard`;
     const started = Date.now();
 
-    // Repeated separators collapse to the same allowlisted route, and the call stays linear.
-    expect(normalizeRoute(hostile)).toBe("/dashboard");
+    // The input is capped before matching, so a hostile path collapses to the bounded `other`
+    // bucket instead of being normalised at unbounded cost.
+    expect(normalizeRoute(hostile)).toBe("other");
     expect(Date.now() - started).toBeLessThan(500);
   });
 
