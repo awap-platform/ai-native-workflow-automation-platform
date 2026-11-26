@@ -29,9 +29,11 @@ export const DEFAULT_BOT_LOGINS = ["github-actions[bot]"];
 
 /**
  * SonarQube Cloud's GitHub App login changed with the product rebrand, so the
- * bot is matched by prefix instead of one exact login.
+ * bot is matched by a plain login prefix instead of one exact login. A literal
+ * prefix (never a caller-supplied regular expression) keeps operator input from
+ * turning into a regex injection.
  */
-export const DEFAULT_BOT_PATTERNS = ["^sonar"];
+export const DEFAULT_BOT_PREFIXES = ["sonar"];
 
 /** Marker that makes the coverage comment findable across workflow runs. */
 export const COVERAGE_DELTA_MARKER = "<!-- awap-coverage-baseline-delta -->";
@@ -41,15 +43,15 @@ export function botMatcher(options = {}) {
   const logins = new Set(
     (options.botLogins ?? DEFAULT_BOT_LOGINS).map((login) => String(login).toLowerCase()),
   );
-  const patterns = (options.botPatterns ?? DEFAULT_BOT_PATTERNS).map(
-    (pattern) => new RegExp(pattern, "i"),
-  );
+  const prefixes = (options.botPrefixes ?? DEFAULT_BOT_PREFIXES)
+    .map((prefix) => String(prefix).toLowerCase())
+    .filter((prefix) => prefix.length > 0);
   return (login) => {
     const value = String(login ?? "").toLowerCase();
     if (value.length === 0) {
       return false;
     }
-    return logins.has(value) || patterns.some((pattern) => pattern.test(value));
+    return logins.has(value) || prefixes.some((prefix) => value.startsWith(prefix));
   };
 }
 
@@ -234,12 +236,12 @@ export async function dedupeBotComments(options = {}) {
     repository,
     prNumber,
     botLogins,
-    botPatterns,
+    botPrefixes,
     dryRun = false,
     log = console.log,
   } = options;
   const comments = await listComments({ fetchImpl, token, repository, prNumber });
-  const matches = botMatcher({ botLogins, botPatterns });
+  const matches = botMatcher({ botLogins, botPrefixes });
   const { kept, stale } = pickNewestPerAuthor(comments, matches);
   const deleted = [];
   for (const comment of stale) {
@@ -284,7 +286,7 @@ export async function upsertStickyComment(options = {}) {
     marker,
     body,
     botLogins,
-    botPatterns,
+    botPrefixes,
     dryRun = false,
     log = console.log,
   } = options;
@@ -294,7 +296,7 @@ export async function upsertStickyComment(options = {}) {
   const comments = await listComments({ fetchImpl, token, repository, prNumber });
   const { target, stale } = pickStickyTarget(comments, {
     marker,
-    matches: botMatcher({ botLogins, botPatterns }),
+    matches: botMatcher({ botLogins, botPrefixes }),
   });
   const payload = withMarker(body, marker);
 
@@ -342,14 +344,14 @@ Options:
   --body <markdown>        Sticky body (sticky mode) when no file is given.
   --marker <string>        Sticky marker; required in sticky mode.
   --bot <login>            Additional managed bot login (repeatable).
-  --bot-pattern <regex>    Additional managed bot login pattern (repeatable).
+  --bot-prefix <text>      Additional managed bot login prefix (repeatable).
   --dry-run                Print the planned calls without changing GitHub.
   --help                   Print this message.
 `;
 
 /** Parses argv into a plain options object. Throws on unknown options. */
 export function parseArgs(argv) {
-  const options = { mode: undefined, dryRun: false, help: false, botLogins: [], botPatterns: [] };
+  const options = { mode: undefined, dryRun: false, help: false, botLogins: [], botPrefixes: [] };
   const valueFlags = {
     "--pr": "prNumber",
     "--repository": "repository",
@@ -367,8 +369,8 @@ export function parseArgs(argv) {
       options.dryRun = true;
       continue;
     }
-    if (argument === "--bot" || argument === "--bot-pattern") {
-      const key = argument === "--bot" ? "botLogins" : "botPatterns";
+    if (argument === "--bot" || argument === "--bot-prefix") {
+      const key = argument === "--bot" ? "botLogins" : "botPrefixes";
       const value = argv[index + 1];
       if (value === undefined || value.startsWith("--")) {
         throw new Error(`${argument} requires a value`);
@@ -450,7 +452,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, log 
     repository,
     prNumber: options.prNumber,
     botLogins: options.botLogins.length > 0 ? options.botLogins : undefined,
-    botPatterns: options.botPatterns.length > 0 ? options.botPatterns : undefined,
+    botPrefixes: options.botPrefixes.length > 0 ? options.botPrefixes : undefined,
     dryRun: options.dryRun,
     log,
   };

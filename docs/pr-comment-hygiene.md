@@ -43,9 +43,10 @@ Managed authors are:
 - any login matching `^sonar`, so the SonarQube Cloud bot keeps working across
   the `sonarcloud[bot]` → `sonarqubecloud[bot]` rename.
 
-Use `--bot <login>` and `--bot-pattern <regex>` to extend the list without
-editing the script. `--dry-run` prints the planned calls instead of changing
-GitHub.
+Use `--bot <login>` (exact match) and `--bot-prefix <text>` (login prefix) to
+extend the list without editing the script. Prefixes are compared literally, so
+operator input can never become a regular expression. `--dry-run` prints the
+planned calls instead of changing GitHub.
 
 ## Triggers and timing
 

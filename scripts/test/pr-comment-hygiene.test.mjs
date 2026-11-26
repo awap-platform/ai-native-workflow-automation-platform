@@ -275,6 +275,8 @@ test("parseArgs reads the sticky options and rejects unknown flags", () => {
     "--body-file=delta.md",
     "--bot",
     "github-actions[bot]",
+    "--bot-prefix",
+    "sonar",
     "--dry-run",
   ]);
   assert.equal(options.mode, "sticky");
@@ -282,6 +284,7 @@ test("parseArgs reads the sticky options and rejects unknown flags", () => {
   assert.equal(options.marker, "<!--m-->");
   assert.equal(options.bodyFile, "delta.md");
   assert.deepEqual(options.botLogins, ["github-actions[bot]"]);
+  assert.deepEqual(options.botPrefixes, ["sonar"]);
   assert.equal(options.dryRun, true);
   assert.throws(() => parseArgs(["sticky", "--nope"]), /Unknown option/);
   assert.throws(() => parseArgs(["sticky", "--pr"]), /requires a value/);
