@@ -410,14 +410,6 @@ jobs:
           done
           docker compose -f infra/docker-compose.yml logs --tail=200 frontend
           exit 1
-      - name: Lighthouse budget
-        # UI/UX phase 0 (T0-07): performance >= 90, LCP < 2.5s, CLS < 0.1,
-        # TBT < 200ms and zero console errors on the public entry screens.
-        uses: treosh/lighthouse-ci-action@v12
-        with:
-          configPath: ./.github/lighthouse/lighthouserc.json
-          uploadArtifacts: true
-          temporaryPublicStorage: true
       - name: Run Playwright suite
         working-directory: frontend
         env:
@@ -451,6 +443,17 @@ jobs:
           name: playwright-failures
           path: frontend/test-results
           retention-days: 14
+      - name: Lighthouse budget
+        # UI/UX phase 0 (T0-07): performance >= 90, LCP < 2.5s, CLS < 0.1,
+        # TBT < 200ms and zero console errors on the public entry screens.
+        # Measured after the Playwright suite, on a settled stack: Flyway
+        # migrations, Kafka rebalancing and the freshclam signature update at
+        # stack start were inflating total-blocking-time on the shared runner.
+        uses: treosh/lighthouse-ci-action@v12
+        with:
+          configPath: ./.github/lighthouse/lighthouserc.json
+          uploadArtifacts: true
+          temporaryPublicStorage: true
       - name: Dump Compose logs on failure
         if: failure()
         run: >-
@@ -649,14 +652,32 @@ jobs:
   gitleaks:
     name: Secret Scan
     runs-on: ubuntu-latest
+    env:
+      # The gitleaks *action* refuses to run for organization-owned repositories
+      # without a paid GITLEAKS_LICENSE. The CLI is free, so it is pinned here
+      # and verified against the published checksum before the scan.
+      GITLEAKS_VERSION: 8.24.3
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: Install the gitleaks CLI
+        run: |
+          set -euo pipefail
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl --proto '=https' --tlsv1.2 -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/$archive" \
+            -o "$RUNNER_TEMP/$archive"
+          curl --proto '=https' --tlsv1.2 -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_checksums.txt" \
+            -o "$RUNNER_TEMP/checksums.txt"
+          grep " $archive\$" "$RUNNER_TEMP/checksums.txt" > "$RUNNER_TEMP/archive.sha256"
+          (cd "$RUNNER_TEMP" && sha256sum -c archive.sha256)
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" gitleaks
+          install -m 0755 "$RUNNER_TEMP/gitleaks" /usr/local/bin/gitleaks
+          gitleaks version
       - name: Detect secrets
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gitleaks detect --source . --config .gitleaks.toml --redact --verbose
 
   sonarqube:
     name: Code Quality

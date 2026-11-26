@@ -11,7 +11,7 @@ This document defines the protection of the `main` branch, the issue/PR label ta
 | Enforce admins | Yes |
 | Require conversation resolution | Yes |
 | Dismiss stale reviews | Yes |
-| Required approving review count | 1 |
+| Required approving review count | 0 (permanent single-maintainer policy, see below) |
 | Require code owner reviews | No (single-maintainer exception, see below) |
 | Allow force pushes | No |
 | Allow deletions | No |
@@ -42,16 +42,21 @@ The names are defined once in the `REQUIRED_CHECKS` array of [`apply-branch-prot
 
 `Contract Verification` (`pact-gate`) is intentionally not required: it only runs once `PACT_BROKER_BASE_URL` is configured, so requiring it would leave every PR pending on a repository without a Pact Broker. The reusable Docker workflow reports one context per matrix entry, so the three expanded names above are required instead of the bare `Docker Build` caller job; the script derives them from [`docker-build.yml`](../.github/workflows/docker-build.yml) and fails if the matrix changes without the policy following.
 
-### Single-maintainer exception (explicit, audited)
+### Single-maintainer merge policy (permanent, reviewed)
 
-The repository currently has one maintainer (`@koraysrn`). GitHub never counts a self-approval, so `required_approving_review_count` is kept at 1 for the policy but the only maintainer cannot satisfy it on their own PR. The exception is explicit and must not be silently weakened:
+The repository has one maintainer (`@koraysrn`) and GitHub never counts a self-approval, so `required_approving_review_count` is **0 by policy**. That value is a reviewed decision, not drift and not an exception window: the snapshot and the test suite encode it, so the drift job stays green without a temporary patch.
 
-- Do **not** permanently set the approval count to 0, disable admin enforcement, remove required checks or delete the protection.
-- Break-glass is a temporary, audited change documented in runbook [O22](operations-runbook.md#o22--branch-protection-drift-and-break-glass-issue-178): open an incident ticket, lower only the approval count, merge the urgent PR, then restore the policy immediately with `--apply` and prove it with `--verify`.
-- Every break-glass merge is appended to [`settings/break-glass-log.json`](../settings/break-glass-log.json) and [`docs/break-glass-log.md`](break-glass-log.md). The branch-protection test suite rejects a missing or incomplete entry, an unrestored approval count, or a log that diverges from the committed JSON.
-- The scheduled drift job fails while the exception is active. That failure is the reminder to restore protection; do not mute it.
-- When a second maintainer is added, enable `require_code_owner_reviews` and remove this exception in the same policy change.
-- Automation that must merge without an interactive review (for example release automation) should use a dedicated GitHub App with the minimum required permissions. Never disable protection globally to unblock a bot.
+What still gates every merge, and must not be weakened:
+
+- every name in the required-status-check list above must be green on the current head (`strict: true`);
+- `enforce_admins` stays enabled, so no account bypasses the checks;
+- conversation resolution, the force-push block and the deletion block stay enabled;
+- the protection itself is never deleted.
+
+Break-glass remains for the rules that are still enforced - a missing required check after a workflow rename, an unprotected branch, a disabled rule - and is documented in runbook [O22](operations-runbook.md#o22--branch-protection-drift-and-break-glass-issue-178): open an incident ticket, converge with `--apply` and prove it with `--verify`. Every merge made while the policy was temporarily different is appended to [`settings/break-glass-log.json`](../settings/break-glass-log.json) and [`docs/break-glass-log.md`](break-glass-log.md); the branch-protection test suite rejects a log that diverges from the committed JSON.
+
+- `require_code_owner_reviews` stays off while the repository has a single maintainer. When a second maintainer is added, raise the approval count to 1 and enable the code-owner rule in the same reviewed policy change.
+- Automation that must merge without an interactive review (for example release automation) still uses a dedicated GitHub App with the minimum required permissions. Never disable protection globally to unblock a bot.
 
 ### Drift detection
 

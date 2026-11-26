@@ -52,8 +52,9 @@ The release job uses a dedicated bot identity. The workflow supports either:
   CD. Classic token: the `repo` scope, plus `workflow` for `workflow_dispatch`.
 
 The token must belong to a dedicated bot identity - a GitHub App installation token or a machine
-user - not the maintainer's personal PAT. GitHub never counts a self-approval, so a release PR
-authored by the single maintainer could not satisfy the required review.
+user - not the maintainer's personal PAT, so every release PR has an auditable author that can push
+to the protected branch. Approvals are not required by policy (see
+[repository governance](repository-governance.md)).
 
 A regular `GITHUB_TOKEN` cannot be used for the release PR: pull requests created with it do not
 trigger CI, so the release PR would never receive the required checks and could never be merged.

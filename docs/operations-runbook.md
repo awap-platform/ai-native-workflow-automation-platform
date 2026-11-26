@@ -1196,19 +1196,20 @@ scripts/apply-branch-protection.sh --verify  --repo owner/repo   # exit 1 on dri
 5. If protection was removed entirely, `--verify` reports `branch protection is not configured`.
    Restore it with `--apply` immediately.
 
-**Break-glass for the single-maintainer exception.** The repository has one maintainer, so the
-required approval count of 1 cannot be satisfied on the maintainer's own PR (GitHub never counts a
-self-approval). The exception is explicit, never silent:
+**Single-maintainer merge policy.** The repository has one maintainer and GitHub never counts a
+self-approval, so the reviewed policy keeps `required_approving_review_count` at 0 permanently. The
+snapshot and the test suite encode that value, so the drift job stays green without a temporary
+patch. Every other rule stays enforced: strict required checks, `enforce_admins`, conversation
+resolution, the force-push block and the deletion block.
+
+**Break-glass for the remaining rules.** Break-glass is still the path when a rule that is still
+enforced has to change - a missing required check after a workflow rename, an unprotected branch, a
+disabled rule:
 
 1. Open an incident ticket with the reason, the PR that must merge, the owner who approved the
    exception and an expiry. No ticket, no exception.
-2. Lower only the approval count, temporarily:
-
-   ```sh
-   gh api -X PATCH repos/owner/repo/branches/main/protection/required_pull_request_reviews \
-     -f required_approving_review_count=0
-   ```
-
+2. Change only the rule the incident needs, through the policy source, so that `--apply` can
+   reproduce the exact state instead of an ad-hoc API call.
 3. Merge the urgent PR with all required checks green.
 4. Immediately restore and prove the policy:
 
@@ -1224,16 +1225,17 @@ self-approval). The exception is explicit, never silent:
    close it. The incident cannot authorise any later merge; a new break-glass window needs a new
    incident. The committed log is validated by the branch-protection test suite.
 
-The drift workflow is expected to fail while the exception is active; that failure is the reminder
-to restore protection. Do **not** disable `enforce_admins`, required checks, force-push/deletion
-blocks, or delete the protection as a shortcut. Do not change `REQUIRED_CHECKS` to bypass a failing
-check, and do not disable the drift workflow. When a second maintainer is added, enable
-`require_code_owner_reviews` and remove this exception in the same reviewed policy change.
+The drift workflow must stay green outside an incident window. Do **not** disable `enforce_admins`,
+required checks, force-push/deletion blocks, or delete the protection as a shortcut. Do not change
+`REQUIRED_CHECKS` to bypass a failing check, and do not disable the drift workflow. When a second
+maintainer is added, raise the approval count to 1 and enable `require_code_owner_reviews` in the
+same reviewed policy change.
 
-The current implementation and full audit trail of the single-maintainer exception are in
+The historical windows (incidents #257 and #389) and their audit trail are in
 [`docs/break-glass-log.md`](break-glass-log.md) and
-[`settings/break-glass-log.json`](../settings/break-glass-log.json). The tests assert that every
-covered merge has a full SHA, green checks, both restore results and a restored approval count.
+[`settings/break-glass-log.json`](../settings/break-glass-log.json); they recorded the previous
+policy, where the approval count was lowered only for the duration of a merge. The tests assert that
+every covered merge has a full SHA, green checks, both restore results and a restored approval count.
 
 ## O23 — Release automation, emergency release and tag rollback (issue #179)
 
