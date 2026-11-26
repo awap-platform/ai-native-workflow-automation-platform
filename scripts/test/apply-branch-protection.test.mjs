@@ -236,7 +236,7 @@ function driftedPolicy() {
   drift.enforce_admins = false;
   drift.required_pull_request_reviews.dismiss_stale_reviews = false;
   drift.required_pull_request_reviews.require_code_owner_reviews = true;
-  drift.required_pull_request_reviews.required_approving_review_count = 0;
+  drift.required_pull_request_reviews.required_approving_review_count = 1;
   drift.required_conversation_resolution = false;
   drift.allow_force_pushes = true;
   drift.allow_deletions = true;
@@ -360,7 +360,7 @@ test("verify fails with every differing field name", async () => {
   assert.match(result.stderr, /^DRIFT required_status_checks\.strict: expected true, got false$/m);
   assert.match(result.stderr, /^DRIFT required_status_checks\.contexts:/m);
   assert.match(result.stderr, /^DRIFT enforce_admins: expected true, got false$/m);
-  assert.match(result.stderr, /required_approving_review_count: expected 1, got 0/);
+  assert.match(result.stderr, /required_approving_review_count: expected 0, got 1/);
   assert.match(result.stderr, /allow_deletions: expected false, got true/);
   assert.match(result.stderr, /--apply to converge/);
   assert.doesNotMatch(result.stderr, /^"DRIFT/m);

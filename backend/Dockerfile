@@ -7,10 +7,32 @@ COPY backend/common/pom.xml common/pom.xml
 COPY backend/identity/pom.xml identity/pom.xml
 # Issue #291: the shared protobuf contract lives outside the Maven module tree.
 COPY contracts/proto contracts/proto
-RUN mvn -B -q -DskipTests dependency:go-offline
+# Maven Central answers HTTP 429 to bursts of requests from shared CI egress IPs.
+# A cold cache (for example right after the repository changed owner) downloads
+# everything at once, so retry with backoff instead of failing the required
+# Docker Build check on a transient rate limit.
+RUN set -eu; \
+    attempt=1; \
+    until mvn -B -q -DskipTests dependency:go-offline; do \
+      if [ "$attempt" -ge 5 ]; then \
+        echo "dependency:go-offline failed after $attempt attempts" >&2; \
+        exit 1; \
+      fi; \
+      attempt=$((attempt + 1)); \
+      sleep $((attempt * 10)); \
+    done
 COPY backend/common/src common/src
 COPY backend/identity/src identity/src
-RUN mvn -B -q -DskipTests -Dproto.root=/app/contracts/proto package
+RUN set -eu; \
+    attempt=1; \
+    until mvn -B -q -DskipTests -Dproto.root=/app/contracts/proto package; do \
+      if [ "$attempt" -ge 5 ]; then \
+        echo "package failed after $attempt attempts" >&2; \
+        exit 1; \
+      fi; \
+      attempt=$((attempt + 1)); \
+      sleep $((attempt * 10)); \
+    done
 
 # Runtime stage
 FROM eclipse-temurin:25-jre
