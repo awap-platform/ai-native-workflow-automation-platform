@@ -321,7 +321,9 @@ export async function upsertStickyComment(options = {}) {
     const created = await createComment({ fetchImpl, token, repository, prNumber, body: payload });
     action = "created";
     commentId = created?.id;
-    log(`Created sticky comment ${commentId}.`);
+    // The API-assigned id is not written to the log: it is remote input, and a
+    // newline inside it would let a crafted response forge log lines (S5145).
+    log("Created the sticky comment.");
   }
   for (const comment of stale) {
     try {
@@ -334,6 +336,8 @@ export async function upsertStickyComment(options = {}) {
   }
   return { action, commentId, deleted };
 }
+
+const MODES = new Set(["sticky", "dedupe"]);
 
 const USAGE = `Usage: pr-comment-hygiene.mjs <sticky|dedupe> --pr <number> [options]
 
@@ -351,7 +355,8 @@ Options:
 
 /** Parses argv into a plain options object. Throws on unknown options. */
 export function parseArgs(argv) {
-  const options = { mode: undefined, dryRun: false, help: false, botLogins: [], botPrefixes: [] };
+  const options = { dryRun: false, help: false, botLogins: [], botPrefixes: [] };
+  const positionals = [];
   const valueFlags = {
     "--pr": "prNumber",
     "--repository": "repository",
@@ -397,12 +402,12 @@ export function parseArgs(argv) {
     if (argument.startsWith("--")) {
       throw new Error(`Unknown option ${argument}`);
     }
-    if (options.mode !== undefined) {
-      throw new Error(`Unexpected argument ${argument}`);
-    }
-    options.mode = argument;
+    positionals.push(argument);
   }
-  return options;
+  if (positionals.length > 1) {
+    throw new Error(`Unexpected argument ${positionals[1]}`);
+  }
+  return { ...options, mode: positionals[0] };
 }
 
 async function readBody(options) {
@@ -428,7 +433,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, log 
     log(USAGE);
     return 0;
   }
-  if (options.mode !== "sticky" && options.mode !== "dedupe") {
+  if (!MODES.has(options.mode)) {
     console.error(USAGE);
     return 2;
   }
