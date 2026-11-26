@@ -14,6 +14,7 @@
  */
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
+import { githubRequest as requestGitHub } from "./lib/github-api.mjs";
 import { findingsFromReport, renderSummary } from "./trivy-regression-report.mjs";
 
 export const DEFAULT_ISSUE_TITLE = "security: Trivy gate failing repeatedly on main";
@@ -30,31 +31,11 @@ export function findTrackingIssue(issues, title = DEFAULT_ISSUE_TITLE) {
   );
 }
 
-function githubHeaders(token, hasBody) {
-  return {
-    Accept: "application/vnd.github+json",
-    Authorization: `Bearer ${token}`,
-    "User-Agent": "awap-trivy-regression-notify",
-    "X-GitHub-Api-Version": "2022-11-28",
-    ...(hasBody ? { "Content-Type": "application/json" } : {}),
-  };
-}
+const USER_AGENT = "awap-trivy-regression-notify";
 
-async function githubRequest({ fetchImpl = fetch, token, url, method = "GET", body }) {
-  const response = await fetchImpl(url, {
-    method,
-    headers: githubHeaders(token, body !== undefined),
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new Error(`GitHub API ${response.status} ${method} ${url}: ${text.slice(0, 500)}`);
-  }
-  if (response.status === 204) {
-    return undefined;
-  }
-  const text = await response.text();
-  return text.length > 0 ? JSON.parse(text) : undefined;
+/** GitHub client from the shared module, bound to this tool's User-Agent. */
+function githubRequest(options) {
+  return requestGitHub({ ...options, userAgent: USER_AGENT });
 }
 
 /**

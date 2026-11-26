@@ -56,6 +56,11 @@ for PR decoration. The CI job passes `sonar.pullrequest.key`,
 `sonar.pullrequest.base` and `sonar.pullrequest.branch` on pull-request events
 so the analysis lands on the PR.
 
+The app decorates the pull request again on every analysis. The
+[`PR Comment Hygiene`](../.github/workflows/pr-comment-hygiene.yml) workflow
+keeps only the newest `sonarqubecloud[bot]` comment and deletes the superseded
+ones; see [PR comment hygiene](pr-comment-hygiene.md).
+
 > **Automatic Analysis must be off.** SonarQube Cloud refuses a CI scan while the
 > project still uses GitHub Automatic Analysis ("You are running CI analysis
 > while Automatic Analysis is enabled"). Disable it under *Administration →

@@ -1,0 +1,77 @@
+name: PR Comment Hygiene
+
+# Pull requests used to collect one bot comment per push: the backend CI job
+# appended the coverage-baseline delta and the SonarQube Cloud GitHub App added
+# a decoration for every analysis. This workflow keeps only the newest comment
+# of each managed bot.
+#
+# Two triggers are needed:
+#   - `pull_request` cleans the superseded comments as soon as the PR is opened
+#     or updated (only for branches in this repository, because forked PRs get a
+#     read-only token);
+#   - `workflow_run` runs after CI finishes, which is when the SonarQube Cloud
+#     decoration for the current analysis exists and the previous one can go.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Pull request number to clean up"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  # Deleting an issue comment on a pull request needs pull-request write access.
+  pull-requests: write
+
+concurrency:
+  group: pr-comment-hygiene-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  dedupe:
+    name: Keep one bot comment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Forked pull requests run with a read-only token; the post-CI run cleans
+    # them up with the base repository's token instead of failing here.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Tooling tests
+        run: node --test "scripts/test/pr-comment-hygiene.test.mjs"
+      - name: Resolve the pull request number
+        id: pr
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          INPUT_PR: ${{ inputs.pr }}
+        run: |
+          number="$PR_NUMBER"
+          if [ -z "$number" ]; then number="$RUN_PR_NUMBER"; fi
+          if [ -z "$number" ]; then number="$INPUT_PR"; fi
+          if [ -z "$number" ]; then
+            echo "::notice title=PR comment hygiene::No pull request in this event; nothing to clean up."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+      - name: Wait for the SonarQube Cloud decoration
+        # The app posts its comment asynchronously right after the quality gate
+        # completes, so the post-CI pass waits briefly to see the new comment.
+        if: github.event_name == 'workflow_run' && steps.pr.outputs.skip != 'true'
+        run: sleep 45
+      - name: Delete superseded bot comments
+        if: steps.pr.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        run: node scripts/pr-comment-hygiene.mjs dedupe --pr "$PR_NUMBER"
