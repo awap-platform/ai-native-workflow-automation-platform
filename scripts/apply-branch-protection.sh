@@ -271,6 +271,10 @@ render_expected() {
   # shellcheck disable=SC2016 # $checks is a jq variable, not a shell variable.
   "$JQ_CLI" -n --argjson checks "$checks_json" '
     {
+      # Reviewed policy decision: the repository has one maintainer and GitHub
+      # never counts a self-approval, so a nonzero approval count would block
+      # every PR. Approval is disabled permanently; every other rule below stays
+      # enforced, and raising the count again is a reviewed policy change.
       required_status_checks: {
         strict: true,
         contexts: $checks
@@ -279,7 +283,7 @@ render_expected() {
       required_pull_request_reviews: {
         dismiss_stale_reviews: true,
         require_code_owner_reviews: false,
-        required_approving_review_count: 1
+        required_approving_review_count: 0
       },
       required_conversation_resolution: true,
       restrictions: null,
