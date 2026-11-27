@@ -10,79 +10,79 @@
       "name": "kind/bug",
       "description": "Bug fix or correction",
       "color": "d73a4a",
-      "owner": "@koraysrn"
+      "owner": "@awap-platform/maintainers"
     },
     {
       "name": "kind/feature",
       "description": "New feature or request",
       "color": "a2eeef",
-      "owner": "@koraysrn"
+      "owner": "@awap-platform/maintainers"
     },
     {
       "name": "kind/chore",
       "description": "Maintenance, tooling or infra work",
       "color": "c5def5",
-      "owner": "@koraysrn"
+      "owner": "@awap-platform/maintainers"
     },
     {
       "name": "area/backend",
       "description": "Backend (Java / Spring Boot)",
       "color": "ffa221",
-      "owner": "@koraysrn"
+      "owner": "@awap-platform/maintainers"
     },
     {
       "name": "area/frontend",
       "description": "Frontend (Next.js / React)",
       "color": "168700",
-      "owner": "@koraysrn"
+      "owner": "@awap-platform/maintainers"
     },
     {
       "name": "area/ai",
       "description": "AI layer (Python / FastAPI)",
       "color": "5319e7",
-      "owner": "@koraysrn"
+      "owner": "@awap-platform/maintainers"
     },
     {
       "name": "priority/p0",
       "description": "Critical - must ship first",
       "color": "b60205",
-      "owner": "@koraysrn"
+      "owner": "@awap-platform/maintainers"
     },
     {
       "name": "priority/p1",
       "description": "High priority",
       "color": "d93f0b",
-      "owner": "@koraysrn"
+      "owner": "@awap-platform/maintainers"
     },
     {
       "name": "priority/p2",
       "description": "Medium priority",
       "color": "fbca04",
-      "owner": "@koraysrn"
+      "owner": "@awap-platform/maintainers"
     },
     {
       "name": "priority/p3",
       "description": "Low priority",
       "color": "0e8a16",
-      "owner": "@koraysrn"
+      "owner": "@awap-platform/maintainers"
     },
     {
       "name": "phase/preparation",
       "description": "Preparation phase (repo, CI/CD, security foundations)",
       "color": "e4e669",
-      "owner": "@koraysrn"
+      "owner": "@awap-platform/maintainers"
     },
     {
       "name": "phase/core-mvp",
       "description": "Core MVP phase",
       "color": "0e8a16",
-      "owner": "@koraysrn"
+      "owner": "@awap-platform/maintainers"
     },
     {
       "name": "phase/expansion",
       "description": "Post-MVP expansion",
       "color": "0075ca",
-      "owner": "@koraysrn"
+      "owner": "@awap-platform/maintainers"
     }
   ],
   "milestones": [
@@ -90,19 +90,19 @@
       "title": "Preparation Phase",
       "description": "Preparation phase - repo, CI/CD and security foundations",
       "state": "open",
-      "owner": "@koraysrn"
+      "owner": "@awap-platform/maintainers"
     },
     {
       "title": "Phase 0 - Core MVP",
       "description": "Phase 0 - core MVP",
       "state": "open",
-      "owner": "@koraysrn"
+      "owner": "@awap-platform/maintainers"
     },
     {
       "title": "Phase 1 - Expansion",
       "description": "Phase 1 - post-MVP expansion",
       "state": "open",
-      "owner": "@koraysrn"
+      "owner": "@awap-platform/maintainers"
     }
   ]
 }

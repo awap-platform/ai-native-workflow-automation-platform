@@ -7,7 +7,7 @@ under `history`, so the Phase 8 audit console always renders the current excepti
 
 ## Incident #389 — issues #366, #367, #368, #369, #370, #371, #372, #373, #374, #375 and #284
 
-Incident [#389](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/389)
+Incident [#389](https://github.com/awap-platform/ai-native-workflow-automation-platform/issues/389)
 authorised the single-maintainer break-glass merges for the sequential issues #366–#375 and the
 re-verification of #284.
 
@@ -109,7 +109,7 @@ pipeline; it is recorded here for completeness.
 | Green `main` CI run | run `43237731691` (green, `aeed9e9`) |
 | Green `main` CI commit | `aeed9e9a374f20174e114bce04d6901eaf9899fc` |
 
-The previous incident [#243](https://github.com/koraysrn/ai-native-workflow-automation-platform/issues/243)
+The previous incident [#243](https://github.com/awap-platform/ai-native-workflow-automation-platform/issues/243)
 covered issues #189–#196 and remains closed; its record is superseded by this one in the JSON log.
 
 ### Closure rule

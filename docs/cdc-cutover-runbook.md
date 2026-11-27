@@ -24,7 +24,7 @@ The polling-vs-CDC comparison is collected from this Compose stack by
 same outbox rows for CDC. [`cdc-benchmark.mjs`](../load-test/cdc-benchmark.mjs) prints the
 p50/p95/max for both modes plus the `evaluateCutover()` verdict.
 
-The [CI benchmark run](https://github.com/koraysrn/ai-native-workflow-automation-platform/actions/runs/41504784486)
+The [CI benchmark run](https://github.com/awap-platform/ai-native-workflow-automation-platform/actions/runs/41504784486)
 (200 workflow starts -> 400 outbox events, relay interval 1s, connector `RUNNING`) is committed as
 [`benchmarks/cdc-benchmark-2026-11-02.json`](benchmarks/cdc-benchmark-2026-11-02.json):
 
@@ -64,7 +64,7 @@ node load-test/cdc-e2e.mjs --output load-test/results/cdc-e2e.json
 The scheduled/manual [`cdc-e2e.yml`](../.github/workflows/cdc-e2e.yml) workflow runs the same
 command and uploads the `cdc-e2e-results` artifact. The committed artifact
 [`benchmarks/cdc-e2e-2026-11-03.json`](benchmarks/cdc-e2e-2026-11-03.json) is the upload from the
-final CI proof, [run 41648558684](https://github.com/koraysrn/ai-native-workflow-automation-platform/actions/runs/41648558684)
+final CI proof, [run 41648558684](https://github.com/awap-platform/ai-native-workflow-automation-platform/actions/runs/41648558684)
 (10/10 assertions passed):
 
 | Acceptance item | Assertion | Measured result |

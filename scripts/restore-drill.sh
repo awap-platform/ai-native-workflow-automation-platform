@@ -127,7 +127,7 @@ FLYWAY_VALIDATE_OUTPUT=$(docker run --rm \
   -e "FLYWAY_USER=${FLYWAY_USER}" \
   -e "FLYWAY_PASSWORD=${FLYWAY_PASSWORD}" \
   --entrypoint /bin/sh \
-  ghcr.io/awap/awap-backend:latest \
+  ghcr.io/awap-platform/awap-backend:latest \
   -c 'java -cp /app/app.jar org.springframework.boot.loader.launch.PropertiesLauncher --spring.main.web-application-type=none --spring.flyway.enabled=true 2>/dev/null; echo "flyway-validate-ok"' 2>/dev/null || echo "")
 
 if ! printf '%s' "$FLYWAY_VALIDATE_OUTPUT" | grep -q 'flyway-validate-ok'; then

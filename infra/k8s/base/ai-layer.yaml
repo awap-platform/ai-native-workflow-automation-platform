@@ -22,7 +22,7 @@ spec:
               app: awap-ai-layer
       containers:
         - name: ai-layer
-          image: ghcr.io/awap/awap-ai-layer:latest
+          image: ghcr.io/awap-platform/awap-ai-layer:latest
           ports:
             - containerPort: 8000
           resources:

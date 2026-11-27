@@ -46,7 +46,7 @@ release-blocking.
 gh release download "$TAG" --pattern '*.cdx.json' --pattern '*.bundle'
 cosign verify-blob \
   --bundle awap-sbom.cdx.json.bundle \
-  --certificate-identity-regexp 'https://github.com/koraysrn/ai-native-workflow-automation-platform/' \
+  --certificate-identity-regexp 'https://github.com/awap-platform/ai-native-workflow-automation-platform/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   awap-sbom.cdx.json
 cyclonedx validate --input-file awap-sbom.cdx.json --input-format json

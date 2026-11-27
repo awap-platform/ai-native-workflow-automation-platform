@@ -62,7 +62,10 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: ${{ inputs.push }}
-          tags: ghcr.io/${{ github.repository }}/${{ matrix.name }}:${{ inputs.tag-suffix }}
+          # Flat owner namespace: ghcr.io/<org>/<image> is the form the manifests in
+          # infra/k8s can express; the nested repository path cannot be referenced
+          # by name there and would silently diverge from the deployed images.
+          tags: ghcr.io/${{ github.repository_owner }}/${{ matrix.name }}:${{ inputs.tag-suffix }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
 

@@ -29,7 +29,7 @@ tests:
             exp_annotations:
               summary: "Workflow failure ratio above 20%"
               description: "50% of workflow executions failed over 10 minutes."
-              runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o3--slo-alerts"
+              runbook_url: "https://github.com/awap-platform/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o3--slo-alerts"
 
   # ~1.6% failures stays far below the 20% threshold -> no alert.
   - interval: 1m
@@ -66,7 +66,7 @@ tests:
             exp_annotations:
               summary: "Notification retry lag p95 above 10s"
               description: "Deliveries that needed a retry are taking 29s at p95."
-              runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o11--notification-retries-issue-119"
+              runbook_url: "https://github.com/awap-platform/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o11--notification-retries-issue-119"
 
   # Every retry completes within 1s -> p95 well below the 10s threshold -> no alert.
   - interval: 1m
@@ -102,7 +102,7 @@ tests:
             exp_annotations:
               summary: "Webhook/DLQ dead messages are growing"
               description: "1800 messages landed in the DLQ within 15 minutes; webhook retries are exhausting."
-              runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o3--slo-alerts"
+              runbook_url: "https://github.com/awap-platform/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o3--slo-alerts"
 
   # A 7.5-message trickle over 15m stays below the threshold -> no alert.
   - interval: 1m
@@ -129,7 +129,7 @@ tests:
             exp_annotations:
               summary: "Notification dead-letter topic is growing"
               description: "6 notification deliveries were dead-lettered in 15 minutes; follow runbook O11 to inspect and replay them."
-              runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o11--notification-retries-issue-119"
+              runbook_url: "https://github.com/awap-platform/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o11--notification-retries-issue-119"
 
   # A single transient failure (one dead letter, then nothing) must not page anyone.
   - interval: 1m
@@ -156,7 +156,7 @@ tests:
             exp_annotations:
               summary: "Outbox backlog is stuck"
               description: "1500 outbox rows are unpublished after 15 minutes; the relay is not draining."
-              runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o3--slo-alerts"
+              runbook_url: "https://github.com/awap-platform/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o3--slo-alerts"
 
   # 999 pending rows is under the 1,000-row threshold -> no alert.
   - interval: 1m
@@ -186,7 +186,7 @@ tests:
             exp_annotations:
               summary: "AWAP identity instance is down"
               description: "The awap-backend scrape target has been unreachable for 1 minute."
-              runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o3--slo-alerts"
+              runbook_url: "https://github.com/awap-platform/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o3--slo-alerts"
 
   # ------------------------------------------------------- AI latency isolation (issue #290)
   # Every AI call lands in the (5s, 10s] bucket -> the AI p95 is above the 5s budget.
@@ -211,7 +211,7 @@ tests:
             exp_annotations:
               summary: "AI request p95 above 5s"
               description: "Copilot/model calls exceeded the 5s p95 AI budget; platform latency is measured separately."
-              runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o34--ai-latency-and-async-jobs-issue-290"
+              runbook_url: "https://github.com/awap-platform/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o34--ai-latency-and-async-jobs-issue-290"
 
   # A fast AI path (everything under 1s) must not page anyone.
   - interval: 1m
@@ -249,7 +249,7 @@ tests:
             exp_annotations:
               summary: "AI error ratio above 10%"
               description: "AI calls are failing or timing out above the 10% budget; inspect provider health and fallback counters."
-              runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o34--ai-latency-and-async-jobs-issue-290"
+              runbook_url: "https://github.com/awap-platform/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o34--ai-latency-and-async-jobs-issue-290"
 
   # Jobs wait longer than the 5s queue budget before execution starts.
   - interval: 1m
@@ -273,4 +273,4 @@ tests:
             exp_annotations:
               summary: "Async Copilot job queue wait p95 above 5s"
               description: "Long-running Copilot jobs wait above the 5s queue budget; check runner saturation and provider capacity."
-              runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o34--ai-latency-and-async-jobs-issue-290"
+              runbook_url: "https://github.com/awap-platform/ai-native-workflow-automation-platform/blob/main/docs/operations-runbook.md#o34--ai-latency-and-async-jobs-issue-290"

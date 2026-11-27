@@ -7,7 +7,7 @@ ownership and the enforcement mechanics.
 
 ## Ownership
 
-- **Owner:** @koraysrn (single maintainer).
+- **Owner:** @awap-platform/maintainers (single maintainer).
 - **Review cadence:** first Monday of every month; the trend artifact and
   `docs/coverage/trend.json` are compared and the next step is scheduled.
 - **Who approves a step:** the owner opens the ratchet PR (or activates the Maven

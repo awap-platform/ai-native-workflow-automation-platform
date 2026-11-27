@@ -22,7 +22,7 @@ spec:
               app: awap-frontend
       containers:
         - name: frontend
-          image: ghcr.io/awap/awap-frontend:latest
+          image: ghcr.io/awap-platform/awap-frontend:latest
           ports:
             - containerPort: 3000
           resources:

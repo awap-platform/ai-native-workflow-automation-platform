@@ -111,9 +111,9 @@ export function validateOverlay(env, text) {
   );
 
   const deployExpectations = {
-    "awap-backend": ["backend", "ghcr.io/awap/awap-backend"],
-    "awap-frontend": ["frontend", "ghcr.io/awap/awap-frontend"],
-    "awap-ai-layer": ["ai", "ghcr.io/awap/awap-ai-layer"],
+    "awap-backend": ["backend", "ghcr.io/awap-platform/awap-backend"],
+    "awap-frontend": ["frontend", "ghcr.io/awap-platform/awap-frontend"],
+    "awap-ai-layer": ["ai", "ghcr.io/awap-platform/awap-ai-layer"],
   };
   for (const [name, [key, image]] of Object.entries(deployExpectations)) {
     const deployment = findByKindAndName(docs, "Deployment", name);

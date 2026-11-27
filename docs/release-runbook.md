@@ -56,6 +56,14 @@ user - not the maintainer's personal PAT, so every release PR has an auditable a
 to the protected branch. Approvals are not required by policy (see
 [repository governance](repository-governance.md)).
 
+> **Current configuration:** after the move to the `awap-platform` organisation the App secrets are
+> not set and the workflow uses the **fine-grained token fallback** (`RELEASE_PLEASE_TOKEN`:
+> Contents read/write, Pull requests read/write, Actions read/write). Fine-grained tokens expire:
+> rotate it before the expiry date and re-run `Release` with the recovery tag if a release has to be
+> reproduced. Installing the release-please App on the organisation and restoring
+> `RELEASE_PLEASE_APP_ID` / `RELEASE_PLEASE_PRIVATE_KEY` switches back to the preferred bot identity
+> without a workflow change.
+
 A regular `GITHUB_TOKEN` cannot be used for the release PR: pull requests created with it do not
 trigger CI, so the release PR would never receive the required checks and could never be merged.
 The preflight fails with an actionable message when neither credential is configured or the token

@@ -689,6 +689,11 @@ jobs:
       SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
       SONAR_BOOTSTRAP: ${{ vars.SONAR_BOOTSTRAP }}
       SONAR_MAVEN_PLUGIN_VERSION: 5.8.0.7211
+      # Moving the analysis to another SonarQube Cloud organisation is a settings
+      # change, not a code change: set these repository variables once the target
+      # project exists and its Automatic Analysis is disabled (docs/sonarqube.md).
+      SONAR_ORGANIZATION_OVERRIDE: ${{ vars.SONAR_ORGANIZATION }}
+      SONAR_PROJECT_KEY_OVERRIDE: ${{ vars.SONAR_PROJECT_KEY }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -719,12 +724,28 @@ jobs:
           # The SonarScanner for Maven reads analysis parameters from the pom
           # <properties>, so the key is resolved from there and never duplicated.
           project_key="$(sed -n 's:.*<sonar\.projectKey>\(.*\)</sonar\.projectKey>.*:\1:p' backend/pom.xml | head -1)"
+          # A repository variable points the analysis at the project that is bound
+          # to this repository after an owner change, without editing the pom.
+          project_key="${SONAR_PROJECT_KEY_OVERRIDE:-$project_key}"
           if [ -z "$project_key" ]; then
-            echo "::error title=SonarQube::backend/pom.xml has no sonar.projectKey property."
+            echo "::error title=SonarQube::backend/pom.xml has no sonar.projectKey property and SONAR_PROJECT_KEY is not set."
             exit 1
           fi
           echo "SONAR_PROJECT_KEY=$project_key" >> "$GITHUB_ENV"
           echo "Analysing SonarQube project: $project_key"
+      - name: Resolve the SonarQube organization
+        if: env.SONAR_SKIP != 'true'
+        run: |
+          # SonarQube Cloud keys projects by organisation; the pom is the default
+          # and SONAR_ORGANIZATION overrides it after the migration.
+          organization="$(sed -n 's:.*<sonar\.organization>\(.*\)</sonar\.organization>.*:\1:p' backend/pom.xml | head -1)"
+          organization="${SONAR_ORGANIZATION_OVERRIDE:-$organization}"
+          if [ -z "$organization" ]; then
+            echo "::error title=SonarQube::backend/pom.xml has no sonar.organization property and SONAR_ORGANIZATION is not set."
+            exit 1
+          fi
+          echo "SONAR_ORGANIZATION=$organization" >> "$GITHUB_ENV"
+          echo "Analysing SonarQube organization: $organization"
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -759,6 +780,7 @@ jobs:
           fi
           mvn -B "org.sonarsource.scanner.maven:sonar-maven-plugin:${SONAR_MAVEN_PLUGIN_VERSION}:sonar" \
             -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
+            -Dsonar.organization="$SONAR_ORGANIZATION" \
             -Dsonar.host.url="$SONAR_HOST_URL" \
             -Dsonar.token="$SONAR_TOKEN" \
             -Dsonar.qualitygate.wait=true \

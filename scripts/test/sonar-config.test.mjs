@@ -80,3 +80,23 @@ test("the SonarQube runbook documents the organization requirement and Automatic
   assert.match(docs, /sonar-project\.properties/);
   assert.doesNotMatch(docs, /-Dsonar\.projectKey=awap/);
 });
+
+test("CI resolves the organization and lets a repository variable move the analysis", async () => {
+  const workflow = await readFile(CI_WORKFLOW, "utf8");
+  assert.match(workflow, /<sonar\\\.organization>/);
+  assert.match(workflow, /SONAR_ORGANIZATION_OVERRIDE: \$\{\{\s*vars\.SONAR_ORGANIZATION\s*\}\}/);
+  assert.match(workflow, /SONAR_PROJECT_KEY_OVERRIDE: \$\{\{\s*vars\.SONAR_PROJECT_KEY\s*\}\}/);
+  assert.match(workflow, /project_key="\$\{SONAR_PROJECT_KEY_OVERRIDE:-\$project_key\}"/);
+  assert.match(workflow, /organization="\$\{SONAR_ORGANIZATION_OVERRIDE:-\$organization\}"/);
+  assert.match(workflow, /echo "SONAR_ORGANIZATION=\$organization" >> "\$GITHUB_ENV"/);
+  assert.match(workflow, /-Dsonar\.organization="\$SONAR_ORGANIZATION"/);
+});
+
+test("the runbook documents both projects and the migration switch", async () => {
+  const docs = await readFile(DOCS, "utf8");
+  assert.match(docs, /awap-platform_ai-native-workflow-automation-platform/);
+  assert.match(docs, /SONAR_ORGANIZATION/);
+  assert.match(docs, /SONAR_PROJECT_KEY/);
+  assert.match(docs, /Automatic Analysis/);
+  assert.match(docs, /gh variable set SONAR_ORGANIZATION/);
+});

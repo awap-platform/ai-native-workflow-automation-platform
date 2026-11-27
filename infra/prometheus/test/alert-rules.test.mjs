@@ -26,7 +26,7 @@ test("every alert carries severity, summary, description and a runbook link", as
     assert.match(block, /labels:\n\s+severity: (warning|critical)/, `${name} lacks severity`);
     assert.match(block, /summary: "/, `${name} lacks a summary`);
     assert.match(block, /description: "/, `${name} lacks a description`);
-    assert.match(block, /runbook_url: "https:\/\/github\.com\/koraysrn\//, `${name} lacks a runbook URL`);
+    assert.match(block, /runbook_url: "https:\/\/github\.com\/awap-platform\//, `${name} lacks a runbook URL`);
     assert.match(block, new RegExp(`runbook_url: ".*operations-runbook\\.md#`), `${name} runbook must be anchored`);
   }
 });
