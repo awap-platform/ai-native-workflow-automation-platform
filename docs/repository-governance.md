@@ -91,9 +91,9 @@ in the last column is the check:
 | Setting | Required state | Verification |
 |---|---|---|
 | Secret scanning | Enabled | `gh api repos/OWNER/REPO --jq '.security_and_analysis.secret_scanning.status'` |
-| Secret scanning push protection | Enabled | `... .security_and_analysis.secret_scanning_push_protection.status` |
-| Secret scanning non-provider patterns | Enabled (needs GitHub Secret Protection enabled for the organisation) | `... .security_and_analysis.secret_scanning_non_provider_patterns.status` |
-| Secret scanning validity checks | Enabled (same entitlement) | `... .security_and_analysis.secret_scanning_validity_checks.status` |
+| Secret scanning push protection | Enabled (free, no GHAS licence needed) | `... .security_and_analysis.secret_scanning_push_protection.status` |
+| Secret scanning non-provider patterns | **Not adopted**: requires the paid GitHub Secret Protection (GHAS) licence | `... .security_and_analysis.secret_scanning_non_provider_patterns.status` |
+| Secret scanning validity checks | **Not adopted**: same entitlement as above | `... .security_and_analysis.secret_scanning_validity_checks.status` |
 | Dependabot alerts | Enabled | `gh api repos/OWNER/REPO/vulnerability-alerts -i` returns `204` |
 | Dependabot security updates | **Disabled**: Renovate opens the security PRs (see below) | `... .security_and_analysis.dependabot_security_updates.status` must read `disabled` |
 | Private vulnerability reporting | Enabled | `gh api repos/OWNER/REPO/private-vulnerability-reporting --jq .enabled` |
@@ -102,6 +102,14 @@ in the last column is the check:
 
 Do not enable `sha_pinning_required` until every `uses:` reference is pinned to a
 commit SHA; the workflows currently pin major tags.
+
+The two `non-provider patterns` and `validity checks` rows read `disabled` by
+design: the `awap-platform` organisation does not hold a GitHub Secret Protection
+(GHAS) licence, so the API rejects enabling them. This is a reviewed entitlement
+decision, not configuration drift - do not re-enable them and do not report them
+as drift until the licence is purchased. Secret scanning, push protection,
+Dependabot alerts, CodeQL and the `gitleaks` CLI in [`ci.yml`](../.github/workflows/ci.yml)
+cover the free tier in the meantime.
 
 ### Dependency update policy
 
