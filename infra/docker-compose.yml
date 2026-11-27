@@ -197,7 +197,7 @@ services:
       start_period: 5s
 
   clamav:
-    image: clamav/clamav:1.4
+    image: clamav/clamav:1.5.5
     profiles: ["full"]
     ports:
       - "3310:3310"
@@ -326,7 +326,7 @@ services:
   # Exposes the replication-slot series consumed by infra/prometheus/cdc-alert-rules.yml.
   # The pg_replication_slot_* series only exist once the Debezium connector created the slot.
   postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:v0.16.0
+    image: prometheuscommunity/postgres-exporter:v0.21.1
     environment:
       DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-awap}:${POSTGRES_PASSWORD:-awap}@postgres:5432/${POSTGRES_DB:-awap}?sslmode=disable"
     command:
