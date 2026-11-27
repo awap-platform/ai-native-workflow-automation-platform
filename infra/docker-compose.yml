@@ -305,7 +305,7 @@ services:
     command: ["node", "/workspace/infra/scripts/provision-connector.mjs"]
 
   opensearch:
-    image: opensearchproject/opensearch:2.19.0
+    image: opensearchproject/opensearch:2.19.8
     environment:
       discovery.type: single-node
       bootstrap.memory_lock: "true"
