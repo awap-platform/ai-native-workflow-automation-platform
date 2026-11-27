@@ -53,7 +53,7 @@ services:
       retries: 20
 
   kafka:
-    image: confluentinc/cp-kafka:7.9.0
+    image: confluentinc/cp-kafka:7.9.11
     environment:
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
       KAFKA_NODE_ID: 1
@@ -83,7 +83,7 @@ services:
       start_period: 20s
 
   schema-registry:
-    image: confluentinc/cp-schema-registry:7.9.0
+    image: confluentinc/cp-schema-registry:7.9.11
     depends_on:
       kafka:
         condition: service_healthy
@@ -103,7 +103,7 @@ services:
   # Idempotent topic provisioning for the full profile. Every create uses --if-not-exists, so
   # restarting the stack never fails or duplicates topics.
   kafka-init:
-    image: confluentinc/cp-kafka:7.9.0
+    image: confluentinc/cp-kafka:7.9.11
     profiles: ["full"]
     depends_on:
       kafka:
@@ -197,7 +197,7 @@ services:
       start_period: 5s
 
   clamav:
-    image: clamav/clamav:1.4
+    image: clamav/clamav:1.5.5
     profiles: ["full"]
     ports:
       - "3310:3310"
@@ -305,7 +305,7 @@ services:
     command: ["node", "/workspace/infra/scripts/provision-connector.mjs"]
 
   opensearch:
-    image: opensearchproject/opensearch:2.19.0
+    image: opensearchproject/opensearch:2.19.8
     environment:
       discovery.type: single-node
       bootstrap.memory_lock: "true"
@@ -326,7 +326,7 @@ services:
   # Exposes the replication-slot series consumed by infra/prometheus/cdc-alert-rules.yml.
   # The pg_replication_slot_* series only exist once the Debezium connector created the slot.
   postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:v0.16.0
+    image: prometheuscommunity/postgres-exporter:v0.21.1
     environment:
       DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-awap}:${POSTGRES_PASSWORD:-awap}@postgres:5432/${POSTGRES_DB:-awap}?sslmode=disable"
     command:
