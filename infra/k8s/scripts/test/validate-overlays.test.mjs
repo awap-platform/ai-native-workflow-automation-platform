@@ -26,7 +26,7 @@ function docsForEnv(env) {
       spec: {
         replicas: 1,
         template: {
-          spec: { containers: [{ name: "backend", image: "ghcr.io/awap/awap-backend:dev" }] },
+          spec: { containers: [{ name: "backend", image: "ghcr.io/awap-platform/awap-backend:dev" }] },
         },
       },
     },
@@ -37,7 +37,7 @@ function docsForEnv(env) {
       spec: {
         replicas: 1,
         template: {
-          spec: { containers: [{ name: "frontend", image: "ghcr.io/awap/awap-frontend:dev" }] },
+          spec: { containers: [{ name: "frontend", image: "ghcr.io/awap-platform/awap-frontend:dev" }] },
         },
       },
     },
@@ -48,7 +48,7 @@ function docsForEnv(env) {
       spec: {
         replicas: 1,
         template: {
-          spec: { containers: [{ name: "ai-layer", image: "ghcr.io/awap/awap-ai-layer:dev" }] },
+          spec: { containers: [{ name: "ai-layer", image: "ghcr.io/awap-platform/awap-ai-layer:dev" }] },
         },
       },
     },
@@ -103,11 +103,11 @@ function docsForEnv(env) {
   }
   docs[0].metadata.name = expectation.namespace;
   docs[1].spec.replicas = expectation.replicas.backend;
-  docs[1].spec.template.spec.containers[0].image = `ghcr.io/awap/awap-backend:${env}`;
+  docs[1].spec.template.spec.containers[0].image = `ghcr.io/awap-platform/awap-backend:${env}`;
   docs[2].spec.replicas = expectation.replicas.frontend;
-  docs[2].spec.template.spec.containers[0].image = `ghcr.io/awap/awap-frontend:${env}`;
+  docs[2].spec.template.spec.containers[0].image = `ghcr.io/awap-platform/awap-frontend:${env}`;
   docs[3].spec.replicas = expectation.replicas.ai;
-  docs[3].spec.template.spec.containers[0].image = `ghcr.io/awap/awap-ai-layer:${env}`;
+  docs[3].spec.template.spec.containers[0].image = `ghcr.io/awap-platform/awap-ai-layer:${env}`;
   docs[4].spec.rules[0].host = expectation.host;
   docs[4].spec.tls[0] = { hosts: [expectation.host], secretName: expectation.tlsSecret };
   for (const [index, key] of [
@@ -212,7 +212,7 @@ test("a production host in the dev overlay is rejected", () => {
 test("wrong replicas, image tags and HPA bounds are rejected", () => {
   const docs = devDocs();
   docs[1].spec.replicas = 5;
-  docs[2].spec.template.spec.containers[0].image = "ghcr.io/awap/awap-frontend:prod";
+  docs[2].spec.template.spec.containers[0].image = "ghcr.io/awap-platform/awap-frontend:prod";
   docs[5].spec.maxReplicas = 99;
   const result = validateOverlay("dev", render(docs));
   assert.ok(result.errors.some((error) => error.includes("awap-backend replicas")));

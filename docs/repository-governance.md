@@ -44,7 +44,7 @@ The names are defined once in the `REQUIRED_CHECKS` array of [`apply-branch-prot
 
 ### Single-maintainer merge policy (permanent, reviewed)
 
-The repository has one maintainer (`@koraysrn`) and GitHub never counts a self-approval, so `required_approving_review_count` is **0 by policy**. That value is a reviewed decision, not drift and not an exception window: the snapshot and the test suite encode it, so the drift job stays green without a temporary patch.
+The `awap-platform/maintainers` team currently has a single member and GitHub never counts a self-approval, so `required_approving_review_count` is **0 by policy**. That value is a reviewed decision, not drift and not an exception window: the snapshot and the test suite encode it, so the drift job stays green without a temporary patch.
 
 What still gates every merge, and must not be weakened:
 
@@ -82,6 +82,27 @@ A divergence prints one `DRIFT <field>: expected ..., got ...` line per differin
   is green. `CHANGELOG.md` is bot-owned: a human edit fails the changelog guard. See the
   [release runbook](release-runbook.md).
 
+## Repository security settings
+
+These are repository settings, not code, and the transfer to the `awap-platform`
+organisation reset them. Keep this table as the reviewed state; the `gh` command
+in the last column is the check:
+
+| Setting | Required state | Verification |
+|---|---|---|
+| Secret scanning | Enabled | `gh api repos/OWNER/REPO --jq '.security_and_analysis.secret_scanning.status'` |
+| Secret scanning push protection | Enabled | `... .security_and_analysis.secret_scanning_push_protection.status` |
+| Secret scanning non-provider patterns | Enabled (needs GitHub Secret Protection enabled for the organisation) | `... .security_and_analysis.secret_scanning_non_provider_patterns.status` |
+| Secret scanning validity checks | Enabled (same entitlement) | `... .security_and_analysis.secret_scanning_validity_checks.status` |
+| Dependabot alerts | Enabled | `gh api repos/OWNER/REPO/vulnerability-alerts -i` returns `204` |
+| Dependabot security updates | Enabled | `... .security_and_analysis.dependabot_security_updates.status` |
+| Private vulnerability reporting | Enabled | `gh api repos/OWNER/REPO/private-vulnerability-reporting --jq .enabled` |
+| Code scanning | The `CodeQL` workflow (advanced setup) | the required check plus the `CodeQL` job in [`ci.yml`](../.github/workflows/ci.yml) |
+| Default workflow token | Read-only, with per-workflow `permissions:` blocks | `gh api repos/OWNER/REPO/actions/permissions/workflow` |
+
+Do not enable `sha_pinning_required` until every `uses:` reference is pinned to a
+commit SHA; the workflows currently pin major tags.
+
 ## Labels and milestones
 
 The label taxonomy, milestone structure, ownership and merge policy are defined once in [`settings/repository-governance.json`](../settings/repository-governance.json). The tables below are validated against that file by [`scripts/test/apply-repo-governance.test.mjs`](../scripts/test/apply-repo-governance.test.mjs), so the documentation cannot silently diverge from the desired state.
@@ -90,19 +111,19 @@ The label taxonomy, milestone structure, ownership and merge policy are defined 
 
 | Label | Description | Color | Owner |
 |---|---|---|---|
-| `kind/bug` | Bug fix or correction | `d73a4a` | `@koraysrn` |
-| `kind/feature` | New feature or request | `a2eeef` | `@koraysrn` |
-| `kind/chore` | Maintenance, tooling or infra work | `c5def5` | `@koraysrn` |
-| `area/backend` | Backend (Java / Spring Boot) | `ffa221` | `@koraysrn` |
-| `area/frontend` | Frontend (Next.js / React) | `168700` | `@koraysrn` |
-| `area/ai` | AI layer (Python / FastAPI) | `5319e7` | `@koraysrn` |
-| `priority/p0` | Critical - must ship first | `b60205` | `@koraysrn` |
-| `priority/p1` | High priority | `d93f0b` | `@koraysrn` |
-| `priority/p2` | Medium priority | `fbca04` | `@koraysrn` |
-| `priority/p3` | Low priority | `0e8a16` | `@koraysrn` |
-| `phase/preparation` | Preparation phase (repo, CI/CD, security foundations) | `e4e669` | `@koraysrn` |
-| `phase/core-mvp` | Core MVP phase | `0e8a16` | `@koraysrn` |
-| `phase/expansion` | Post-MVP expansion | `0075ca` | `@koraysrn` |
+| `kind/bug` | Bug fix or correction | `d73a4a` | `@awap-platform/maintainers` |
+| `kind/feature` | New feature or request | `a2eeef` | `@awap-platform/maintainers` |
+| `kind/chore` | Maintenance, tooling or infra work | `c5def5` | `@awap-platform/maintainers` |
+| `area/backend` | Backend (Java / Spring Boot) | `ffa221` | `@awap-platform/maintainers` |
+| `area/frontend` | Frontend (Next.js / React) | `168700` | `@awap-platform/maintainers` |
+| `area/ai` | AI layer (Python / FastAPI) | `5319e7` | `@awap-platform/maintainers` |
+| `priority/p0` | Critical - must ship first | `b60205` | `@awap-platform/maintainers` |
+| `priority/p1` | High priority | `d93f0b` | `@awap-platform/maintainers` |
+| `priority/p2` | Medium priority | `fbca04` | `@awap-platform/maintainers` |
+| `priority/p3` | Low priority | `0e8a16` | `@awap-platform/maintainers` |
+| `phase/preparation` | Preparation phase (repo, CI/CD, security foundations) | `e4e669` | `@awap-platform/maintainers` |
+| `phase/core-mvp` | Core MVP phase | `0e8a16` | `@awap-platform/maintainers` |
+| `phase/expansion` | Post-MVP expansion | `0075ca` | `@awap-platform/maintainers` |
 
 Every label has an accountable owner. GitHub labels do not store an owner field, so the owner is governance metadata: the person or team that reviews changes to the label, its automation filters and its replacement plan.
 
@@ -112,9 +133,9 @@ Every label has an accountable owner. GitHub labels do not store an owner field,
 
 | Milestone | Description | Owner |
 |---|---|---|
-| `Preparation Phase` | Preparation phase - repo, CI/CD and security foundations | `@koraysrn` |
-| `Phase 0 - Core MVP` | Phase 0 - core MVP | `@koraysrn` |
-| `Phase 1 - Expansion` | Phase 1 - post-MVP expansion | `@koraysrn` |
+| `Preparation Phase` | Preparation phase - repo, CI/CD and security foundations | `@awap-platform/maintainers` |
+| `Phase 0 - Core MVP` | Phase 0 - core MVP | `@awap-platform/maintainers` |
+| `Phase 1 - Expansion` | Phase 1 - post-MVP expansion | `@awap-platform/maintainers` |
 
 ### Applying and verifying the taxonomy
 

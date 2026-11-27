@@ -22,7 +22,7 @@ spec:
               app: awap-backend
       containers:
         - name: backend
-          image: ghcr.io/awap/awap-backend:latest
+          image: ghcr.io/awap-platform/awap-backend:latest
           ports:
             - containerPort: 8080
           resources:

@@ -5,11 +5,11 @@ resources:
   - ../../base
   - namespace.yaml
 images:
-  - name: ghcr.io/awap/awap-backend
+  - name: ghcr.io/awap-platform/awap-backend
     newTag: staging
-  - name: ghcr.io/awap/awap-frontend
+  - name: ghcr.io/awap-platform/awap-frontend
     newTag: staging
-  - name: ghcr.io/awap/awap-ai-layer
+  - name: ghcr.io/awap-platform/awap-ai-layer
     newTag: staging
 configMapGenerator:
   - name: awap-feature-flags

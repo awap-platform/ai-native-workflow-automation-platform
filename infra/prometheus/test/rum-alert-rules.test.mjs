@@ -25,7 +25,7 @@ test("every RUM alert carries severity, summary, description and a runbook link"
     assert.match(block, /severity: (warning|critical)/, `${name} lacks severity`);
     assert.match(block, /summary: "/, `${name} lacks a summary`);
     assert.match(block, /description: "/, `${name} lacks a description`);
-    assert.match(block, /runbook_url: "https:\/\/github\.com\/koraysrn\//, `${name} lacks a URL`);
+    assert.match(block, /runbook_url: "https:\/\/github\.com\/awap-platform\//, `${name} lacks a URL`);
     assert.match(block, /runbook_url: ".*operations-runbook\.md#rum-vitals-alerts"/, `${name} anchor`);
   }
 });

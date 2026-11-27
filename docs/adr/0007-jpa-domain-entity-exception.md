@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-11
-- **Owner:** `@koraysrn`
+- **Owner:** `@awap-platform/maintainers`
 - **Issue:** #199
 - **Review / expiry:** `2027-06-30`
 

@@ -14,7 +14,7 @@ groups:
         annotations:
           summary: "Outbox replication slot is inactive"
           description: "The awap_outbox slot has had no active consumer for 5 minutes; CDC is not advancing while WAL keeps growing."
-          runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/cdc-cutover-runbook.md#monitoring"
+          runbook_url: "https://github.com/awap-platform/ai-native-workflow-automation-platform/blob/main/docs/cdc-cutover-runbook.md#monitoring"
 
       - alert: AwapCdcSlotLagHigh
         # postgres_exporter exposes the plural series name (`pg_replication_slots_*`); the singular
@@ -26,7 +26,7 @@ groups:
         annotations:
           summary: "Outbox replication slot lag above 512 MiB"
           description: "The awap_outbox slot retains {{ $value }} bytes of WAL; the database disk can fill up."
-          runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/cdc-cutover-runbook.md#monitoring"
+          runbook_url: "https://github.com/awap-platform/ai-native-workflow-automation-platform/blob/main/docs/cdc-cutover-runbook.md#monitoring"
 
       - alert: AwapCdcDuplicateRateHigh
         expr: |
@@ -38,4 +38,4 @@ groups:
         annotations:
           summary: "Delivery failure ratio suggests duplicate/poison events"
           description: "Failed attempts are {{ $value | humanizePercentage }} of deliveries during the dual run; check for duplicate CDC events."
-          runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/cdc-cutover-runbook.md#dual-run-minimum-48h"
+          runbook_url: "https://github.com/awap-platform/ai-native-workflow-automation-platform/blob/main/docs/cdc-cutover-runbook.md#dual-run-minimum-48h"

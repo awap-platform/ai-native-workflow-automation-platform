@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-15
-- Owners: AI Layer maintainers (`@koraysrn`)
+- Owners: AI Layer maintainers (`@awap-platform/maintainers`)
 - Related: C11, issue #289
 
 ## Context

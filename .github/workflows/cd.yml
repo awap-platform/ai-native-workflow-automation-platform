@@ -31,6 +31,10 @@ jobs:
     name: Deploy to Staging
     needs: build-and-push
     runs-on: ubuntu-latest
+    # The deployment target is an environment so required reviewers, a wait timer
+    # or environment-scoped secrets can be added without editing the workflow.
+    # With no protection rules configured it behaves exactly like a plain job.
+    environment: staging
     env:
       ARGOCD_VERSION: v2.14.10
     steps:

@@ -29,7 +29,7 @@ tests:
             exp_annotations:
               summary: "Outbox replication slot is inactive"
               description: "The awap_outbox slot has had no active consumer for 5 minutes; CDC is not advancing while WAL keeps growing."
-              runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/cdc-cutover-runbook.md#monitoring"
+              runbook_url: "https://github.com/awap-platform/ai-native-workflow-automation-platform/blob/main/docs/cdc-cutover-runbook.md#monitoring"
 
   # Four minutes of inactivity is not enough for the 5m window -> no alert yet.
   - interval: 1m
@@ -57,7 +57,7 @@ tests:
             exp_annotations:
               summary: "Outbox replication slot lag above 512 MiB"
               description: "The awap_outbox slot retains 1.6e+09 bytes of WAL; the database disk can fill up."
-              runbook_url: "https://github.com/koraysrn/ai-native-workflow-automation-platform/blob/main/docs/cdc-cutover-runbook.md#monitoring"
+              runbook_url: "https://github.com/awap-platform/ai-native-workflow-automation-platform/blob/main/docs/cdc-cutover-runbook.md#monitoring"
 
   # 400 MiB stays below the 512 MiB budget -> no alert.
   - interval: 1m

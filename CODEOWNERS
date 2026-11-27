@@ -1,8 +1,10 @@
 # Code owners for the AWAP monorepo.
+# The awap-platform/maintainers team owns every path. Split the entries into
+# per-area teams once more than one maintainer works in the same area.
 
-*               @koraysrn
-/backend/       @koraysrn
-/frontend/      @koraysrn
-/ai-layer/      @koraysrn
-/infra/         @koraysrn
-/docs/          @koraysrn
+*               @awap-platform/maintainers
+/backend/       @awap-platform/maintainers
+/frontend/      @awap-platform/maintainers
+/ai-layer/      @awap-platform/maintainers
+/infra/         @awap-platform/maintainers
+/docs/          @awap-platform/maintainers
