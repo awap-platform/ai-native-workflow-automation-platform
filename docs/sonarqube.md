@@ -47,11 +47,11 @@ authoritative while being silently ignored.
   self-hosted server. A missing value fails the scanner with
   `You must define the following mandatory properties: sonar.organization`.
 - `sonar.projectKey` must match the project that is bound to this repository. The
-  pom currently names `koraysrn_ai-native-workflow-automation-platform`, the
-  project that holds the analysis history; the repository variables
-  `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` move the analysis without a code
-  change. A key for a project that does not exist or is not writable by the token
-  fails the analysis before the gate is evaluated.
+  pom names `awap-platform_ai-native-workflow-automation-platform` in the
+  `awap-platform` organisation; the repository variables `SONAR_ORGANIZATION` and
+  `SONAR_PROJECT_KEY` can move the analysis without a code change. A key for a
+  project that does not exist or is not writable by the token fails the analysis
+  before the gate is evaluated.
 - `sonar.sources` / `sonar.tests` stay unset so Maven infers the scope per
   module; setting root-relative paths would be applied to every module.
 
@@ -71,45 +71,32 @@ ones; see [PR comment hygiene](pr-comment-hygiene.md).
 > under *Administration → Analysis Method → Automatic Analysis* before the first
 > CI run, otherwise the gate can never pass.
 
-## Two projects after the move to the `awap-platform` organisation
+## Project identity after the organisation move
 
-The repository moved from a personal account to the `awap-platform` organisation.
-The SonarQube Cloud GitHub App created a **new** project in a new SonarQube Cloud
-organisation of the same name and analyses it with Automatic Analysis; the table
-above and the pom still point the CI scan at the original
-`koraysrn_ai-native-workflow-automation-platform` project. Until the migration
-below is finished, two things happen on every pull request:
+The repository moved from a personal account to the `awap-platform` organisation,
+so SonarQube Cloud now holds the project
+`awap-platform_ai-native-workflow-automation-platform` in the `awap-platform`
+organisation, bound to this repository. It is the only project: the Maven scan
+from CI and the GitHub App decoration report to it, so the required
+`Code Quality` check and the app check describe the same analysis.
 
-- the required `Code Quality` check runs the Maven scan against the original
-  project and applies the blocking quality gate;
-- the app's `SonarCloud Code Analysis` check decorates the pull request from the
-  new project (not a required check, but it can show a red X and leaves a second
-  bot comment).
+- The pom names that project and organisation, so a local scan uses the same
+  identity as CI. A future move needs no code change: set the repository
+  variables and the workflow applies them after reading the pom.
 
-Pick one project and keep it. The CI project is the one the policy names, so
-either migrate CI to the new project or stop the app from analysing it:
+  ```sh
+  gh variable set SONAR_ORGANIZATION -b awap-platform -R awap-platform/ai-native-workflow-automation-platform
+  gh variable set SONAR_PROJECT_KEY -b awap-platform_ai-native-workflow-automation-platform -R awap-platform/ai-native-workflow-automation-platform
+  ```
 
-1. In SonarQube Cloud open the project that CI should scan and **disable
-   Automatic Analysis** (*Administration → Analysis Method → Automatic
-   Analysis*). This is mandatory: the scanner refuses to run while it is on.
-2. Create a user token with *Execute analysis* in that project's organisation.
-3. Update the `SONAR_TOKEN` repository secret with it.
-4. To move CI to the `awap-platform` project, set the repository variables
-   `SONAR_ORGANIZATION=awap-platform` and
-   `SONAR_PROJECT_KEY=awap-platform_ai-native-workflow-automation-platform`.
-   The workflow resolves the pom first and then applies the variables, so no code
-   change and no workflow edit is needed:
-
-   ```sh
-   gh variable set SONAR_ORGANIZATION -b awap-platform -R awap-platform/ai-native-workflow-automation-platform
-   gh variable set SONAR_PROJECT_KEY -b awap-platform_ai-native-workflow-automation-platform -R awap-platform/ai-native-workflow-automation-platform
-   ```
-
-5. Once the variables are the source of truth, copy the same two values into
-   [`backend/pom.xml`](../backend/pom.xml) so a local scan matches CI, and archive
-   the project that is no longer used.
-6. Re-run the `Code Quality` job and confirm the quality gate is evaluated on the
-   project named in the log line `Analysing SonarQube project:`.
+- **Automatic Analysis must stay off** for that project (*Administration →
+  Analysis Method → Automatic Analysis*). It was disabled during the move. A
+  project that still uses it rejects the CI scan, and a free organisation rejects
+  branch analyses other than the project's main branch
+  (`Organization is not allowed to access data from non main branches`).
+- `SONAR_TOKEN` must be a user token with *Execute analysis* in the
+  `awap-platform` organisation. The green `Code Quality` run on `main` proves the
+  configured token can reach that project.
 
 ## Coverage import
 

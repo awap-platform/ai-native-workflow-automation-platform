@@ -34,12 +34,19 @@ test("the pom declares the SonarQube project key and organization", async () => 
   );
 });
 
-test("the project key is not the old placeholder default", async () => {
+test("the project key matches the project bound to the repository", async () => {
   const pom = await readFile(POM, "utf8");
-  assert.notEqual(
-    pomProperty(pom, "sonar.projectKey"),
-    "awap",
-    "the key must match the project bound to the repository",
+  const projectKey = pomProperty(pom, "sonar.projectKey");
+  assert.notEqual(projectKey, "awap", "the key must match the project bound to the repository");
+  assert.equal(
+    projectKey,
+    "awap-platform_ai-native-workflow-automation-platform",
+    "the key must follow the awap-platform organisation after the move",
+  );
+  assert.equal(
+    pomProperty(pom, "sonar.organization"),
+    "awap-platform",
+    "the pom must name the organisation that holds the project",
   );
 });
 
@@ -92,7 +99,7 @@ test("CI resolves the organization and lets a repository variable move the analy
   assert.match(workflow, /-Dsonar\.organization="\$SONAR_ORGANIZATION"/);
 });
 
-test("the runbook documents both projects and the migration switch", async () => {
+test("the runbook documents the project identity and the variable switch", async () => {
   const docs = await readFile(DOCS, "utf8");
   assert.match(docs, /awap-platform_ai-native-workflow-automation-platform/);
   assert.match(docs, /SONAR_ORGANIZATION/);
