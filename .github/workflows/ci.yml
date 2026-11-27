@@ -449,6 +449,8 @@ jobs:
         # Measured after the Playwright suite, on a settled stack: Flyway
         # migrations, Kafka rebalancing and the freshclam signature update at
         # stack start were inflating total-blocking-time on the shared runner.
+        # Three runs per URL and a median assertion keep a noisy neighbour from
+        # failing the gate; lighthouserc.json holds both settings.
         uses: treosh/lighthouse-ci-action@v12
         with:
           configPath: ./.github/lighthouse/lighthouserc.json
