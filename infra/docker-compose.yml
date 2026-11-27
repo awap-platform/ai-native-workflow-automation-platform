@@ -53,7 +53,7 @@ services:
       retries: 20
 
   kafka:
-    image: confluentinc/cp-kafka:7.9.0
+    image: confluentinc/cp-kafka:7.9.11
     environment:
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
       KAFKA_NODE_ID: 1
@@ -103,7 +103,7 @@ services:
   # Idempotent topic provisioning for the full profile. Every create uses --if-not-exists, so
   # restarting the stack never fails or duplicates topics.
   kafka-init:
-    image: confluentinc/cp-kafka:7.9.0
+    image: confluentinc/cp-kafka:7.9.11
     profiles: ["full"]
     depends_on:
       kafka:
