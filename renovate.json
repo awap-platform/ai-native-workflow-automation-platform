@@ -1,18 +1,45 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Renovate owns every ecosystem, including GitHub Actions. Dependabot is kept for its alerts only: GitHub does not expose repository secrets to Dependabot-triggered runs, so its PRs can never pass the required Code Quality and Dependency Scan checks (see docs/repository-governance.md).",
   "extends": [
     "config:recommended"
   ],
   "timezone": "Europe/Istanbul",
   "dependencyDashboard": true,
-  "prConcurrentLimit": 5,
+  "recreateWhen": "never",
+  "prConcurrentLimit": 2,
+  "prHourlyLimit": 1,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 5am on monday"
+    ]
+  },
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": [
+      "security"
+    ],
+    "prPriority": 10
+  },
   "ignoreDeps": [
     "typescript"
   ],
   "packageRules": [
     {
+      "description": "Major updates wait for an explicit click on the Dependency Dashboard.",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "dependencyDashboardApproval": true
+    },
+    {
       "matchManagers": [
         "maven"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
       ],
       "groupName": "backend-maven",
       "labels": [
@@ -24,6 +51,10 @@
       "matchManagers": [
         "npm"
       ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
       "groupName": "frontend-npm",
       "labels": [
         "dependencies",
@@ -34,10 +65,39 @@
       "matchManagers": [
         "pep621"
       ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
       "groupName": "ai-layer-python",
       "labels": [
         "dependencies",
         "area/ai"
+      ]
+    },
+    {
+      "description": "One PR for every container image so the stack stays on one version line.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "groupName": "docker-images",
+      "labels": [
+        "dependencies",
+        "area/infra"
+      ]
+    },
+    {
+      "description": "GitHub Actions move together; one PR per week instead of one per action.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "github-actions",
+      "labels": [
+        "dependencies"
       ]
     },
     {
