@@ -95,13 +95,36 @@ in the last column is the check:
 | Secret scanning non-provider patterns | Enabled (needs GitHub Secret Protection enabled for the organisation) | `... .security_and_analysis.secret_scanning_non_provider_patterns.status` |
 | Secret scanning validity checks | Enabled (same entitlement) | `... .security_and_analysis.secret_scanning_validity_checks.status` |
 | Dependabot alerts | Enabled | `gh api repos/OWNER/REPO/vulnerability-alerts -i` returns `204` |
-| Dependabot security updates | Enabled | `... .security_and_analysis.dependabot_security_updates.status` |
+| Dependabot security updates | **Disabled**: Renovate opens the security PRs (see below) | `... .security_and_analysis.dependabot_security_updates.status` must read `disabled` |
 | Private vulnerability reporting | Enabled | `gh api repos/OWNER/REPO/private-vulnerability-reporting --jq .enabled` |
 | Code scanning | The `CodeQL` workflow (advanced setup) | the required check plus the `CodeQL` job in [`ci.yml`](../.github/workflows/ci.yml) |
 | Default workflow token | Read-only, with per-workflow `permissions:` blocks | `gh api repos/OWNER/REPO/actions/permissions/workflow` |
 
 Do not enable `sha_pinning_required` until every `uses:` reference is pinned to a
 commit SHA; the workflows currently pin major tags.
+
+### Dependency update policy
+
+Renovate owns **every** ecosystem - Maven, npm/pnpm, uv, container images and
+GitHub Actions - through [`renovate.json`](../renovate.json). The configuration
+keeps the noise low and the signal high:
+
+- `recreateWhen: "never"` and `prConcurrentLimit: 2` / `prHourlyLimit: 1`, so a
+  closed update never reappears and at most two update PRs are open at a time;
+- one group per area (Maven, npm, uv), one group for every container image and one
+  for GitHub Actions; majors wait for a click on the Dependency Dashboard;
+- `lockFileMaintenance` refreshes the lockfiles once a week in a single PR;
+- `vulnerabilityAlerts` opens the security PRs with the `security` label and the
+  highest priority.
+
+Dependabot is kept for its **alerts** only. Its security-update PRs are disabled
+and its version-update configuration file was removed because GitHub does not
+expose repository secrets to Dependabot-triggered workflow runs: the
+required `Code Quality` and `Dependency Scan` checks fail with
+`SONAR_TOKEN is required` / `NVD_API_KEY secret is required` on every Dependabot
+branch, so those PRs can never satisfy branch protection. If a future run needs
+Dependabot PRs, add the secrets under *Settings -> Secrets and variables ->
+Dependabot* first.
 
 ## Labels and milestones
 
