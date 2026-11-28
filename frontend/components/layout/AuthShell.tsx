@@ -20,8 +20,15 @@ export default function AuthShell({
   return (
     <div className="awap-auth-shell">
       <header className="awap-auth-toolbar">
-        <Link href="/" className="awap-brand">
-          AWAP
+        <Link href="/" className="awap-brand inline-flex items-center">
+          {/* eslint-disable-next-line @next/next/no-img-element -- CSP blocks next/image inline styles. */}
+          <img
+            src="/awap-logo.png"
+            alt="AWAP"
+            width={32}
+            height={32}
+            className="h-8 w-8 rounded-md"
+          />
         </Link>
         <div className="flex items-center gap-2">
           <LocaleSwitcher />

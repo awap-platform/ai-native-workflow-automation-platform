@@ -42,8 +42,15 @@ export default function Topbar({
         >
           <Menu className="size-5" aria-hidden="true" />
         </IconButton>
-        <Link href="/dashboard" className="awap-brand md:hidden">
-          AWAP
+        <Link href="/dashboard" className="awap-brand inline-flex items-center md:hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element -- CSP blocks next/image inline styles. */}
+          <img
+            src="/awap-logo.png"
+            alt="AWAP"
+            width={32}
+            height={32}
+            className="h-8 w-8 rounded-md"
+          />
         </Link>
         <div className="hidden min-w-0 sm:block">
           <Breadcrumb items={breadcrumbItems} />

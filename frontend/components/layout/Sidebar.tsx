@@ -23,8 +23,15 @@ export default function Sidebar({
 
   return (
     <aside className="awap-sidebar" aria-label={t("shell.sidebarLabel")} data-testid="sidebar">
-      <Link href="/dashboard" className="awap-brand awap-nav-link">
-        AWAP
+      <Link href="/dashboard" className="awap-brand awap-nav-link inline-flex items-center">
+        {/* eslint-disable-next-line @next/next/no-img-element -- CSP blocks next/image inline styles. */}
+        <img
+          src="/awap-logo.png"
+          alt="AWAP"
+          width={32}
+          height={32}
+          className="h-8 w-8 rounded-md"
+        />
       </Link>
       <SidebarNav groups={groups} pathname={pathname} />
       <div className="awap-form">
