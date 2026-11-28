@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0](https://github.com/awap-platform/ai-native-workflow-automation-platform/compare/v1.7.1...v1.8.0) (2026-11-28)
+
+
+### Features
+
+* **frontend:** replace the AWAP wordmark with the brand logo ([#470](https://github.com/awap-platform/ai-native-workflow-automation-platform/issues/470)) ([ec88c29](https://github.com/awap-platform/ai-native-workflow-automation-platform/commit/ec88c294c1c085350e6dc5ea3b67f0a915694ea6))
+
+
+### Bug Fixes
+
+* **ci:** force Maven to re-check artifacts cached as failed ([#465](https://github.com/awap-platform/ai-native-workflow-automation-platform/issues/465)) ([969176c](https://github.com/awap-platform/ai-native-workflow-automation-platform/commit/969176cd90d4295422f23bd14332919d4a7b255a))
+* **infra:** repair local stack startup and add progress reporting ([#469](https://github.com/awap-platform/ai-native-workflow-automation-platform/issues/469)) ([2cecb47](https://github.com/awap-platform/ai-native-workflow-automation-platform/commit/2cecb475531ddd78a61e1cef9ab4f6cda6aa1f90))
+
 ## [1.7.1](https://github.com/awap-platform/ai-native-workflow-automation-platform/compare/v1.7.0...v1.7.1) (2026-11-27)
 
 
