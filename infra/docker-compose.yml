@@ -324,13 +324,16 @@ services:
       start_period: 30s
 
   # Exposes the replication-slot series consumed by infra/prometheus/cdc-alert-rules.yml.
-  # The pg_replication_slot_* series only exist once the Debezium connector created the slot.
+  # The pg_replication_slots_* series only exist once the Debezium connector created the slot.
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:v0.21.1
     environment:
       DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-awap}:${POSTGRES_PASSWORD:-awap}@postgres:5432/${POSTGRES_DB:-awap}?sslmode=disable"
     command:
-      - "--collector.replication_slot"
+      # v0.21.1 uses the plural collector name; the singular form fails at startup with
+      # "unknown long flag '--collector.replication_slot'". The collector is enabled by default,
+      # but passing it explicitly keeps the intent visible and guards against a defaults change.
+      - "--collector.replication_slots"
     ports:
       - "9187:9187"
     depends_on:
@@ -403,6 +406,10 @@ services:
     environment:
       VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN:-awap-dev-root-token}
       VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+      # Dev mode serves plain HTTP. The Vault CLI defaults to https://127.0.0.1:8200, which makes
+      # the healthcheck fail with "server gave HTTP response to HTTPS client" unless VAULT_ADDR
+      # points at the actual listener.
+      VAULT_ADDR: http://127.0.0.1:8200
     cap_add:
       - IPC_LOCK
     ports:
@@ -446,6 +453,11 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-awap}
       DB_USER: ${POSTGRES_USER:-awap}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-awap}
+      # Flyway owns the schema, so it must use the same database owner credentials as the
+      # PostgreSQL container. Without this, copying infra/.env.example (which changes
+      # POSTGRES_PASSWORD) made Flyway fall back to the application defaults and fail to start.
+      FLYWAY_USER: ${POSTGRES_USER:-awap}
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-awap}
       CORS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
       SPRING_DATA_REDIS_HOST: redis
       # Containers must use the INTERNAL listener; the PLAINTEXT listener advertises

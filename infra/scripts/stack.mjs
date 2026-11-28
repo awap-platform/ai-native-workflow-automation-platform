@@ -11,7 +11,7 @@
 // AWAP_PROVISION_TRACE_FILE. The node:test suite drives the exported functions with injected
 // exec/fetch/sleep fakes and asserts every branch, including every error path.
 
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { appendFile } from "node:fs/promises";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -41,6 +41,136 @@ export const SEED = {
   adminFullName: "Local Admin",
 };
 
+export const UP_STAGES = [
+  { key: "preflight", label: "Port preflight", weight: 5 },
+  { key: "compose", label: "Build and start containers", weight: 40 },
+  { key: "health", label: "Wait for services", weight: 25 },
+  { key: "provision", label: "Provision Kafka, MinIO and Debezium", weight: 15 },
+  { key: "seed", label: "Seed tenant and verify login", weight: 15 },
+];
+
+// One-shot services must not participate in `docker compose up --wait`: Compose treats a
+// container that exits, even with code 0, as a failed service. `make up` starts only the
+// long-running services and runs these idempotent provisioners explicitly afterwards.
+export const PROVISIONER_SERVICES = ["kafka-init", "minio-init", "debezium-init"];
+
+/** Renders a fixed-width, percentage-based progress bar. */
+export function renderProgressBar(percent, width = 20) {
+  const clamped = Math.max(0, Math.min(100, Math.round(percent)));
+  const filled = Math.round((clamped / 100) * width);
+  return `[${"#".repeat(filled)}${"-".repeat(width - filled)}] ${String(clamped).padStart(3)}%`;
+}
+
+/**
+ * Stage-based progress reporter for `make up`. Every update is a complete line so the output
+ * stays readable when stdout is not a TTY and never interleaves with streamed Compose output.
+ */
+export function createProgressReporter({ stages = UP_STAGES, logger = console, stream } = {}) {
+  const state = new Map(stages.map((stage) => [stage.key, { ...stage, status: "pending" }]));
+  const totalWeight = stages.reduce((sum, stage) => sum + stage.weight, 0);
+  let currentKey = null;
+
+  function emit(text) {
+    if (stream) {
+      stream.write(`${text}\n`);
+      return;
+    }
+    logger.log(text);
+  }
+
+  function percent() {
+    let completed = 0;
+    for (const stage of state.values()) {
+      if (stage.status === "done") {
+        completed += stage.weight;
+      } else if (stage.status === "active") {
+        completed += stage.weight / 2;
+      }
+    }
+    return totalWeight === 0 ? 100 : (completed / totalWeight) * 100;
+  }
+
+  function describe(stage, detail) {
+    return `${renderProgressBar(percent())} ${stage.label}${detail ? ` - ${detail}` : ""}`;
+  }
+
+  function markDone(stage) {
+    stage.status = "done";
+  }
+
+  return {
+    start(detail = "") {
+      emit(`AWAP local stack${detail ? ` - ${detail}` : ""}`);
+    },
+    startStage(key, detail = "") {
+      const stage = state.get(key);
+      if (!stage) {
+        return;
+      }
+      if (currentKey && currentKey !== key) {
+        const previous = state.get(currentKey);
+        if (previous?.status === "active") {
+          markDone(previous);
+        }
+      }
+      stage.status = "active";
+      currentKey = key;
+      emit(describe(stage, detail));
+    },
+    updateStage(key, detail = "") {
+      const stage = state.get(key);
+      if (stage?.status === "active") {
+        emit(describe(stage, detail));
+      }
+    },
+    completeStage(key, detail = "") {
+      const stage = state.get(key);
+      if (!stage) {
+        return;
+      }
+      markDone(stage);
+      if (currentKey === key) {
+        currentKey = null;
+      }
+      emit(describe(stage, detail));
+    },
+    skipStage(key, reason = "skipped") {
+      const stage = state.get(key);
+      if (!stage) {
+        return;
+      }
+      markDone(stage);
+      if (currentKey === key) {
+        currentKey = null;
+      }
+      emit(`${renderProgressBar(percent())} ${stage.label} - ${reason}`);
+    },
+    finish(detail = "ready") {
+      for (const stage of state.values()) {
+        markDone(stage);
+      }
+      currentKey = null;
+      emit(`${renderProgressBar(100)} ${detail}`);
+    },
+    fail(error) {
+      const stage = currentKey ? state.get(currentKey) : null;
+      const label = stage ? stage.label : "Startup";
+      emit(`${renderProgressBar(percent())} ${label} - FAILED: ${error?.message ?? error}`);
+    },
+  };
+}
+
+/** No-op reporter used by direct function calls and the test suite. */
+export const NOOP_PROGRESS = {
+  start() {},
+  startStage() {},
+  updateStage() {},
+  completeStage() {},
+  skipStage() {},
+  finish() {},
+  fail() {},
+};
+
 export async function trace(file, line) {
   if (!file) {
     return;
@@ -59,10 +189,27 @@ export async function runCommand({
   traceFile,
   traceLine,
   logger = console,
+  stream = false,
+  spawnImpl = spawn,
 }) {
   if (dryRun) {
     await trace(traceFile, traceLine ?? `dry-run:${command}`);
     logger.log(`[dry-run] ${command} ${args.join(" ")}`);
+    return { stdout: "", stderr: "" };
+  }
+  if (stream) {
+    await new Promise((resolve, reject) => {
+      const child = spawnImpl(command, args, { cwd, env, stdio: "inherit" });
+      child.once("error", reject);
+      child.once("exit", (code, signal) => {
+        if (code === 0) {
+          resolve();
+          return;
+        }
+        reject(new Error(`${command} ${args.join(" ")} exited with ${signal ?? `code ${code}`}`));
+      });
+    });
+    await trace(traceFile, traceLine ?? `executed:${command}`);
     return { stdout: "", stderr: "" };
   }
   const result = await exec(command, args, { cwd, env });
@@ -132,8 +279,10 @@ export async function waitForEndpoint({
   intervalMs = 5000,
   logger = console,
   traceFile,
+  onAttempt,
 }) {
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    await onAttempt?.({ name, attempt, attempts, url });
     try {
       const response = await fetchImpl(url, { signal: AbortSignal.timeout(5000) });
       if (response.ok) {
@@ -162,12 +311,16 @@ export async function waitForStack({
   healthEndpoints = HEALTH_ENDPOINTS,
   traceFile,
   logger = console,
+  onEndpoint,
+  onAttempt,
 }) {
   const names = ["backend", "frontend"];
   if (profile === "full") {
     names.push("schema-registry", "prometheus", "grafana", "minio", "ai-layer");
   }
-  for (const name of names) {
+  const total = names.length;
+  for (const [index, name] of names.entries()) {
+    await onEndpoint?.({ name, index: index + 1, total });
     await waitForEndpoint({
       name,
       url: healthEndpoints[name],
@@ -177,6 +330,7 @@ export async function waitForStack({
       intervalMs,
       traceFile,
       logger,
+      onAttempt,
     });
   }
 }
@@ -189,9 +343,12 @@ export async function provisionStack({
   dryRun = false,
   traceFile,
   logger = console,
-  services = ["kafka-init", "minio-init", "debezium-init"],
+  onStep,
+  services = PROVISIONER_SERVICES,
 }) {
-  for (const service of services) {
+  const total = services.length;
+  for (const [index, service] of services.entries()) {
+    await onStep?.({ service, index: index + 1, total });
     await runCommand({
       exec,
       command: "docker",
@@ -215,7 +372,9 @@ export async function seedStack({
   seed = SEED,
   traceFile,
   logger = console,
+  onStep,
 }) {
+  await onStep?.({ step: "register tenant" });
   const register = await fetchImpl(`${baseUrl}/api/v1/tenants`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -232,6 +391,7 @@ export async function seedStack({
     throw new Error(`Seeding tenant failed with status ${register.status}`);
   }
 
+  await onStep?.({ step: "verify login" });
   const login = await fetchImpl(`${baseUrl}/api/v1/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -263,32 +423,112 @@ export async function up({
   sleep,
   traceFile,
   logger = console,
+  progress = NOOP_PROGRESS,
+  streamCompose = false,
 }) {
   await trace(traceFile, "up:start");
-  if (!skipPortCheck && !dryRun) {
-    await assertPortsFree({ exec, project, traceFile, logger });
-  }
-  await runCommand({
-    exec,
-    command: "docker",
-    args: ["compose", "-f", composeFile, "--profile", profile, "up", "-d", "--build", "--wait"],
-    dryRun,
-    traceFile,
-    traceLine: "up:compose",
-    logger,
-  });
-  if (!dryRun) {
-    await waitForStack({ profile, fetchImpl, sleep, traceFile, logger });
-    if (!skipProvision) {
-      await provisionStack({ exec, composeFile, profile, dryRun, traceFile, logger });
+  progress.start(profile === "full" ? "full profile" : `${profile} profile`);
+
+  try {
+    if (!skipPortCheck && !dryRun) {
+      progress.startStage("preflight", "checking host ports");
+      await assertPortsFree({ exec, project, traceFile, logger });
+      progress.completeStage("preflight", "no conflicts");
+    } else {
+      progress.skipStage("preflight", dryRun ? "dry run" : "skipped");
     }
-    if (!skipSeed) {
-      await seedStack({ fetchImpl, traceFile, logger });
+
+    progress.startStage("compose", "docker compose up --build --wait");
+    const composeArgs = [
+      "compose",
+      "-f",
+      composeFile,
+      "--profile",
+      profile,
+      "up",
+      "-d",
+      "--build",
+      "--wait",
+    ];
+    if (profile === "full") {
+      for (const service of PROVISIONER_SERVICES) {
+        composeArgs.push("--scale", `${service}=0`);
+      }
     }
-  } else {
-    await trace(traceFile, "up:dry-run");
+    await runCommand({
+      exec,
+      command: "docker",
+      args: composeArgs,
+      dryRun,
+      traceFile,
+      traceLine: "up:compose",
+      logger,
+      stream: streamCompose && !dryRun,
+    });
+
+    if (dryRun) {
+      progress.skipStage("compose", "planned");
+      progress.skipStage("health", "dry run");
+      progress.skipStage("provision", "dry run");
+      progress.skipStage("seed", "dry run");
+      await trace(traceFile, "up:dry-run");
+    } else {
+      progress.completeStage("compose", "containers started");
+
+      progress.startStage("health", "waiting for documented endpoints");
+      await waitForStack({
+        profile,
+        fetchImpl,
+        sleep,
+        traceFile,
+        logger,
+        onEndpoint: ({ name, index, total }) =>
+          progress.updateStage("health", `${name} (${index}/${total})`),
+        onAttempt: ({ name, attempt, attempts }) => {
+          if (attempt > 1 && attempt % 5 === 0) {
+            progress.updateStage("health", `${name} attempt ${attempt}/${attempts}`);
+          }
+        },
+      });
+      progress.completeStage("health", "all endpoints ready");
+
+      if (!skipProvision) {
+        progress.startStage("provision", "kafka-init, minio-init, debezium-init");
+        await provisionStack({
+          exec,
+          composeFile,
+          profile,
+          dryRun,
+          traceFile,
+          logger,
+          onStep: ({ service, index, total }) =>
+            progress.updateStage("provision", `${service} (${index}/${total})`),
+        });
+        progress.completeStage("provision", "provisioning complete");
+      } else {
+        progress.skipStage("provision", "skipped");
+      }
+
+      if (!skipSeed) {
+        progress.startStage("seed", "register tenant and verify login");
+        await seedStack({
+          fetchImpl,
+          traceFile,
+          logger,
+          onStep: ({ step }) => progress.updateStage("seed", step),
+        });
+        progress.completeStage("seed", "login verified");
+      } else {
+        progress.skipStage("seed", "skipped");
+      }
+    }
+
+    await trace(traceFile, "up:complete");
+    progress.finish("stack ready: http://localhost:3000");
+  } catch (error) {
+    progress.fail(error);
+    throw error;
   }
-  await trace(traceFile, "up:complete");
 }
 
 /** `down`: stop the full profile but keep volumes so the next up is fast. */
@@ -306,7 +546,17 @@ export async function down({ exec, composeFile, profile = "full", dryRun = false
 }
 
 /** `reset`: remove volumes (stale-state recovery) and start a clean seeded stack. */
-export async function reset({ exec, composeFile, profile = "full", dryRun = false, traceFile, logger = console, upFn = up }) {
+export async function reset({
+  exec,
+  composeFile,
+  profile = "full",
+  dryRun = false,
+  traceFile,
+  logger = console,
+  progress = NOOP_PROGRESS,
+  streamCompose = false,
+  upFn = up,
+}) {
   await runCommand({
     exec,
     command: "docker",
@@ -316,7 +566,7 @@ export async function reset({ exec, composeFile, profile = "full", dryRun = fals
     traceLine: "reset:down",
     logger,
   });
-  await upFn({ exec, composeFile, profile, dryRun, traceFile, logger });
+  await upFn({ exec, composeFile, profile, dryRun, traceFile, logger, progress, streamCompose });
   await trace(traceFile, "reset:complete");
 }
 
@@ -374,13 +624,19 @@ export async function main(argv = process.argv.slice(2)) {
         skipPortCheck: options.skipPortCheck,
         skipSeed: options.skipSeed,
         skipProvision: options.skipProvision,
+        progress: createProgressReporter({ logger: console, stream: process.stdout }),
+        streamCompose: !options.dryRun,
       });
       return 0;
     case "down":
       await down(common);
       return 0;
     case "reset":
-      await reset(common);
+      await reset({
+        ...common,
+        progress: createProgressReporter({ logger: console, stream: process.stdout }),
+        streamCompose: !options.dryRun,
+      });
       return 0;
     case "provision":
       await provisionStack(common);

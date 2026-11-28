@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,14 +8,19 @@ import { pathToFileURL } from "node:url";
 
 import {
   DEFAULT_PORTS,
+  PROVISIONER_SERVICES,
   SEED,
+  UP_STAGES,
   assertPortsFree,
+  createProgressReporter,
   down,
   findPortConflicts,
   isEntryPoint,
   parseArgs,
   provisionStack,
+  renderProgressBar,
   reset,
+  runCommand,
   seedStack,
   up,
   waitForEndpoint,
@@ -282,6 +288,9 @@ test("up performs the port check, compose up, health wait, provisioning and seed
   });
   assert.match(commands[0], /^docker ps --format/);
   assert.match(commands[1], /docker compose -f infra\/docker-compose.yml --profile full up -d --build --wait/);
+  for (const service of PROVISIONER_SERVICES) {
+    assert.ok(commands[1].includes(`--scale ${service}=0`), `missing --scale ${service}=0`);
+  }
   const trace = await readFile(file, "utf8");
   for (const expected of ["up:start", "up:port-checked", "up:compose", "provision:complete", "seed:verified", "up:complete"]) {
     assert.ok(trace.includes(expected), `missing ${expected}`);
@@ -377,4 +386,153 @@ test("parseArgs reads every documented option", () => {
   assert.equal(options.profile, "minimal");
   assert.equal(options.composeFile, "custom.yml");
   assert.equal(options.baseUrl, "http://example.test");
+});
+
+test("renderProgressBar clamps and renders a fixed-width bar", () => {
+  assert.deepEqual(UP_STAGES.map((stage) => stage.key), [
+    "preflight",
+    "compose",
+    "health",
+    "provision",
+    "seed",
+  ]);
+  assert.equal(renderProgressBar(0), "[--------------------]   0%");
+  assert.equal(renderProgressBar(50), "[##########----------]  50%");
+  assert.equal(renderProgressBar(100), "[####################] 100%");
+  assert.equal(renderProgressBar(150), "[####################] 100%");
+  assert.equal(renderProgressBar(-10), "[--------------------]   0%");
+});
+
+test("createProgressReporter reports every stage and reaches 100%", () => {
+  const logger = silentLogger();
+  const progress = createProgressReporter({ logger });
+  progress.start("full profile");
+  progress.startStage("preflight", "checking host ports");
+  progress.completeStage("preflight", "no conflicts");
+  progress.startStage("compose", "docker compose up");
+  progress.completeStage("compose", "containers started");
+  progress.startStage("health", "waiting");
+  progress.updateStage("health", "backend attempt 1/60");
+  progress.completeStage("health", "all endpoints ready");
+  progress.startStage("provision", "kafka-init");
+  progress.completeStage("provision", "provisioning complete");
+  progress.startStage("seed", "register tenant");
+  progress.updateStage("seed", "verify login");
+  progress.completeStage("seed", "login verified");
+  progress.finish("stack ready");
+
+  const output = logger.lines.join("\n");
+  for (const expected of [
+    "AWAP local stack - full profile",
+    "Port preflight",
+    "Build and start containers",
+    "Wait for services",
+    "Provision Kafka, MinIO and Debezium",
+    "Seed tenant and verify login",
+    "backend attempt 1/60",
+    "stack ready",
+  ]) {
+    assert.ok(output.includes(expected), `missing ${expected}`);
+  }
+  assert.match(logger.lines.at(-1), /\[####################\] 100%/);
+});
+
+function recordingProgress() {
+  const events = [];
+  return {
+    events,
+    start: (detail) => events.push(`start:${detail}`),
+    startStage: (key) => events.push(`startStage:${key}`),
+    updateStage: (key, detail) => events.push(`updateStage:${key}:${detail}`),
+    completeStage: (key) => events.push(`completeStage:${key}`),
+    skipStage: (key) => events.push(`skipStage:${key}`),
+    finish: (detail) => events.push(`finish:${detail}`),
+    fail: (error) => events.push(`fail:${error.message}`),
+  };
+}
+
+test("up emits progress stages in order", async () => {
+  const progress = recordingProgress();
+  const file = await traceFile();
+  await up({
+    exec: async () => ({ stdout: "", stderr: "" }),
+    composeFile: "infra/docker-compose.yml",
+    fetchImpl: async (url) =>
+      url.endsWith("/api/v1/tenants") ? response({ status: 201 }) : response({ ok: true }),
+    sleep: async () => {},
+    traceFile: file,
+    logger: silentLogger(),
+    progress,
+  });
+
+  const stages = progress.events.filter(
+    (event) =>
+      event.startsWith("startStage:") ||
+      event.startsWith("completeStage:") ||
+      event.startsWith("finish:"),
+  );
+  assert.deepEqual(stages, [
+    "startStage:preflight",
+    "completeStage:preflight",
+    "startStage:compose",
+    "completeStage:compose",
+    "startStage:health",
+    "completeStage:health",
+    "startStage:provision",
+    "completeStage:provision",
+    "startStage:seed",
+    "completeStage:seed",
+    "finish:stack ready: http://localhost:3000",
+  ]);
+  assert.ok(progress.events.includes("start:full profile"));
+});
+
+test("up reports the failing stage through the progress reporter", async () => {
+  const progress = recordingProgress();
+  await assert.rejects(
+    () =>
+      up({
+        exec: async () => {
+          throw new Error("compose exploded");
+        },
+        composeFile: "infra/docker-compose.yml",
+        skipPortCheck: true,
+        traceFile: null,
+        logger: silentLogger(),
+        progress,
+      }),
+    /compose exploded/,
+  );
+  assert.ok(progress.events.includes("fail:compose exploded"));
+});
+
+test("runCommand streams through spawn and rejects a non-zero exit", async () => {
+  const children = [];
+  const spawnImpl = (command, args, options) => {
+    const child = new EventEmitter();
+    children.push({ command, args, options, child });
+    return child;
+  };
+
+  const success = runCommand({
+    stream: true,
+    spawnImpl,
+    command: "docker",
+    args: ["compose", "up"],
+    logger: silentLogger(),
+  });
+  children[0].child.emit("exit", 0, null);
+  assert.deepEqual(await success, { stdout: "", stderr: "" });
+  assert.equal(children[0].options.stdio, "inherit");
+
+  const failure = runCommand({
+    stream: true,
+    spawnImpl,
+    command: "docker",
+    args: ["compose", "up"],
+    logger: silentLogger(),
+  });
+  const rejected = assert.rejects(failure, /exited with code 1/);
+  children[1].child.emit("exit", 1, null);
+  await rejected;
 });
