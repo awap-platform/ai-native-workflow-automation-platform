@@ -18,6 +18,8 @@ FROM node:24-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app/.next ./.next
+# `next start` serves public assets from ./public at runtime. The AWAP brand logo lives here.
+COPY --from=builder /app/public ./public
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 # The runtime reads Cache Components / per-request rendering settings from the
