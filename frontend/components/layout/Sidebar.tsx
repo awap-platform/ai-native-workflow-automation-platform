@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { NavGroup } from "../../lib/navigation";
@@ -25,13 +24,13 @@ export default function Sidebar({
   return (
     <aside className="awap-sidebar" aria-label={t("shell.sidebarLabel")} data-testid="sidebar">
       <Link href="/dashboard" className="awap-brand awap-nav-link inline-flex items-center">
-        <Image
+        {/* eslint-disable-next-line @next/next/no-img-element -- CSP blocks next/image inline styles. */}
+        <img
           src="/awap-logo.png"
           alt="AWAP"
           width={32}
           height={32}
           className="h-8 w-8 rounded-md"
-          priority
         />
       </Link>
       <SidebarNav groups={groups} pathname={pathname} />

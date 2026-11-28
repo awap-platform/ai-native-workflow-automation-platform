@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import LocaleSwitcher from "./LocaleSwitcher";
@@ -22,13 +21,13 @@ export default function AuthShell({
     <div className="awap-auth-shell">
       <header className="awap-auth-toolbar">
         <Link href="/" className="awap-brand inline-flex items-center">
-          <Image
+          {/* eslint-disable-next-line @next/next/no-img-element -- CSP blocks next/image inline styles. */}
+          <img
             src="/awap-logo.png"
             alt="AWAP"
             width={32}
             height={32}
             className="h-8 w-8 rounded-md"
-            priority
           />
         </Link>
         <div className="flex items-center gap-2">

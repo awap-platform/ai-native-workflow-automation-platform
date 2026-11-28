@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bell, Bot, Menu, Search } from "lucide-react";
@@ -44,7 +43,8 @@ export default function Topbar({
           <Menu className="size-5" aria-hidden="true" />
         </IconButton>
         <Link href="/dashboard" className="awap-brand inline-flex items-center md:hidden">
-          <Image
+          {/* eslint-disable-next-line @next/next/no-img-element -- CSP blocks next/image inline styles. */}
+          <img
             src="/awap-logo.png"
             alt="AWAP"
             width={32}
