@@ -28,7 +28,9 @@ test("Compose mounts both rule files so a local Prometheus evaluates them", asyn
   assert.match(compose, /alert-rules\.yml:\/etc\/prometheus\/alert-rules\.yml:ro/);
   assert.match(compose, /cdc-alert-rules\.yml:\/etc\/prometheus\/cdc-alert-rules\.yml:ro/);
   assert.match(compose, /postgres-exporter:/);
-  assert.match(compose, /collector\.replication_slot/);
+  // postgres_exporter v0.21.1 rejects the singular form at startup.
+  assert.match(compose, /collector\.replication_slots/);
+  assert.doesNotMatch(compose, /--collector\.replication_slot["\s]/);
   // Grafana must receive both the datasource and the dashboard provider/JSON.
   assert.match(compose, /\.\/grafana\/provisioning\/datasources:\/etc\/grafana\/provisioning\/datasources:ro/);
   assert.match(compose, /\.\/grafana\/provisioning\/dashboards:\/etc\/grafana\/provisioning\/dashboards:ro/);

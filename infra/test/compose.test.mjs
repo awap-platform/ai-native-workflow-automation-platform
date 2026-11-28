@@ -99,6 +99,13 @@ test("the full profile turns on Kafka, MinIO, ClamAV, the AI layer and OpenSearc
   assert.equal(env.HEALTH_SHOW_DETAILS, "${HEALTH_SHOW_DETAILS:-never}");
 });
 
+test("Flyway uses the Compose-owned PostgreSQL credentials", async () => {
+  const model = await compose();
+  const env = model.services.backend.environment;
+  assert.equal(env.FLYWAY_USER, "${POSTGRES_USER:-awap}");
+  assert.equal(env.FLYWAY_PASSWORD, "${POSTGRES_PASSWORD:-awap}");
+});
+
 test("the bucket and topic provisioners are idempotent", async () => {
   const model = await compose();
   const minioCommand = model.services["minio-init"].command.join("\n");
@@ -120,4 +127,10 @@ test("no real secret is committed: .env.example only documents local placeholder
   assert.match(envExample, /change-me/);
   assert.ok(!/ghp_[A-Za-z0-9]{20,}/.test(envExample));
   assert.ok(!/AKIA[0-9A-Z]{16}/.test(envExample));
+});
+
+test("the Vault healthcheck uses the dev-mode HTTP listener", async () => {
+  const model = await compose();
+  assert.equal(model.services.vault.environment.VAULT_ADDR, "http://127.0.0.1:8200");
+  assert.match(model.services.vault.healthcheck.test.join(" "), /vault status/);
 });

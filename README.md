@@ -101,6 +101,22 @@ enables Kafka, MinIO, ClamAV, OpenSearch and AI integrations. The command then:
    (`kafka-init`) and the Debezium outbox connector (`debezium-init`);
 4. seeds the local tenant and verifies login.
 
+`make up` streams the Compose build output and prints a stage-based progress bar,
+so the current phase is visible:
+
+```text
+[#-------------------]   5% Port preflight - no conflicts
+[#####---------------]  25% Build and start containers - docker compose up --build --wait
+[###########---------]  57% Wait for services - backend (1/7)
+[################----]  78% Provision Kafka, MinIO and Debezium - kafka-init (1/3)
+[####################] 100% stack ready: http://localhost:3000
+```
+
+The one-shot provisioners (`kafka-init`, `minio-init`, `debezium-init`) are
+excluded from the Compose `--wait` phase and run in the provisioning stage,
+because Compose treats any exited container, including exit code 0, as a failed
+service.
+
 | Target | What it does |
 |---|---|
 | `make up` | Start the full stack, wait, provision and seed. |
@@ -136,6 +152,10 @@ Limitations and resource requirements:
   authentication. Override `MINIO_IMAGE`/`MINIO_CLIENT_IMAGE` if you mirror a
   different MinIO build.
 - Flyway applies database migrations automatically inside the backend container.
+  The backend receives `FLYWAY_USER`/`FLYWAY_PASSWORD` from the same
+  `POSTGRES_USER`/`POSTGRES_PASSWORD` values, so copying `infra/.env.example` is
+  safe. Changing those credentials after the first start still requires
+  `make reset`, because the PostgreSQL volume keeps the original password.
 
 Direct Compose use is still supported:
 
