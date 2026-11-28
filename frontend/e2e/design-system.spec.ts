@@ -35,6 +35,15 @@ async function openDesignSystem(
     .getByRole("heading", { name: locale === "tr" ? "Tasarım sistemi" : "Design system" })
     .waitFor();
   await page.evaluate(() => document.fonts.ready);
+  // The brand mark is an image. Wait only for the visible logo so a screenshot can never
+  // capture the alt text when the first image request is still in flight. Hidden responsive
+  // variants are lazy-loaded and must not block the capture.
+  await page.waitForFunction(() => {
+    const logos = Array.from(document.querySelectorAll<HTMLImageElement>('img[alt="AWAP"]'));
+    return logos.every(
+      (image) => image.getClientRects().length === 0 || (image.complete && image.naturalWidth > 0),
+    );
+  });
   await page.waitForTimeout(200);
 }
 
